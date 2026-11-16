@@ -1,0 +1,8 @@
+name: Flutter Web deploy (manual placeholder)
+on:
+  workflow_dispatch:
+jobs:
+  instructions:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Select and configure a deployment environment first.'
