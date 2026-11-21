@@ -2,14 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../../../projects/domain/models/project_draft.dart';
 import '../../../projects/domain/models/project_requests.dart';
+import '../../domain/models/wizard_flow.dart';
+import '../widgets/wizard_progress_header.dart';
+import '../../../../app/router/route_paths.dart';
 
 class BuilderStep1Page extends StatefulWidget {
   const BuilderStep1Page({
     super.key,
     required this.projectDraft,
+    required this.flow,
   });
 
   final ProjectDraft projectDraft;
+  final WizardFlow flow;
 
   @override
   State<BuilderStep1Page> createState() => _BuilderStep1PageState();
@@ -76,6 +81,28 @@ class _BuilderStep1PageState extends State<BuilderStep1Page> {
     );
   }
 
+  void _nextStep() {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    widget.projectDraft.update(
+      name: _nameController.text,
+      description: _descriptionController.text,
+    );
+
+    widget.flow.completeStep(1);
+
+    Navigator.pushNamed(
+      context,
+      RoutePaths.builderWorkflow,
+      arguments: WizardStepRouteData(
+        flow: widget.flow,
+        step: 2,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -92,6 +119,11 @@ class _BuilderStep1PageState extends State<BuilderStep1Page> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  WizardProgressHeader(
+                    flow: widget.flow,
+                    currentStep: 1,
+                  ),
+                  const SizedBox(height: 24),
                   const Text(
                     'Step 1 - Identity & Audience',
                     style: TextStyle(
@@ -132,6 +164,13 @@ class _BuilderStep1PageState extends State<BuilderStep1Page> {
                     key: const Key('builder-save-step1'),
                     onPressed: _saveStep,
                     child: const Text('Save Step 1 Draft'),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    key: const Key('builder-next-step1'),
+                    onPressed: _nextStep,
+                    icon: const Icon(Icons.arrow_forward),
+                    label: const Text('Next: Features & Screens'),
                   ),
                 ],
               ),

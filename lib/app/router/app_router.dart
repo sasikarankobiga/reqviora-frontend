@@ -6,6 +6,8 @@ import '../../features/projects/presentation/pages/create_project_page.dart';
 import '../../features/projects/presentation/pages/project_overview_page.dart';
 import '../../features/projects/presentation/pages/input_studio_page.dart';
 import '../../features/wizard/presentation/pages/builder_step1_page.dart';
+import '../../features/wizard/domain/models/wizard_flow.dart';
+import '../../features/wizard/presentation/pages/builder_workflow_page.dart';
 
 import 'route_paths.dart';
 
@@ -66,10 +68,26 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) => BuilderStep1Page(
             projectDraft: draft,
+            flow: WizardFlow(draft: draft),
           ),
           settings: settings,
         );
 
+      case RoutePaths.builderWorkflow:
+        final data = settings.arguments;
+
+        if (data is! WizardStepRouteData ||
+            data.step < 2 ||
+            data.step > data.flow.totalSteps) {
+          return _missingDraft(settings);
+        }
+
+        return MaterialPageRoute(
+          builder: (_) => BuilderWorkflowPage(
+            routeData: data,
+          ),
+          settings: settings,
+        );
       default:
         return MaterialPageRoute(
           builder: (_) => const Scaffold(

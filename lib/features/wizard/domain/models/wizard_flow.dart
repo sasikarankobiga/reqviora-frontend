@@ -1,0 +1,59 @@
+import '../../../projects/domain/models/project_draft.dart';
+
+class WizardFlow {
+  WizardFlow({required this.draft});
+
+  final ProjectDraft draft;
+
+  static const stepNames = <String>[
+    'Identity & Audience',
+    'Features & Screens',
+    'Navigation',
+    'Theme & Brand',
+    'Components & Layout',
+    'Interactions & States',
+    'AI UI Design Workspace',
+    'Review & Preview',
+  ];
+
+  final Set<int> completedSteps = <int>{};
+  final Set<int> visitedSteps = <int>{1};
+
+  int get totalSteps => stepNames.length;
+
+  double get completionProgress => completedSteps.length / totalSteps;
+
+  void visitStep(int step) {
+    _validateStep(step);
+    visitedSteps.add(step);
+  }
+
+  void completeStep(int step) {
+    _validateStep(step);
+    completedSteps.add(step);
+    visitedSteps.add(step);
+  }
+
+  bool isComplete(int step) => completedSteps.contains(step);
+
+  static String nameOf(int step) {
+    if (step < 1 || step > stepNames.length) {
+      throw RangeError.range(step, 1, stepNames.length, 'step');
+    }
+    return stepNames[step - 1];
+  }
+
+  void _validateStep(int step) {
+    nameOf(step);
+  }
+}
+
+class WizardStepRouteData {
+  const WizardStepRouteData({
+    required this.flow,
+    required this.step,
+  });
+
+  final WizardFlow flow;
+  final int step;
+}
