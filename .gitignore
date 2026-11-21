@@ -1,12 +1,23 @@
+
 # Flutter / Dart
 .dart_tool/
+.dart_tool_old/
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
 build/
+build_old/
 coverage/
+
+# IDE files
 .idea/
 .vscode/
+*.iml
+
+# Environment variables and secrets
 .env
 .env.*
 !.env.example
+
+# Local configuration
+appsettings.*.local.json
