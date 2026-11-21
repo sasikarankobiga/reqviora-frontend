@@ -21,6 +21,10 @@ class ProjectDraft {
   String name;
   String description;
 
+  // Frontend-only draft fields. Not part of the current API contract.
+  String targetAudience = '';
+  String primaryUserGoal = '';
+
   void update({
     required String name,
     required String description,
@@ -32,6 +36,24 @@ class ProjectDraft {
 
     this.name = validated.name;
     this.description = validated.description;
+  }
+
+  void updateAudience({
+    required String targetAudience,
+    required String primaryUserGoal,
+  }) {
+    final audience = targetAudience.trim();
+    final goal = primaryUserGoal.trim();
+
+    if (audience.length > 200) {
+      throw ArgumentError('Target audience exceeds 200 characters');
+    }
+    if (goal.length > 1000) {
+      throw ArgumentError('Primary user goal exceeds 1000 characters');
+    }
+
+    this.targetAudience = audience;
+    this.primaryUserGoal = goal;
   }
 
   CreateProjectRequest toCreateRequest() {

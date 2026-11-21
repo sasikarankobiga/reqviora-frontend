@@ -25,6 +25,8 @@ class _BuilderStep1PageState extends State<BuilderStep1Page> {
 
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
+  late final TextEditingController _audienceController;
+  late final TextEditingController _goalController;
 
   @override
   void initState() {
@@ -37,12 +39,22 @@ class _BuilderStep1PageState extends State<BuilderStep1Page> {
     _descriptionController = TextEditingController(
       text: widget.projectDraft.description,
     );
+
+    _audienceController = TextEditingController(
+      text: widget.projectDraft.targetAudience,
+    );
+
+    _goalController = TextEditingController(
+      text: widget.projectDraft.primaryUserGoal,
+    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _audienceController.dispose();
+    _goalController.dispose();
     super.dispose();
   }
 
@@ -74,6 +86,11 @@ class _BuilderStep1PageState extends State<BuilderStep1Page> {
       description: _descriptionController.text,
     );
 
+    widget.projectDraft.updateAudience(
+      targetAudience: _audienceController.text,
+      primaryUserGoal: _goalController.text,
+    );
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Step 1 details saved in draft'),
@@ -89,6 +106,11 @@ class _BuilderStep1PageState extends State<BuilderStep1Page> {
     widget.projectDraft.update(
       name: _nameController.text,
       description: _descriptionController.text,
+    );
+
+    widget.projectDraft.updateAudience(
+      targetAudience: _audienceController.text,
+      primaryUserGoal: _goalController.text,
     );
 
     widget.flow.completeStep(1);
@@ -158,6 +180,40 @@ class _BuilderStep1PageState extends State<BuilderStep1Page> {
                       border: OutlineInputBorder(),
                     ),
                     validator: _validateDescription,
+                  ),
+                  const SizedBox(height: 24),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Audience Details',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'These fields are optional and stored '
+                    'in the frontend draft only.',
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    key: const Key('builder-target-audience'),
+                    controller: _audienceController,
+                    maxLength: 200,
+                    decoration: const InputDecoration(
+                      labelText: 'Target Audience (Optional)',
+                      hintText: 'e.g. Students and teachers',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    key: const Key('builder-primary-user-goal'),
+                    controller: _goalController,
+                    maxLength: 1000,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Primary User Goal (Optional)',
+                      hintText: 'What should users achieve?',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                   const SizedBox(height: 24),
                   FilledButton(
