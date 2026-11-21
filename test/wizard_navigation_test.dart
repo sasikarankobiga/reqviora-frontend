@@ -83,7 +83,11 @@ void main() {
 
         expect(
           find.text(
-            step == 2 ? '1 of 8 steps completed' : '2 of 8 steps completed',
+            step == 2
+                ? '1 of 8 steps completed'
+                : step == 3
+                    ? '2 of 8 steps completed'
+                    : '3 of 8 steps completed',
           ),
           findsOneWidget,
         );
@@ -119,6 +123,13 @@ void main() {
           await tester.tap(addScreen);
           await tester.pumpAndSettle();
 
+          await tester.ensureVisible(screenInput);
+          await tester.enterText(screenInput, 'Dashboard');
+
+          await tester.ensureVisible(addScreen);
+          await tester.tap(addScreen);
+          await tester.pumpAndSettle();
+
           final mappingButton = find.byKey(
             const Key('step2-map'),
           );
@@ -126,6 +137,57 @@ void main() {
           await tester.ensureVisible(mappingButton);
           await tester.tap(mappingButton);
           await tester.pumpAndSettle();
+        }
+
+        if (step == 3) {
+          Future<void> selectScreen(
+            String key,
+            String screen,
+          ) async {
+            final dropdown = find.byKey(Key(key));
+
+            await tester.ensureVisible(dropdown);
+            await tester.tap(dropdown);
+            await tester.pumpAndSettle();
+
+            await tester.tap(find.text(screen).last);
+            await tester.pumpAndSettle();
+          }
+
+          await selectScreen(
+            'step3-start-screen',
+            'Login Screen',
+          );
+
+          await selectScreen(
+            'step3-source-screen',
+            'Login Screen',
+          );
+
+          await selectScreen(
+            'step3-destination-screen',
+            'Dashboard',
+          );
+
+          final action = find.byKey(
+            const Key('step3-action-input'),
+          );
+
+          await tester.ensureVisible(action);
+          await tester.enterText(action, 'Login Button');
+
+          final addRoute = find.byKey(
+            const Key('step3-add-route'),
+          );
+
+          await tester.ensureVisible(addRoute);
+          await tester.tap(addRoute);
+          await tester.pumpAndSettle();
+
+          expect(
+            find.byKey(const Key('step3-route-0')),
+            findsOneWidget,
+          );
         }
 
         if (step < 8) {

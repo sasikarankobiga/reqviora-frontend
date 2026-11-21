@@ -1,5 +1,6 @@
-﻿import '../../../projects/domain/models/project_draft.dart';
+import '../../../projects/domain/models/project_draft.dart';
 import 'feature_screen_draft.dart';
+import 'navigation_draft.dart';
 
 class WizardFlow {
   WizardFlow({required this.draft});
@@ -8,6 +9,11 @@ class WizardFlow {
 
   // In-memory Step 2 draft shared across Builder navigation.
   final FeatureScreenDraft featureScreens = FeatureScreenDraft();
+
+  // Shared frontend-only navigation draft for Builder Step 3.
+  late final NavigationDraft navigation = NavigationDraft(
+    featureScreens: featureScreens,
+  );
 
   // In-memory Step 2 draft shared across Builder navigation.
 
