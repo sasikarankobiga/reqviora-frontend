@@ -1,23 +1,26 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:reqviora_frontend/app/app.dart';
 
 void main() {
   testWidgets(
-    'Dashboard to Input Studio navigation works',
+    'Create Project data passes to Overview and Input Studio',
     (WidgetTester tester) async {
-      await tester.pumpWidget(
-        const ReqvioraApp(),
+      await tester.binding.setSurfaceSize(
+        const Size(1200, 900),
       );
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      // Dashboard loaded
+      await tester.pumpWidget(const ReqvioraApp());
+
       expect(
         find.text('YOUR IDEAS, IN MOTION'),
         findsOneWidget,
       );
 
-      // Dashboard -> Create Project
       await tester.tap(
-        find.text('Create Project'),
+        find.byKey(const Key('hub-create-project')),
       );
       await tester.pumpAndSettle();
 
@@ -26,18 +29,35 @@ void main() {
         findsOneWidget,
       );
 
-      // Create Project -> Overview
+      await tester.enterText(
+        find.byKey(const Key('project-name')),
+        'Student Safety App',
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('project-description')),
+        'A web-based safety management system.',
+      );
+
+      await tester.ensureVisible(
+        find.byKey(const Key('continue-project')),
+      );
+
       await tester.tap(
-        find.text('Continue (Navigation Demo)'),
+        find.byKey(const Key('continue-project')),
       );
       await tester.pumpAndSettle();
 
       expect(
-        find.text('Open Input Studio'),
+        find.text('Student Safety App'),
         findsOneWidget,
       );
 
-      // Overview -> Input Studio
+      expect(
+        find.text('A web-based safety management system.'),
+        findsOneWidget,
+      );
+
       await tester.tap(
         find.text('Open Input Studio'),
       );
