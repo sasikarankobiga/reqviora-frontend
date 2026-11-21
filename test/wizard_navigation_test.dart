@@ -87,7 +87,9 @@ void main() {
                 ? '1 of 8 steps completed'
                 : step == 3
                     ? '2 of 8 steps completed'
-                    : '3 of 8 steps completed',
+                    : step == 4
+                        ? '3 of 8 steps completed'
+                        : '4 of 8 steps completed',
           ),
           findsOneWidget,
         );
@@ -191,13 +193,18 @@ void main() {
         }
 
         if (step < 8) {
-          await tester.ensureVisible(
-            find.byKey(const Key('wizard-next')),
+          final nextButton = find.byKey(
+            const Key('wizard-next'),
           );
 
-          await tester.tap(
-            find.byKey(const Key('wizard-next')),
+          await tester.scrollUntilVisible(
+            nextButton,
+            200,
+            scrollable: find.byType(Scrollable).first,
           );
+
+          await tester.pumpAndSettle();
+          await tester.tap(nextButton);
           await tester.pumpAndSettle();
         }
       }

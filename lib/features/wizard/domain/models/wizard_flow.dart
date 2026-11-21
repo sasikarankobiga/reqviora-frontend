@@ -1,11 +1,15 @@
 import '../../../projects/domain/models/project_draft.dart';
 import 'feature_screen_draft.dart';
 import 'navigation_draft.dart';
+import 'theme_brand_draft.dart';
 
 class WizardFlow {
   WizardFlow({required this.draft});
 
   final ProjectDraft draft;
+
+  // Frontend-only Theme & Brand settings for Builder Step 4.
+  final ThemeBrandDraft themeBrand = ThemeBrandDraft();
 
   // In-memory Step 2 draft shared across Builder navigation.
   final FeatureScreenDraft featureScreens = FeatureScreenDraft();

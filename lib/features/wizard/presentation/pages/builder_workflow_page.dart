@@ -5,6 +5,7 @@ import '../../domain/models/wizard_flow.dart';
 import '../widgets/wizard_progress_header.dart';
 import '../widgets/builder_step2_panel.dart';
 import '../widgets/builder_step3_panel.dart';
+import '../widgets/builder_step4_panel.dart';
 
 class BuilderWorkflowPage extends StatefulWidget {
   const BuilderWorkflowPage({
@@ -85,6 +86,11 @@ class _BuilderWorkflowPageState extends State<BuilderWorkflowPage> {
                   flow: flow,
                   onNext: _next,
                 )
+              else if (step == 4)
+                BuilderStep4Panel(
+                  flow: flow,
+                  onNext: _next,
+                )
               else
                 const Text(
                   'This is a workflow navigation placeholder. '
@@ -102,7 +108,7 @@ class _BuilderWorkflowPageState extends State<BuilderWorkflowPage> {
                     icon: const Icon(Icons.arrow_back),
                     label: const Text('Back'),
                   ),
-                  if (!isLast && step != 2 && step != 3)
+                  if (!isLast && step != 2 && step != 3 && step != 4)
                     FilledButton.icon(
                       key: const Key('wizard-next'),
                       onPressed: _next,
