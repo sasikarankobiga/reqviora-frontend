@@ -11,7 +11,7 @@ void main() {
 
       // Dashboard loaded
       expect(
-        find.text('Welcome to REQVIORA'),
+        find.text('YOUR IDEAS, IN MOTION'),
         findsOneWidget,
       );
 
