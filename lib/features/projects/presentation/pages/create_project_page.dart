@@ -1,3 +1,4 @@
+import '../../domain/models/project_draft.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../app/router/route_paths.dart';
@@ -53,7 +54,7 @@ class _CreateProjectPageState extends State<CreateProjectPage> {
     Navigator.pushNamed(
       context,
       RoutePaths.projectOverview,
-      arguments: request,
+      arguments: ProjectDraft.fromRequest(request),
     );
   }
 

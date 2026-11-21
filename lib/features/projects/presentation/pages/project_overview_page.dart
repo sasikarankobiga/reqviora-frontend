@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/router/route_paths.dart';
-import '../../domain/models/project_requests.dart';
+import '../../domain/models/project_draft.dart';
 
 class ProjectOverviewPage extends StatelessWidget {
   const ProjectOverviewPage({
     super.key,
-    required this.projectRequest,
+    required this.projectDraft,
   });
 
-  final CreateProjectRequest projectRequest;
+  final ProjectDraft projectDraft;
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +38,7 @@ class ProjectOverviewPage extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  projectRequest.name,
+                  projectDraft.name,
                   key: const Key('overview-project-name'),
                 ),
                 const SizedBox(height: 20),
@@ -47,9 +47,9 @@ class ProjectOverviewPage extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  projectRequest.description.isEmpty
+                  projectDraft.description.isEmpty
                       ? 'Not provided'
-                      : projectRequest.description,
+                      : projectDraft.description,
                   key: const Key('overview-project-description'),
                 ),
                 const SizedBox(height: 30),
@@ -58,7 +58,7 @@ class ProjectOverviewPage extends StatelessWidget {
                     Navigator.pushNamed(
                       context,
                       RoutePaths.inputStudio,
-                      arguments: projectRequest,
+                      arguments: projectDraft,
                     );
                   },
                   child: const Text('Open Input Studio'),
