@@ -1,9 +1,15 @@
-import '../../../projects/domain/models/project_draft.dart';
+﻿import '../../../projects/domain/models/project_draft.dart';
+import 'feature_screen_draft.dart';
 
 class WizardFlow {
   WizardFlow({required this.draft});
 
   final ProjectDraft draft;
+
+  // In-memory Step 2 draft shared across Builder navigation.
+  final FeatureScreenDraft featureScreens = FeatureScreenDraft();
+
+  // In-memory Step 2 draft shared across Builder navigation.
 
   static const stepNames = <String>[
     'Identity & Audience',

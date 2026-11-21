@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/router/route_paths.dart';
 import '../../domain/models/wizard_flow.dart';
 import '../widgets/wizard_progress_header.dart';
+import '../widgets/builder_step2_panel.dart';
 
 class BuilderWorkflowPage extends StatefulWidget {
   const BuilderWorkflowPage({
@@ -73,11 +74,17 @@ class _BuilderWorkflowPageState extends State<BuilderWorkflowPage> {
                 key: const Key('wizard-project-name'),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'This is a workflow navigation placeholder. '
-                'Step-specific fields, validation and saving '
-                'will be implemented separately.',
-              ),
+              if (step == 2)
+                BuilderStep2Panel(
+                  flow: flow,
+                  onNext: _next,
+                )
+              else
+                const Text(
+                  'This is a workflow navigation placeholder. '
+                  'Step-specific fields, validation and saving '
+                  'will be implemented separately.',
+                ),
               const SizedBox(height: 32),
               Wrap(
                 spacing: 12,
@@ -89,7 +96,7 @@ class _BuilderWorkflowPageState extends State<BuilderWorkflowPage> {
                     icon: const Icon(Icons.arrow_back),
                     label: const Text('Back'),
                   ),
-                  if (!isLast)
+                  if (!isLast && step != 2)
                     FilledButton.icon(
                       key: const Key('wizard-next'),
                       onPressed: _next,

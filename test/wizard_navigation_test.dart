@@ -82,9 +82,51 @@ void main() {
         );
 
         expect(
-          find.text('1 of 8 steps completed'),
+          find.text(
+            step == 2 ? '1 of 8 steps completed' : '2 of 8 steps completed',
+          ),
           findsOneWidget,
         );
+
+        if (step == 2) {
+          final featureInput = find.byKey(
+            const Key('step2-feature-input'),
+          );
+
+          await tester.ensureVisible(featureInput);
+          await tester.enterText(featureInput, 'Authentication');
+
+          final addFeature = find.byKey(
+            const Key('step2-add-feature'),
+          );
+
+          await tester.ensureVisible(addFeature);
+          await tester.tap(addFeature);
+          await tester.pumpAndSettle();
+
+          final screenInput = find.byKey(
+            const Key('step2-screen-input'),
+          );
+
+          await tester.ensureVisible(screenInput);
+          await tester.enterText(screenInput, 'Login Screen');
+
+          final addScreen = find.byKey(
+            const Key('step2-add-screen'),
+          );
+
+          await tester.ensureVisible(addScreen);
+          await tester.tap(addScreen);
+          await tester.pumpAndSettle();
+
+          final mappingButton = find.byKey(
+            const Key('step2-map'),
+          );
+
+          await tester.ensureVisible(mappingButton);
+          await tester.tap(mappingButton);
+          await tester.pumpAndSettle();
+        }
 
         if (step < 8) {
           await tester.ensureVisible(
