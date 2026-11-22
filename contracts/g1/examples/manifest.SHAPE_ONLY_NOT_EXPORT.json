@@ -1,0 +1,163 @@
+{
+  "schemaVersion": "1.0.0",
+  "projectId": "11111111-1111-4111-8111-111111111111",
+  "revisionId": "55555555-5555-4555-8555-555555555555",
+  "revisionStatus": "approved",
+  "packageProfile": "canonical19",
+  "generatorVersion": "fixture-only-0.1",
+  "generatedAt": "2026-11-19T05:00:00Z",
+  "files": [
+    {
+      "path": "README.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "project-overview.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "goals-and-success-criteria.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "audience-and-roles.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "scope-and-constraints.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "feature-catalog.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "business-rules-and-acceptance.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "screen-specifications.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "feature-screen-mapping.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "navigation-and-journeys.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "design-tokens.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "components-and-layout.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "interactions-and-states.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "accessibility-requirements.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "decision-register.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "open-questions.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "validation-report.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "implementation-checklist.md",
+      "mediaType": "text/markdown",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "path": "project.json",
+      "mediaType": "application/json",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "documentSchemaVersion": "1.0.0",
+      "sourceRevisionId": "55555555-5555-4555-8555-555555555555"
+    }
+  ]
+}

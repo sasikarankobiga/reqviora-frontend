@@ -1,0 +1,712 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.reqviora.example/schemas/blueprint-v1.schema.json",
+  "title": "REQVIORA Blueprint 1.0 — safe, typed render data only",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "rendererContractVersion": {
+      "const": "1.0.0"
+    },
+    "blueprintId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "projectId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "draftId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "draftVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "const": "draft"
+    },
+    "generationSource": {
+      "enum": [
+        "template",
+        "ai-assisted",
+        "manual"
+      ]
+    },
+    "designTargets": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "web",
+          "mobile",
+          "desktop"
+        ]
+      },
+      "uniqueItems": true,
+      "minItems": 1
+    },
+    "applicationRoleIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      }
+    },
+    "screens": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "screenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "purpose": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "applicationRoleIds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "rootComponentIds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "screenId",
+          "name",
+          "required",
+          "applicationRoleIds",
+          "rootComponentIds"
+        ]
+      }
+    },
+    "routes": {
+      "type": "array",
+      "maxItems": 5000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "routeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceScreenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetScreenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "triggerActionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "condition": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "always",
+                  "application-role",
+                  "mock-state"
+                ]
+              },
+              "applicationRoleId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "stateKey": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "expectedValue": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "required": [
+          "routeId",
+          "sourceScreenId",
+          "targetScreenId",
+          "triggerActionId",
+          "enabled",
+          "condition"
+        ]
+      }
+    },
+    "actions": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "navigate",
+              "openModal",
+              "closeModal",
+              "setMockState",
+              "submitMockForm",
+              "showMessage",
+              "simulateError",
+              "simulateLoading"
+            ]
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "routeId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "modalComponentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "key": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "value": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "null"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "durationMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5000
+              },
+              "formComponentId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        },
+        "required": [
+          "actionId",
+          "kind",
+          "params"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "navigate"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "required": [
+                    "routeId"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "openModal",
+                    "closeModal"
+                  ]
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "required": [
+                    "modalComponentId"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "showMessage"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "componentInstances": {
+      "type": "array",
+      "maxItems": 20000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "componentInstanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "screenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parentComponentId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": {
+            "enum": [
+              "text",
+              "container",
+              "row",
+              "column",
+              "grid",
+              "section",
+              "button",
+              "input",
+              "card",
+              "dialog",
+              "tabs",
+              "chart",
+              "list",
+              "table",
+              "navbar",
+              "sidebar",
+              "header",
+              "form",
+              "image"
+            ]
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "props": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 20000
+              },
+              "placeholder": {
+                "type": "string",
+                "maxLength": 250
+              },
+              "fieldName": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,79}$"
+              },
+              "fieldType": {
+                "enum": [
+                  "text",
+                  "email",
+                  "number",
+                  "date",
+                  "password",
+                  "search",
+                  "tel"
+                ]
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "variant": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 250
+              },
+              "iconName": {
+                "type": "string",
+                "maxLength": 90
+              },
+              "items": {
+                "type": "array",
+                "maxItems": 200,
+                "items": {
+                  "type": "string",
+                  "maxLength": 1000
+                }
+              },
+              "columns": {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 150
+                }
+              },
+              "seriesKey": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "imageAssetId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "align": {
+                "enum": [
+                  "start",
+                  "center",
+                  "end",
+                  "stretch"
+                ]
+              },
+              "gap": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 96
+              },
+              "colorToken": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "fontToken": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "padding": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 96
+              },
+              "visible": {
+                "type": "boolean"
+              }
+            }
+          },
+          "actionRefs": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "responsive": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "mobileColumns": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 12
+              },
+              "tabletColumns": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 12
+              },
+              "desktopColumns": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 24
+              },
+              "hiddenOn": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "enum": [
+                    "web",
+                    "mobile",
+                    "desktop"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "componentInstanceId",
+          "screenId",
+          "parentComponentId",
+          "type",
+          "order",
+          "props",
+          "actionRefs"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "button"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "props": {
+                  "required": [
+                    "label"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "input"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "props": {
+                  "required": [
+                    "fieldName",
+                    "fieldType"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "designTokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "primaryColor": {
+          "type": "string",
+          "pattern": "^#[a-fA-F0-9]{6}$"
+        },
+        "secondaryColor": {
+          "type": "string",
+          "pattern": "^#[a-fA-F0-9]{6}$"
+        },
+        "fontFamily": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "spacingScale": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 128
+          }
+        },
+        "cornerRadius": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "mode": {
+          "enum": [
+            "light",
+            "dark",
+            "system"
+          ]
+        }
+      },
+      "required": [
+        "primaryColor",
+        "spacingScale",
+        "mode"
+      ]
+    },
+    "interactionStates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "componentInstanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "enum": [
+              "default",
+              "loading",
+              "empty",
+              "error",
+              "success",
+              "disabled",
+              "permission-denied"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "componentInstanceId",
+          "state"
+        ]
+      }
+    },
+    "traceLinks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "requirementId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "featureId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "screenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "criterionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "requirementId",
+          "featureId",
+          "screenId"
+        ]
+      }
+    },
+    "simulationNotice": {
+      "const": "SIMULATED_PREVIEW_NO_LIVE_TRANSACTIONS"
+    },
+    "componentRegistryVersion": {
+      "const": "1.0.0"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "rendererContractVersion",
+    "blueprintId",
+    "projectId",
+    "draftId",
+    "draftVersion",
+    "status",
+    "generationSource",
+    "designTargets",
+    "applicationRoleIds",
+    "screens",
+    "routes",
+    "actions",
+    "componentInstances",
+    "designTokens",
+    "interactionStates",
+    "traceLinks",
+    "simulationNotice",
+    "componentRegistryVersion"
+  ]
+}

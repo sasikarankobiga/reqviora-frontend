@@ -1,0 +1,617 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.reqviora.example/schemas/project-draft-v1.schema.json",
+  "title": "REQVIORA project draft v1 (editable; incomplete steps allowed)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "projectId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "draftId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "draftVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "const": "draft"
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "tagline": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "category": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "problemStatement": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "designTargets": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "web",
+              "mobile",
+              "desktop"
+            ]
+          },
+          "uniqueItems": true,
+          "minItems": 1
+        },
+        "goals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "goalId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "successCriterion": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "reviewStatus": {
+                "enum": [
+                  "proposed",
+                  "confirmed"
+                ]
+              }
+            },
+            "required": [
+              "goalId",
+              "description",
+              "reviewStatus"
+            ]
+          }
+        },
+        "audiences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "audienceId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 3000
+              }
+            },
+            "required": [
+              "audienceId",
+              "name"
+            ]
+          }
+        },
+        "applicationRoles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "applicationRoleId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "responsibilities": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 1000
+                }
+              }
+            },
+            "required": [
+              "applicationRoleId",
+              "name"
+            ]
+          }
+        },
+        "inScope": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "outOfScope": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        }
+      },
+      "required": [
+        "name",
+        "designTargets"
+      ]
+    },
+    "builderSteps": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "stepNo": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          },
+          "stage": {
+            "enum": [
+              "identity-audience",
+              "features-screens",
+              "navigation",
+              "theme-brand",
+              "components-layout",
+              "interactions-states",
+              "ai-ui-design-workspace",
+              "review-export"
+            ]
+          },
+          "status": {
+            "enum": [
+              "not-started",
+              "in-progress",
+              "needs-review",
+              "complete"
+            ]
+          }
+        },
+        "required": [
+          "stepNo",
+          "stage",
+          "status"
+        ]
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "pdf",
+              "docx",
+              "txt",
+              "voice",
+              "text",
+              "manual"
+            ]
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "processing",
+              "ready",
+              "partial",
+              "failed",
+              "removed"
+            ]
+          },
+          "fileName": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "contentHashSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "sourceId",
+          "kind",
+          "status"
+        ]
+      }
+    },
+    "candidateClaims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "candidateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimType": {
+            "enum": [
+              "goal",
+              "audience",
+              "application-role",
+              "requirement",
+              "feature",
+              "screen",
+              "constraint",
+              "question"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "status": {
+            "enum": [
+              "suggested",
+              "confirmed",
+              "rejected",
+              "deferred"
+            ]
+          },
+          "sourceRefs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "sourceId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "segmentId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "page": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "quote": {
+                  "type": "string",
+                  "maxLength": 500
+                }
+              },
+              "required": [
+                "sourceId"
+              ]
+            }
+          },
+          "confirmedBy": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "candidateId",
+          "claimType",
+          "text",
+          "status",
+          "sourceRefs"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "confirmed"
+                }
+              },
+              "required": [
+                "status"
+              ]
+            },
+            "then": {
+              "required": [
+                "confirmedBy"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "requirementId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "status": {
+            "enum": [
+              "proposed",
+              "confirmed",
+              "deferred",
+              "rejected"
+            ]
+          },
+          "sourceRefs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "sourceId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "segmentId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "page": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "quote": {
+                  "type": "string",
+                  "maxLength": 500
+                }
+              },
+              "required": [
+                "sourceId"
+              ]
+            }
+          }
+        },
+        "required": [
+          "requirementId",
+          "title",
+          "status",
+          "sourceRefs"
+        ]
+      }
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "featureId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "priority": {
+            "enum": [
+              "must",
+              "should",
+              "could",
+              "wont"
+            ]
+          },
+          "status": {
+            "enum": [
+              "proposed",
+              "confirmed",
+              "deferred",
+              "rejected"
+            ]
+          },
+          "requirementIds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "acceptanceCriteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "criterionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                }
+              },
+              "required": [
+                "criterionId",
+                "text"
+              ]
+            }
+          }
+        },
+        "required": [
+          "featureId",
+          "title",
+          "priority",
+          "status",
+          "requirementIds"
+        ]
+      }
+    },
+    "screens": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "screenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "purpose": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "selectionStatus": {
+            "enum": [
+              "selected",
+              "suggested",
+              "excluded"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "featureIds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "applicationRoleIds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "screenId",
+          "name",
+          "selectionStatus",
+          "required",
+          "featureIds"
+        ]
+      }
+    },
+    "proposedChanges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "changeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetObjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "status": {
+            "enum": [
+              "proposed",
+              "accepted",
+              "rejected"
+            ]
+          },
+          "proposedPayload": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "changeId",
+          "targetObjectId",
+          "createdBy",
+          "reason",
+          "status",
+          "proposedPayload"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "projectId",
+    "draftId",
+    "draftVersion",
+    "status",
+    "project",
+    "builderSteps",
+    "sources",
+    "candidateClaims",
+    "requirements",
+    "features",
+    "screens"
+  ]
+}
