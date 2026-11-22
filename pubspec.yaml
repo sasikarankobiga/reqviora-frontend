@@ -1,5 +1,5 @@
 name: reqviora_frontend
-description: REQVIORA V1 — responsive Flutter Web clean architecture development starter
+description: REQVIORA V1 â€” responsive Flutter Web clean architecture development starter
 publish_to: none
 version: 0.2.0+1
 environment:
@@ -16,4 +16,5 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 flutter:
+  generate: true
   uses-material-design: true
