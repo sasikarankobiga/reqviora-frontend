@@ -13,6 +13,27 @@ class ComponentDefinition {
 }
 
 class ComponentRegistry {
+  // Component types used by the original V4 Components Studio.
+  static const List<String> v4ComponentTypes = [
+    'text',
+    'button',
+    'input',
+    'card',
+    'dialog',
+    'tabs',
+    'chart',
+    'list',
+    'table',
+    'section',
+    'container',
+    'header',
+    'image',
+  ];
+
+  static bool isSupportedV4Type(String type) {
+    return v4ComponentTypes.contains(type);
+  }
+
   static const Map<ComponentType, ComponentDefinition> definitions = {
     ComponentType.text: ComponentDefinition(
       type: ComponentType.text,
