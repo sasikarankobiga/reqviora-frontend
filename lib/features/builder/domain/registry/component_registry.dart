@@ -1,0 +1,87 @@
+﻿import '../models/builder_component.dart';
+
+class ComponentDefinition {
+  final ComponentType type;
+  final String displayName;
+  final Map<String, dynamic> defaultProperties;
+
+  const ComponentDefinition({
+    required this.type,
+    required this.displayName,
+    required this.defaultProperties,
+  });
+}
+
+class ComponentRegistry {
+  static const Map<ComponentType, ComponentDefinition> definitions = {
+    ComponentType.text: ComponentDefinition(
+      type: ComponentType.text,
+      displayName: 'Text',
+      defaultProperties: {
+        'content': 'Text',
+        'fontSize': 16,
+      },
+    ),
+    ComponentType.button: ComponentDefinition(
+      type: ComponentType.button,
+      displayName: 'Button',
+      defaultProperties: {
+        'label': 'Button',
+        'enabled': true,
+      },
+    ),
+    ComponentType.textField: ComponentDefinition(
+      type: ComponentType.textField,
+      displayName: 'Text Field',
+      defaultProperties: {
+        'placeholder': 'Enter text',
+        'required': false,
+      },
+    ),
+    ComponentType.card: ComponentDefinition(
+      type: ComponentType.card,
+      displayName: 'Card',
+      defaultProperties: {
+        'padding': 16,
+        'elevation': 1,
+      },
+    ),
+  };
+
+  static ComponentDefinition getDefinition(ComponentType type) {
+    return definitions[type]!;
+  }
+
+  static BuilderComponent createComponent({
+    required String id,
+    required ComponentType type,
+  }) {
+    final definition = getDefinition(type);
+
+    return BuilderComponent(
+      id: id,
+      type: type,
+      properties: Map<String, dynamic>.from(
+        definition.defaultProperties,
+      ),
+    );
+  }
+
+  static bool validateProperties(BuilderComponent component) {
+    final defaults = getDefinition(component.type).defaultProperties;
+
+    for (final entry in component.properties.entries) {
+      if (!defaults.containsKey(entry.key)) {
+        return false;
+      }
+
+      final expectedValue = defaults[entry.key];
+
+      if (entry.value.runtimeType != expectedValue.runtimeType) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+}
