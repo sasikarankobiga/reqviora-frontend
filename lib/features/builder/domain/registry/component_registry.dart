@@ -1,4 +1,4 @@
-﻿import '../models/builder_component.dart';
+import '../models/builder_component.dart';
 
 class ComponentDefinition {
   final ComponentType type;
@@ -79,6 +79,29 @@ class ComponentRegistry {
 
       if (entry.value.runtimeType != expectedValue.runtimeType) {
         return false;
+      }
+
+      // Reject blank text values for labels and placeholders.
+      if (entry.key == 'label' || entry.key == 'placeholder') {
+        if (entry.value is! String || (entry.value as String).trim().isEmpty) {
+          return false;
+        }
+      }
+
+      // Text font size must be within a reasonable range.
+      if (entry.key == 'fontSize') {
+        final size = entry.value as int;
+        if (size < 8 || size > 96) {
+          return false;
+        }
+      }
+
+      // Card padding and elevation cannot be negative.
+      if (entry.key == 'padding' || entry.key == 'elevation') {
+        final value = entry.value as int;
+        if (value < 0 || value > 100) {
+          return false;
+        }
       }
     }
 
