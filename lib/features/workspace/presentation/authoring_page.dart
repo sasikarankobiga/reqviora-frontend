@@ -416,6 +416,9 @@ class _ItemDialogState extends State<_ItemDialog> {
   late int componentFontSize;
   late int componentElevation;
   late int componentPadding;
+  late String componentHeaderAlignment;
+  late bool componentListDense;
+  late bool componentTableStriped;
   late String state;
   String? fromId;
   String? toId;
@@ -463,6 +466,31 @@ class _ItemDialogState extends State<_ItemDialog> {
         componentProperties is Map ? componentProperties['padding'] : null;
     componentPadding =
         storedPadding is num ? storedPadding.round().clamp(0, 64).toInt() : 16;
+    final storedImageSource =
+        componentProperties is Map ? componentProperties['src'] : null;
+    final storedImageAlt =
+        componentProperties is Map ? componentProperties['alt'] : null;
+
+    fields['imageSource'] = TextEditingController(
+      text: storedImageSource is String ? storedImageSource : '',
+    );
+    fields['imageAlt'] = TextEditingController(
+      text: storedImageAlt is String ? storedImageAlt : '',
+    );
+
+    final storedAlignment =
+        componentProperties is Map ? componentProperties['alignment'] : null;
+    componentHeaderAlignment =
+        ['left', 'center', 'right'].contains(storedAlignment)
+            ? storedAlignment as String
+            : 'left';
+
+    componentListDense =
+        componentProperties is Map && componentProperties['dense'] == true;
+
+    componentTableStriped = componentProperties is Map &&
+        componentProperties['stripedRows'] == true;
+
     state = (item['state'] ?? 'default').toString();
     fromId = item['fromScreenId'] as String?;
     toId = item['toScreenId'] as String?;
@@ -632,6 +660,41 @@ class _ItemDialogState extends State<_ItemDialog> {
                 ),
               ],
             ),
+          if (componentType == 'image') ...[
+            input('imageSource', 'Image URL'),
+            input('imageAlt', 'Alt text'),
+          ],
+          if (componentType == 'header')
+            DropdownButtonFormField<String>(
+              key: ValueKey('header-alignment-$componentHeaderAlignment'),
+              initialValue: componentHeaderAlignment,
+              decoration: const InputDecoration(
+                labelText: 'Header alignment',
+              ),
+              items: const [
+                DropdownMenuItem(value: 'left', child: Text('Left')),
+                DropdownMenuItem(value: 'center', child: Text('Center')),
+                DropdownMenuItem(value: 'right', child: Text('Right')),
+              ],
+              onChanged: (value) => setState(
+                () => componentHeaderAlignment = value ?? 'left',
+              ),
+            ),
+          if (componentType == 'list')
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Dense layout'),
+              value: componentListDense,
+              onChanged: (value) => setState(() => componentListDense = value),
+            ),
+          if (componentType == 'table')
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Striped rows'),
+              value: componentTableStriped,
+              onChanged: (value) =>
+                  setState(() => componentTableStriped = value),
+            ),
           if (componentType == 'button')
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -752,6 +815,39 @@ class _ItemDialogState extends State<_ItemDialog> {
                                   widget.original!['properties'] as Map)
                               : null),
                           'padding': componentPadding,
+                        },
+                      if (componentType == 'image')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'src': fields['imageSource']!.text.trim(),
+                          'alt': fields['imageAlt']!.text.trim(),
+                        },
+                      if (componentType == 'header')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'alignment': componentHeaderAlignment,
+                        },
+                      if (componentType == 'list')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'dense': componentListDense,
+                        },
+                      if (componentType == 'table')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'stripedRows': componentTableStriped,
                         },
                       if (componentType == 'button')
                         'properties': {

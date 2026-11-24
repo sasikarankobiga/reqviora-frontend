@@ -1554,4 +1554,145 @@ void main() {
       },
     );
   }
+
+  for (final type in ['image', 'header', 'list', 'table']) {
+    testWidgets(
+      '$type preserves advanced inspector properties on edit',
+      (tester) async {
+        final initialProperties = <String, dynamic>{
+          'customToken': 'preserve-me',
+          if (type == 'image') ...{
+            'src': 'https://example.com/old.png',
+            'alt': 'Old image',
+          },
+          if (type == 'header') 'alignment': 'left',
+          if (type == 'list') 'dense': false,
+          if (type == 'table') 'stripedRows': false,
+        };
+
+        final workspace = Workspace(
+          projectId: 'project-1',
+          draftId: 'draft-1',
+          version: 1,
+          projectName: 'Test Project',
+          designTargets: const ['web'],
+          sections: {
+            'screens': [
+              {'id': 'screen-1', 'name': 'Dashboard'},
+            ],
+            'components': [
+              {
+                'id': 'component-advanced-123',
+                'screenId': 'screen-1',
+                'type': type,
+                'label': 'Advanced Component',
+                'text': 'Original Content',
+                'properties': initialProperties,
+              },
+            ],
+          },
+        );
+
+        List<Map<String, dynamic>>? savedItems;
+
+        await openStudio(tester, (section, data) async {
+          expect(section, 'components');
+          savedItems = (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+        }, workspace: workspace);
+
+        await tester.tap(find.byTooltip('Edit'));
+        await tester.pumpAndSettle();
+
+        if (type == 'image') {
+          final sourceField = find.byWidgetPredicate(
+            (widget) =>
+                widget is TextField &&
+                widget.decoration?.labelText == 'Image URL',
+          );
+
+          final altField = find.byWidgetPredicate(
+            (widget) =>
+                widget is TextField &&
+                widget.decoration?.labelText == 'Alt text',
+          );
+
+          expect(sourceField, findsOneWidget);
+          expect(altField, findsOneWidget);
+
+          await tester.enterText(
+            sourceField,
+            'https://example.com/new.png',
+          );
+          await tester.enterText(altField, 'New accessible image');
+        }
+
+        if (type == 'header') {
+          final alignmentField = find.byWidgetPredicate(
+            (widget) =>
+                widget is DropdownButtonFormField<String> &&
+                widget.decoration.labelText == 'Header alignment',
+          );
+
+          expect(alignmentField, findsOneWidget);
+          await tester.ensureVisible(alignmentField);
+          await tester.tap(alignmentField);
+          await tester.pumpAndSettle();
+
+          await tester.tap(find.text('Right').last);
+          await tester.pumpAndSettle();
+        }
+
+        if (type == 'list' || type == 'table') {
+          final title = type == 'list' ? 'Dense layout' : 'Striped rows';
+
+          final toggle = find.widgetWithText(SwitchListTile, title);
+          expect(toggle, findsOneWidget);
+
+          await tester.ensureVisible(toggle);
+          await tester.pumpAndSettle();
+          await tester.tap(toggle);
+          await tester.pumpAndSettle();
+        }
+
+        final saveButton = find.text('Save').last;
+        await tester.ensureVisible(saveButton);
+        await tester.pumpAndSettle();
+        await tester.tap(saveButton);
+        await tester.pumpAndSettle();
+
+        expect(savedItems, isNotNull);
+        expect(savedItems, hasLength(1));
+
+        final saved = savedItems!.single;
+        final properties =
+            Map<String, dynamic>.from(saved['properties'] as Map);
+
+        expect(saved['id'], 'component-advanced-123');
+        expect(saved['screenId'], 'screen-1');
+        expect(saved['type'], type);
+        expect(saved['label'], 'Advanced Component');
+        expect(saved['text'], 'Original Content');
+        expect(properties['customToken'], 'preserve-me');
+
+        if (type == 'image') {
+          expect(properties['src'], 'https://example.com/new.png');
+          expect(properties['alt'], 'New accessible image');
+        }
+
+        if (type == 'header') {
+          expect(properties['alignment'], 'right');
+        }
+
+        if (type == 'list') {
+          expect(properties['dense'], true);
+        }
+
+        if (type == 'table') {
+          expect(properties['stripedRows'], true);
+        }
+      },
+    );
+  }
 }
