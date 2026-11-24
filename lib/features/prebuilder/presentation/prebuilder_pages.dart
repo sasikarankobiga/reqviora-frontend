@@ -7,7 +7,7 @@ import '../../../app/widgets.dart';
 import '../../workspace/application/workspace_providers.dart';
 import '../../workspace/domain/workspace.dart';
 
-/// PB-05 — persisted text/manual source intake; file and voice services are
+/// PB-05 Ã¢â‚¬â€ persisted text/manual source intake; file and voice services are
 /// intentionally labeled unavailable, not falsely presented as functional.
 class InputStudioPage extends ConsumerStatefulWidget {
   const InputStudioPage({super.key, required this.projectId});
@@ -72,7 +72,9 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Uploaded ${picked.name} · ${result['parseStatus']}'),
+            content: Text(
+              'Uploaded ${result['fileName'] ?? picked.name} successfully',
+            ),
           ),
         );
       }
@@ -97,7 +99,7 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${result['newSuggestions']} local-rule suggestions created · user review required',
+              '${result['newSuggestions']} local-rule suggestions created Ã‚Â· user review required',
             ),
           ),
         );
@@ -117,7 +119,7 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const PageIntro(
-          eyebrow: 'PB-05 · Multi-input studio',
+          eyebrow: 'PB-05 Ã‚Â· Multi-input studio',
           title: 'Turn ideas into clear requirements',
           subtitle:
               'Capture evidence, then review every suggested requirement before confirmation.',
@@ -145,13 +147,13 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                     (
                       Icons.file_upload_outlined,
                       'Documents',
-                      'PDF, DOCX, TXT · private upload',
+                      'PDF, DOCX, TXT Ã‚Â· private upload',
                       true,
                     ),
                     (
                       Icons.mic_none_rounded,
                       'Voice',
-                      'Tamil / English STT · pending provider',
+                      'Tamil / English STT Ã‚Â· pending provider',
                       false,
                     ),
                   ])
@@ -337,7 +339,9 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
       ref.invalidate(workspaceProvider(w.projectId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Suggestion $decision · decision recorded')),
+          SnackBar(
+            content: Text('Suggestion $decision Ã‚Â· decision recorded'),
+          ),
         );
       }
     } catch (e) {
@@ -429,7 +433,7 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const PageIntro(
-          eyebrow: 'PB-06 · Human confirmation',
+          eyebrow: 'PB-06 Ã‚Â· Human confirmation',
           title: 'You are in control',
           subtitle:
               'Explicitly accept, reject or defer each proposed requirement.',
@@ -631,7 +635,7 @@ class PendingPage extends StatelessWidget {
             children: [
               Icon(icon, size: 40, color: AppColors.purple),
               const SizedBox(height: 15),
-              const Text('Not implemented · No fake completed actions'),
+              const Text('Not implemented Ã‚Â· No fake completed actions'),
               const SizedBox(height: 15),
               OutlinedButton(
                 onPressed:

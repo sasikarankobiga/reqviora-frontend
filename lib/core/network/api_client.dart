@@ -1,3 +1,4 @@
+import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -96,22 +97,55 @@ class ApiClient {
     String name,
     Uint8List data,
   ) async {
+    if (expectedVersion < 0) {
+      throw ArgumentError.value(
+        expectedVersion,
+        'expectedVersion',
+        'Cannot be negative',
+      );
+    }
+
+    final extension = name.split('.').last.toLowerCase();
+
+    final mediaType = switch (extension) {
+      'pdf' => MediaType('application', 'pdf'),
+      'docx' => MediaType(
+        'application',
+        'vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ),
+      'txt' => MediaType('text', 'plain'),
+      _ =>
+        throw ArgumentError.value(
+          name,
+          'name',
+          'Only PDF, DOCX and TXT files are supported',
+        ),
+    };
+
     final request = http.MultipartRequest(
       'POST',
-      _uri('/api/v1/projects/$projectId/sources/upload'),
+      _uri('/api/projects/$projectId/documents'),
     );
+
     request.headers.addAll({
       'Accept': 'application/json',
       if (authSession.token != null)
         'Authorization': 'Bearer ${authSession.token}',
       if (isLocalDemo && !kReleaseMode) 'X-Reqviora-Local-Demo': 'true',
     });
-    request.fields['expectedVersion'] = '$expectedVersion';
+
     request.files.add(
-      http.MultipartFile.fromBytes('file', data, filename: name),
+      http.MultipartFile.fromBytes(
+        'file',
+        data,
+        filename: name,
+        contentType: mediaType,
+      ),
     );
+
     final response = await _http.send(request);
     final received = await http.Response.fromStream(response);
+
     return Map<String, dynamic>.from(_parse(received) as Map);
   }
 

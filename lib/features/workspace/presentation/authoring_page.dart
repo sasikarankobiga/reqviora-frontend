@@ -823,44 +823,10 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
               ),
               const SizedBox(height: 17),
               FilledButton.icon(
-                onPressed:
-                    generating
-                        ? null
-                        : () async {
-                          setState(() {
-                            generating = true;
-                            error = null;
-                          });
-                          try {
-                            final result = await ref
-                                .read(workspaceRepositoryProvider)
-                                .compile(
-                                  widget.workspace.projectId,
-                                  widget.workspace.version,
-                                );
-                            ref.invalidate(
-                              workspaceProvider(widget.workspace.projectId),
-                            );
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Template Blueprint saved Â· v${result['draftVersion']}',
-                                  ),
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            if (mounted) setState(() => error = '$e');
-                          } finally {
-                            if (mounted) setState(() => generating = false);
-                          }
-                        },
+                onPressed: null,
                 icon: const Icon(Icons.auto_awesome),
                 label: Text(
-                  generating
-                      ? 'Compilingâ€¦'
-                      : 'Compile & Save Template Blueprint',
+                  generating ? 'Compilingâ€¦' : 'Compile Unavailable',
                 ),
               ),
               const SizedBox(height: 8),
@@ -891,121 +857,104 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
 
 class _ValidationEditor extends ConsumerStatefulWidget {
   const _ValidationEditor({required this.workspace});
+
   final Workspace workspace;
+
   @override
   ConsumerState<_ValidationEditor> createState() => _ValidationEditorState();
 }
 
 class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
-  bool exporting = false;
+  bool validating = false;
+  Map<String, dynamic>? result;
   String? error;
+
+  Future<void> runValidation() async {
+    setState(() {
+      validating = true;
+      error = null;
+      result = null;
+    });
+
+    try {
+      final response = await ref
+          .read(workspaceRepositoryProvider)
+          .validate(widget.workspace.projectId);
+
+      if (!mounted) return;
+
+      setState(() => result = response);
+    } catch (e) {
+      if (mounted) {
+        setState(() => error = e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => validating = false);
+      }
+    }
+  }
+
   @override
-  Widget build(BuildContext context) => ref
-      .watch(projectValidationProvider(widget.workspace.projectId))
-      .when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error:
-            (e, _) => InlineError(
-              '$e',
-              onRetry:
-                  () => ref.invalidate(
-                    projectValidationProvider(widget.workspace.projectId),
-                  ),
+  Widget build(BuildContext context) {
+    final findings =
+        (result?['findings'] as List? ?? [])
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionTitle(
+            'Review & Validation',
+            subtitle: 'Validate the saved Blueprint explicitly.',
+          ),
+          const SizedBox(height: 16),
+          Text(
+            result == null
+                ? 'Validation has not been run.'
+                : result!['passed'] == true
+                ? 'Backend validation passed.'
+                : 'Backend validation reported findings.',
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: validating ? null : runValidation,
+            icon: const Icon(Icons.fact_check_outlined),
+            label: Text(
+              validating ? 'Validating...' : 'Run Backend Validation',
             ),
-        data: (result) {
-          final findings =
-              (result['findings'] as List? ?? []).cast<Map<String, dynamic>>();
-          return SurfaceCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SectionTitle(
-                  'Review & Export',
-                  subtitle:
-                      'Live deterministic checks Â· explicit draft-only handoff; approval service not yet enabled.',
-                ),
-                const SizedBox(height: 18),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    SmallLabel(
-                      '${result['blockers']} blockers',
-                      color:
-                          (result['blockers'] as int) > 0
-                              ? const Color(0xFFCA5161)
-                              : AppColors.green,
-                    ),
-                    SmallLabel('${result['advisories']} advisories'),
-                    SmallLabel('Draft v${result['draftVersion']}'),
-                  ],
-                ),
-                const SizedBox(height: 15),
-                if (findings.isEmpty)
-                  const Text(
-                    'No current validation findings for implemented rules.',
-                  )
-                else ...[
-                  for (final finding in findings)
-                    ListTile(
-                      leading: Icon(
-                        finding['severity'] == 'blocker'
-                            ? Icons.error_outline
-                            : Icons.info_outline,
-                        color:
-                            finding['severity'] == 'blocker'
-                                ? const Color(0xFFCA5161)
-                                : AppColors.purple,
-                      ),
-                      title: Text((finding['ruleId'] ?? 'Finding').toString()),
-                      subtitle: Text((finding['message'] ?? '').toString()),
-                    ),
-                ],
-                const SizedBox(height: 14),
-                FilledButton.icon(
-                  onPressed:
-                      exporting
-                          ? null
-                          : () async {
-                            setState(() {
-                              exporting = true;
-                              error = null;
-                            });
-                            try {
-                              final bytes = await ref
-                                  .read(workspaceRepositoryProvider)
-                                  .exportDraft(widget.workspace.projectId);
-                              ref
-                                  .read(downloadPortProvider)
-                                  .saveZip(
-                                    'reqviora-${widget.workspace.projectId}-draft-v${widget.workspace.version}.zip',
-                                    bytes,
-                                  );
-                            } catch (e) {
-                              if (mounted) setState(() => error = '$e');
-                            } finally {
-                              if (mounted) setState(() => exporting = false);
-                            }
-                          },
-                  icon: const Icon(Icons.download_outlined),
-                  label: Text(
-                    exporting
-                        ? 'Preparing ZIPâ€¦'
-                        : 'Download Draft 19 + manifest ZIP',
-                  ),
-                ),
-                const SizedBox(height: 9),
-                const Text(
-                  'DRAFT export only. Not an approved immutable revision or a deployable customer app.',
-                  style: TextStyle(color: AppColors.muted, fontSize: 12),
-                ),
-                if (error != null) ...[
-                  const SizedBox(height: 13),
-                  InlineError(error!),
-                ],
-              ],
+          ),
+          if (validating) ...[
+            const SizedBox(height: 12),
+            const LinearProgressIndicator(),
+          ],
+          for (final finding in findings)
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: Text((finding['code'] ?? 'Finding').toString()),
+              subtitle: Text((finding['message'] ?? '').toString()),
             ),
-          );
-        },
-      );
+          if (error != null) ...[
+            const SizedBox(height: 12),
+            InlineError(error!),
+          ],
+          const SizedBox(height: 20),
+          const Divider(),
+          const SizedBox(height: 12),
+          const Text(
+            'Draft ZIP export is unavailable. '
+            'Official export requires an approved revision.',
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: null,
+            icon: const Icon(Icons.download_outlined),
+            label: const Text('Draft ZIP Export Unavailable'),
+          ),
+        ],
+      ),
+    );
+  }
 }
