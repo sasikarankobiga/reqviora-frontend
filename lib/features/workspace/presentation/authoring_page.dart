@@ -10,6 +10,7 @@ import '../domain/workspace.dart';
 import '../domain/navigation_diagnostics.dart';
 import '../domain/draft_conflict.dart';
 import '../domain/feature_coverage.dart';
+import '../domain/builder_quality_checks.dart';
 import '../domain/theme_accessibility.dart';
 import 'simulated_preview.dart';
 import '../domain/local_preview_blueprint.dart';
@@ -315,6 +316,16 @@ class _ItemEditorState extends State<_ItemEditor> {
               label: const Text('Add'))
         ]),
         const SizedBox(height: 16),
+        if (widget.type == _ItemType.feature) ...[
+          Builder(
+            builder: (context) {
+              final duplicates = BuilderQualityChecks.duplicateNames(items);
+              return duplicates.isEmpty
+                  ? const SizedBox.shrink()
+                  : Text('Duplicate feature names: ${duplicates.join(', ')}');
+            },
+          ),
+        ],
         if (widget.type == _ItemType.screen) ...[
           Builder(
             builder: (context) {
@@ -349,6 +360,10 @@ class _ItemEditorState extends State<_ItemEditor> {
                       Text(
                         'Invalid feature references: ${coverage.invalidFeatureReferences}',
                       ),
+                    if (BuilderQualityChecks.duplicateNames(items).isNotEmpty)
+                      Text(
+                        'Duplicate screen names: ${BuilderQualityChecks.duplicateNames(items).join(', ')}',
+                      ),
                   ],
                 ),
               );
@@ -359,10 +374,13 @@ class _ItemEditorState extends State<_ItemEditor> {
         if (widget.type == _ItemType.route) ...[
           Builder(
             builder: (context) {
+              final screens = widget.workspace.items('screens');
               final diagnostics = NavigationDiagnostics.inspect(
-                widget.workspace.items('screens'),
+                screens,
                 items,
               );
+              final unreachable =
+                  BuilderQualityChecks.unreachableFromEntry(screens, items);
 
               return Container(
                 width: double.infinity,
@@ -384,6 +402,11 @@ class _ItemEditorState extends State<_ItemEditor> {
                       'Disconnected screens: '
                       '${diagnostics.disconnectedScreenNames.isEmpty ? 'None' : diagnostics.disconnectedScreenNames.join(', ')}',
                     ),
+                    if (screens.isNotEmpty)
+                      Text(
+                        'Unreachable from first screen (assumed entry): '
+                        '${unreachable.isEmpty ? 'None' : unreachable.join(', ')}',
+                      ),
                   ],
                 ),
               );
@@ -898,6 +921,24 @@ class _ThemeEditorState extends State<_ThemeEditor> {
                           : const Color(0xFFB42318),
                   fontWeight: FontWeight.w600,
                 ),
+              );
+            },
+          ),
+          Builder(
+            builder: (context) {
+              final color = secondary.text.trim();
+              if (!RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(color)) {
+                return const Text(
+                  'Enter a valid secondary color to check contrast.',
+                );
+              }
+
+              final ratio = contrastRatio(color, '#FFFFFF');
+              final passes = meetsNormalTextContrast(color, '#FFFFFF');
+
+              return Text(
+                'Secondary color on white: ${ratio.toStringAsFixed(2)}:1 — '
+                '${passes ? 'WCAG AA normal-text contrast passed' : 'Low contrast: use a darker secondary color'}',
               );
             },
           ),
