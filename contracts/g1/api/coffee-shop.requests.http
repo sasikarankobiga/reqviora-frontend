@@ -1,0 +1,50 @@
+### Illustrative HTTP requests — placeholders. Never send against production without authorization.
+@base=https://api.example.invalid
+@projectId=11111111-1111-4111-8111-111111111111
+@draftId=22222222-2222-4222-8222-222222222222
+@runId=44444444-4444-4444-8444-444444444444
+@token=REPLACE_WITH_TEST_TOKEN
+
+### Create project (server atomically assigns creator Owner)
+POST {{base}}/api/v1/projects
+Authorization: Bearer {{token}}
+Idempotency-Key: demo-create-project-001
+Content-Type: application/json
+
+{"name":"Coffee Shop","description":"Simulated cafe ordering design","category":"Food & Beverage","designTargets":["web","mobile"]}
+
+### Retrieve current draft (copy response ETag)
+GET {{base}}/api/v1/projects/{{projectId}}/draft
+Authorization: Bearer {{token}}
+
+### Save Builder Step 01 using opaque ETag returned above
+PUT {{base}}/api/v1/projects/{{projectId}}/builder/steps/1
+Authorization: Bearer {{token}}
+If-Match: "REPLACE_WITH_RETURNED_ETAG"
+Content-Type: application/json
+
+{"stepNo":1,"status":"in-progress","payload":{"prefillSource":"project","projectName":"Coffee Shop"}}
+
+### Owner confirms an AI candidate; Editor cannot confirm authoritatively
+POST {{base}}/api/v1/projects/{{projectId}}/candidate-claims/30303030-3030-4030-8030-303030303030/decision
+Authorization: Bearer {{token}}
+If-Match: "REPLACE_WITH_RETURNED_ETAG"
+Content-Type: application/json
+
+{"decision":"confirm","expectedDraftVersion":3}
+
+### Run exact draft validation
+POST {{base}}/api/v1/projects/{{projectId}}/validation-runs
+Authorization: Bearer {{token}}
+Idempotency-Key: demo-validation-001
+Content-Type: application/json
+
+{"draftId":"{{draftId}}","expectedDraftVersion":3}
+
+### Approve (requires DIFFERENT authorized Approver for materially edited draft, no blockers)
+POST {{base}}/api/v1/projects/{{projectId}}/approvals
+Authorization: Bearer {{token}}
+Idempotency-Key: demo-approve-001
+Content-Type: application/json
+
+{"draftId":"{{draftId}}","expectedDraftVersion":3,"validationRunId":"{{runId}}","expectedDraftSha256":"REPLACE_WITH_64_HEX_HASH"}

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.reqviora.example/schemas/problem-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "type": {
+      "const": "about:blank"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "status": {
+      "type": "integer",
+      "minimum": 400,
+      "maximum": 599
+    },
+    "code": {
+      "enum": [
+        "UNAUTHORIZED",
+        "FORBIDDEN",
+        "NOT_FOUND",
+        "VALIDATION_FAILED",
+        "STALE_DRAFT_VERSION",
+        "INVALID_ROUTE_TARGET",
+        "UNSUPPORTED_COMPONENT",
+        "REVIEW_BLOCKERS",
+        "AI_OUTPUT_INVALID",
+        "AI_QUOTA_EXCEEDED",
+        "EXPORT_REVISION_MISMATCH",
+        "MCP_REVISION_UNAUTHORIZED",
+        "CONFLICT",
+        "RATE_LIMITED"
+      ]
+    },
+    "detail": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "correlationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "affectedObjectIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  },
+  "required": [
+    "type",
+    "title",
+    "status",
+    "code",
+    "correlationId"
+  ]
+}
