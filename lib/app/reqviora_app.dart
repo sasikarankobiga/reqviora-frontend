@@ -16,9 +16,11 @@ final appRouter = GoRouter(
   refreshListenable: authSession,
   redirect: (_, state) {
     if (isLocalDemo) return null;
-    final login = state.matchedLocation == '/login';
-    if (!authSession.authenticated && !login) return '/login';
-    if (authSession.authenticated && login) return '/projects';
+    final publicAuth =
+        state.matchedLocation == '/login' ||
+        state.matchedLocation == '/register';
+    if (!authSession.authenticated && !publicAuth) return '/login';
+    if (authSession.authenticated && publicAuth) return '/projects';
     return null;
   },
   routes: [
@@ -57,7 +59,18 @@ final appRouter = GoRouter(
           (_, state) =>
               ProjectPreviewPage(projectId: state.pathParameters['id']!),
     ),
-    GoRoute(path: '/login', builder: (_, _) => const AuthPage()),
+    GoRoute(
+      path: '/login',
+      builder:
+          (_, state) => AuthPage(
+            showRegistrationSuccess:
+                state.uri.queryParameters['registered'] == '1',
+          ),
+    ),
+    GoRoute(
+      path: '/register',
+      builder: (_, _) => const AuthPage(register: true),
+    ),
   ],
 );
 

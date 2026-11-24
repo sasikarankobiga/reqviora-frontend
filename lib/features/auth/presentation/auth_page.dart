@@ -9,7 +9,14 @@ import '../domain/auth_validation.dart';
 import '../domain/auth_error_message.dart';
 
 class AuthPage extends ConsumerStatefulWidget {
-  const AuthPage({super.key});
+  const AuthPage({
+    super.key,
+    this.register = false,
+    this.showRegistrationSuccess = false,
+  });
+
+  final bool register;
+  final bool showRegistrationSuccess;
 
   @override
   ConsumerState<AuthPage> createState() => _AuthPageState();
@@ -23,13 +30,26 @@ class _AuthPageState extends ConsumerState<AuthPage> {
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
 
-  bool isRegister = false;
+  late bool isRegister;
   bool isLoading = false;
   bool showPassword = false;
   bool showConfirmPassword = false;
 
   String? errorMessage;
   String? successMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    isRegister = widget.register;
+
+    if (widget.showRegistrationSuccess) {
+      successMessage =
+          'Registration request completed. '
+          'Your account may require email verification '
+          'before you can sign in.';
+    }
+  }
 
   @override
   void dispose() {
@@ -42,21 +62,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
 
   void switchMode() {
     if (isLoading) return;
-
-    setState(() {
-      isRegister = !isRegister;
-      errorMessage = null;
-      successMessage = null;
-
-      displayNameController.clear();
-      passwordController.clear();
-      confirmPasswordController.clear();
-
-      showPassword = false;
-      showConfirmPassword = false;
-    });
-
-    formKey.currentState?.reset();
+    context.go(isRegister ? '/login' : '/register');
   }
 
   Future<void> submitForm() async {
@@ -84,20 +90,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
 
         if (!mounted) return;
 
-        setState(() {
-          isRegister = false;
-
-          displayNameController.clear();
-          passwordController.clear();
-          confirmPasswordController.clear();
-
-          successMessage =
-              'Registration request completed. '
-              'Your account may require email verification '
-              'before you can sign in. '
-              'Please follow the instructions from your '
-              'account service.';
-        });
+        context.go('/login?registered=1');
       } else {
         await repository.signIn(
           emailController.text.trim(),
