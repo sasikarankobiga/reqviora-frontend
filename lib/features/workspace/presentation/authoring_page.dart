@@ -11,6 +11,7 @@ import '../../../app/widgets.dart';
 import '../application/workspace_providers.dart';
 import '../domain/workspace.dart';
 import 'simulated_preview.dart';
+import 'v4_blueprint_selection_panel.dart';
 
 /// Service-backed authoring for Builder steps 02-08. All writes are owner-scoped
 /// and carry a draft version. No fake AI/approval states are produced here.
@@ -1489,6 +1490,7 @@ class _BlueprintEditor extends ConsumerStatefulWidget {
 class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   bool generating = false;
   String? error;
+  String? selectedBlueprintComponentId;
   @override
   Widget build(BuildContext context) {
     final blueprint = widget.workspace.fields('blueprint');
@@ -1538,9 +1540,35 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
       ])),
       const SizedBox(height: 15),
       if (blueprint['screens'] is List)
-        SafePreview(
-          blueprint: blueprint,
-          interactionRules: widget.workspace.items('interactions'),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SurfaceCard(
+              child: V4BlueprintSelectionPanel(
+                blueprint: blueprint,
+                selectedComponentId: selectedBlueprintComponentId,
+                onSelected: (id) {
+                  setState(() {
+                    selectedBlueprintComponentId = id;
+                  });
+                },
+              ),
+            ),
+            if (selectedBlueprintComponentId != null) ...[
+              const SizedBox(height: 12),
+              SurfaceCard(
+                child: Text(
+                  'Selected component: $selectedBlueprintComponentId',
+                  key: const ValueKey('step07-selected-component'),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            SafePreview(
+              blueprint: blueprint,
+              interactionRules: widget.workspace.items('interactions'),
+            ),
+          ],
         )
       else
         const SurfaceCard(
