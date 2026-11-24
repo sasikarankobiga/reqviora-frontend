@@ -365,4 +365,30 @@ void main() {
     expect(find.text('Cancelled Change'), findsNothing);
     expect(saveCalls, 0);
   });
+
+  testWidgets('does not save when adding a component is cancelled',
+      (tester) async {
+    var saveCalls = 0;
+
+    await openStudio(tester, (section, data) async {
+      saveCalls++;
+    });
+
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Add component'), findsOneWidget);
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Temporary Component',
+    );
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Add component'), findsNothing);
+    expect(find.text('Temporary Component'), findsNothing);
+    expect(saveCalls, 0);
+  });
 }
