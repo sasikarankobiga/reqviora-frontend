@@ -53,9 +53,10 @@ class _ContentState extends ConsumerState<_Content> {
           widget.workspace.projectId, section, widget.workspace.version, data);
       ref.invalidate(workspaceProvider(widget.workspace.projectId));
       ref.invalidate(projectValidationProvider(widget.workspace.projectId));
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('$section saved Ã‚Â· next version created')));
+      }
     } catch (e) {
       if (mounted) setState(() => message = '$e');
     } finally {
@@ -239,13 +240,12 @@ class _ItemEditorState extends State<_ItemEditor> {
         return;
       }
     }
-    if (existing == null) {
-      items.add(updated);
-    } else {
-      final index = items.indexWhere((e) => e['id'] == existing['id']);
-      if (index >= 0) items[index] = updated;
-    }
-    await widget.onSave(widget.section, items);
+    final nextItems = <Map<String, dynamic>>[
+      for (final item in items)
+        if (existing != null && item['id'] == existing['id']) updated else item,
+      if (existing == null) updated,
+    ];
+    await widget.onSave(widget.section, nextItems);
   }
 
   Future<void> remove(Map<String, dynamic> item) async {
@@ -264,8 +264,11 @@ class _ItemEditorState extends State<_ItemEditor> {
                       child: const Text('Remove'))
                 ]));
     if (yes != true) return;
-    items.removeWhere((e) => e['id'] == item['id']);
-    await widget.onSave(widget.section, items);
+    final nextItems = <Map<String, dynamic>>[
+      for (final existing in items)
+        if (existing['id'] != item['id']) existing,
+    ];
+    await widget.onSave(widget.section, nextItems);
   }
 
   @override
@@ -715,10 +718,11 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                               widget.workspace.version);
                       ref.invalidate(
                           workspaceProvider(widget.workspace.projectId));
-                      if (mounted)
+                      if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                             content: Text(
                                 'Template Blueprint saved Ã‚Â· v${result['draftVersion']}')));
+                      }
                     } catch (e) {
                       if (mounted) setState(() => error = '$e');
                     } finally {
