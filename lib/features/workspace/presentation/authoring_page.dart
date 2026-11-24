@@ -8,6 +8,7 @@ import '../../../app/widgets.dart';
 import '../application/workspace_providers.dart';
 import '../domain/workspace.dart';
 import '../domain/navigation_diagnostics.dart';
+import '../domain/draft_conflict.dart';
 import '../domain/feature_coverage.dart';
 import '../domain/theme_accessibility.dart';
 import 'simulated_preview.dart';
@@ -46,11 +47,13 @@ class _Content extends ConsumerStatefulWidget {
 
 class _ContentState extends ConsumerState<_Content> {
   bool busy = false;
+  bool conflict = false;
   String? message;
   Future<void> save(String section, dynamic data) async {
     setState(() {
       busy = true;
       message = null;
+      conflict = false;
     });
     try {
       await ref.read(workspaceRepositoryProvider).save(
@@ -62,7 +65,12 @@ class _ContentState extends ConsumerState<_Content> {
             content: Text('$section saved · next version created')));
       }
     } catch (e) {
-      if (mounted) setState(() => message = '$e');
+      if (mounted) {
+        setState(() {
+          conflict = isDraftConflict(e);
+          message = draftConflictMessage(e);
+        });
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -127,7 +135,23 @@ class _ContentState extends ConsumerState<_Content> {
         _ValidationEditor(workspace: w),
       if (message != null) ...[
         const SizedBox(height: 15),
-        InlineError(message!)
+        Semantics(
+          liveRegion: true,
+          child: InlineError(
+            message!,
+            onRetry: conflict
+                ? () {
+                    setState(() {
+                      conflict = false;
+                      message = null;
+                    });
+                    ref.invalidate(
+                      workspaceProvider(widget.workspace.projectId),
+                    );
+                  }
+                : null,
+          ),
+        )
       ],
       if (busy) const LinearProgressIndicator(),
       const SizedBox(height: 24),

@@ -7,6 +7,7 @@ import '../../../app/widgets.dart';
 import '../../workspace/application/workspace_providers.dart';
 import '../../workspace/domain/workspace.dart';
 import '../domain/review_summary.dart';
+import '../../workspace/domain/draft_conflict.dart';
 
 /// PB-05 Ã¢â‚¬â€ persisted text/manual source intake; file and voice services are
 /// intentionally labeled unavailable, not falsely presented as functional.
@@ -22,6 +23,16 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
   final input = TextEditingController();
   bool busy = false;
   String? error;
+  bool conflict = false;
+
+  void reportFailure(Object failure) {
+    if (!mounted) return;
+    setState(() {
+      conflict = isDraftConflict(failure);
+      error = draftConflictMessage(failure);
+    });
+  }
+
   @override
   void dispose() {
     label.dispose();
@@ -37,6 +48,7 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
     setState(() {
       busy = true;
       error = null;
+      conflict = false;
     });
     try {
       await ref
@@ -52,7 +64,7 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
         );
       }
     } catch (e) {
-      if (mounted) setState(() => error = '$e');
+      reportFailure(e);
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -62,6 +74,7 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
     setState(() {
       busy = true;
       error = null;
+      conflict = false;
     });
     try {
       final picked = await ref.read(sourcePickerProvider).pick();
@@ -80,7 +93,7 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
         );
       }
     } catch (e) {
-      if (mounted) setState(() => error = '$e');
+      reportFailure(e);
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -90,6 +103,7 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
     setState(() {
       busy = true;
       error = null;
+      conflict = false;
     });
     try {
       final result = await ref
@@ -106,7 +120,7 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
         );
       }
     } catch (e) {
-      if (mounted) setState(() => error = '$e');
+      reportFailure(e);
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -209,17 +223,21 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                             ),
                             const SizedBox(height: 17),
                             TextField(
+                              key: const ValueKey('source-title'),
                               controller: label,
+                              textInputAction: TextInputAction.next,
                               decoration: const InputDecoration(
                                 labelText: 'Source title',
                               ),
                             ),
                             const SizedBox(height: 14),
                             TextField(
+                              key: const ValueKey('source-content'),
                               controller: input,
                               minLines: 5,
                               maxLines: 9,
                               decoration: const InputDecoration(
+                                labelText: 'Requirement source content',
                                 hintText:
                                     'Example: Our coffee shop needs menu browsing, mock ordering and table booking.',
                               ),
@@ -266,7 +284,26 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                             ),
                             if (error != null) ...[
                               const SizedBox(height: 12),
-                              InlineError(error!),
+                              Semantics(
+                                liveRegion: true,
+                                child: InlineError(
+                                  error!,
+                                  onRetry:
+                                      conflict
+                                          ? () {
+                                            setState(() {
+                                              conflict = false;
+                                              error = null;
+                                            });
+                                            ref.invalidate(
+                                              workspaceProvider(
+                                                widget.projectId,
+                                              ),
+                                            );
+                                          }
+                                          : null,
+                                ),
+                              ),
                             ],
                             if (busy) const LinearProgressIndicator(),
                           ],
@@ -327,7 +364,17 @@ class InputReviewPage extends ConsumerStatefulWidget {
 
 class _InputReviewPageState extends ConsumerState<InputReviewPage> {
   String? error;
+  bool conflict = false;
   String? pendingId;
+
+  void reportFailure(Object failure) {
+    if (!mounted) return;
+    setState(() {
+      conflict = isDraftConflict(failure);
+      error = draftConflictMessage(failure);
+    });
+  }
+
   Future<void> decide(Workspace w, String id, String decision) async {
     setState(() {
       pendingId = id;
@@ -346,7 +393,7 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
         );
       }
     } catch (e) {
-      if (mounted) setState(() => error = '$e');
+      reportFailure(e);
     } finally {
       if (mounted) setState(() => pendingId = null);
     }
@@ -417,7 +464,7 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
             );
         ref.invalidate(workspaceProvider(w.projectId));
       } catch (e) {
-        if (mounted) setState(() => error = '$e');
+        reportFailure(e);
       } finally {
         if (mounted) setState(() => pendingId = null);
       }
@@ -625,7 +672,25 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
                             ),
                           ),
                         ),
-                    if (error != null) InlineError(error!),
+                    if (error != null)
+                      Semantics(
+                        liveRegion: true,
+                        child: InlineError(
+                          error!,
+                          onRetry:
+                              conflict
+                                  ? () {
+                                    setState(() {
+                                      conflict = false;
+                                      error = null;
+                                    });
+                                    ref.invalidate(
+                                      workspaceProvider(widget.projectId),
+                                    );
+                                  }
+                                  : null,
+                        ),
+                      ),
                     const SizedBox(height: 13),
                     FilledButton.icon(
                       onPressed:
