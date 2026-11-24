@@ -1132,4 +1132,70 @@ void main() {
       expect(properties['variant'], 'outlined');
     },
   );
+
+  testWidgets('new input defaults to optional', (tester) async {
+    List<Map<String, dynamic>>? savedItems;
+
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      savedItems = (data as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    });
+
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byType(DropdownButtonFormField<String>).first,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Dashboard').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byType(DropdownButtonFormField<String>).last,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('input').last);
+    await tester.pumpAndSettle();
+
+    final requiredSwitch = find.widgetWithText(
+      SwitchListTile,
+      'Required',
+    );
+
+    expect(requiredSwitch, findsOneWidget);
+    expect(
+      tester.widget<SwitchListTile>(requiredSwitch).value,
+      isFalse,
+    );
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Phone Number',
+    );
+
+    await tester.enterText(
+      find.byType(TextFormField).at(1),
+      'Phone',
+    );
+
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
+
+    expect(savedItems, isNotNull);
+    expect(savedItems, hasLength(1));
+
+    final saved = savedItems!.single;
+    final properties = Map<String, dynamic>.from(saved['properties'] as Map);
+
+    expect(saved['screenId'], 'screen-1');
+    expect(saved['type'], 'input');
+    expect(saved['label'], 'Phone Number');
+    expect(properties['required'], isFalse);
+    expect(properties['placeholder'], 'Enter text');
+  });
 }
