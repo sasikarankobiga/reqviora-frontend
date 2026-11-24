@@ -344,6 +344,7 @@ class _ItemDialogState extends State<_ItemDialog> {
   final fields = <String, TextEditingController>{};
   late String priority;
   late String componentType;
+  late bool componentEnabled;
   late String state;
   String? fromId;
   String? toId;
@@ -365,6 +366,11 @@ class _ItemDialogState extends State<_ItemDialog> {
     }
     priority = (item['priority'] ?? 'Must').toString();
     componentType = (item['type'] ?? 'text').toString();
+    final componentProperties = item['properties'];
+    componentEnabled =
+        componentProperties is Map && componentProperties['enabled'] is bool
+            ? componentProperties['enabled'] as bool
+            : true;
     state = (item['state'] ?? 'default').toString();
     fromId = item['fromScreenId'] as String?;
     toId = item['toScreenId'] as String?;
@@ -473,7 +479,15 @@ class _ItemDialogState extends State<_ItemDialog> {
               onChanged: (v) => setState(() => componentType = v ?? 'text')),
           const SizedBox(height: 14),
           input('label', 'Component label', required: true),
-          input('text', 'Display text', lines: 2)
+          input('text', 'Display text', lines: 2),
+          if (componentType == 'button')
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Enabled'),
+              subtitle: const Text('Allow button interaction'),
+              value: componentEnabled,
+              onChanged: (value) => setState(() => componentEnabled = value),
+            )
         ]);
         break;
       case _ItemType.interaction:
@@ -551,7 +565,15 @@ class _ItemDialogState extends State<_ItemDialog> {
                       'screenId': screenId,
                       'type': componentType,
                       'label': fields['label']!.text.trim(),
-                      'text': fields['text']!.text.trim()
+                      'text': fields['text']!.text.trim(),
+                      if (componentType == 'button')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'enabled': componentEnabled,
+                        }
                     });
                     break;
                   case _ItemType.interaction:

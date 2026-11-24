@@ -690,4 +690,80 @@ void main() {
     expect(savedItems!.first['label'], 'Save Changes');
     expect(savedItems!.first['text'], 'Save');
   });
+
+  testWidgets(
+    'saves button enabled property while preserving existing properties',
+    (tester) async {
+      final workspace = Workspace(
+        projectId: 'project-1',
+        draftId: 'draft-1',
+        version: 1,
+        projectName: 'Test Project',
+        designTargets: const ['web'],
+        sections: {
+          'screens': [
+            {'id': 'screen-1', 'name': 'Dashboard'},
+          ],
+          'components': [
+            {
+              'id': 'component-123',
+              'screenId': 'screen-1',
+              'type': 'button',
+              'label': 'Submit',
+              'text': 'Submit Form',
+              'properties': {
+                'enabled': true,
+                'variant': 'primary',
+              },
+            },
+          ],
+        },
+      );
+
+      List<Map<String, dynamic>>? savedItems;
+
+      await openStudio(tester, (section, data) async {
+        expect(section, 'components');
+        savedItems = (data as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      }, workspace: workspace);
+
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+
+      final enabledSwitch = find.byType(SwitchListTile);
+
+      expect(enabledSwitch, findsOneWidget);
+      expect(
+        tester.widget<SwitchListTile>(enabledSwitch).value,
+        isTrue,
+      );
+
+      await tester.ensureVisible(enabledSwitch);
+      await tester.tap(enabledSwitch);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<SwitchListTile>(enabledSwitch).value,
+        isFalse,
+      );
+
+      await tester.tap(find.text('Save').last);
+      await tester.pumpAndSettle();
+
+      expect(savedItems, isNotNull);
+      expect(savedItems, hasLength(1));
+
+      final saved = savedItems!.single;
+      final properties = Map<String, dynamic>.from(saved['properties'] as Map);
+
+      expect(saved['id'], 'component-123');
+      expect(saved['type'], 'button');
+      expect(saved['label'], 'Submit');
+      expect(saved['screenId'], 'screen-1');
+      expect(properties['enabled'], isFalse);
+      expect(properties['variant'], 'primary');
+    },
+  );
 }
