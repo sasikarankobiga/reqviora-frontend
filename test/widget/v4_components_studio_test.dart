@@ -444,4 +444,44 @@ void main() {
     expect(find.text('Select Screen'), findsWidgets);
     expect(find.text('Add component'), findsOneWidget);
   });
+
+  testWidgets('saves selected button component type', (tester) async {
+    List<Map<String, dynamic>>? savedItems;
+
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      savedItems = (data as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    });
+
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+
+    // Select screen.
+    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dashboard').last);
+    await tester.pumpAndSettle();
+
+    // Select component type.
+    await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('button').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Submit Button',
+    );
+
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(savedItems, isNotNull);
+    expect(savedItems, hasLength(1));
+    expect(savedItems!.first['type'], 'button');
+    expect(savedItems!.first['label'], 'Submit Button');
+    expect(savedItems!.first['screenId'], 'screen-1');
+  });
 }
