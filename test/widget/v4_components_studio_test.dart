@@ -766,4 +766,59 @@ void main() {
       expect(properties['variant'], 'primary');
     },
   );
+
+  testWidgets('new button saves enabled true by default', (tester) async {
+    List<Map<String, dynamic>>? savedItems;
+
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      savedItems = (data as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    });
+
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dashboard').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('button').last);
+    await tester.pumpAndSettle();
+
+    final enabledSwitch = find.byType(SwitchListTile);
+
+    expect(enabledSwitch, findsOneWidget);
+    expect(tester.widget<SwitchListTile>(enabledSwitch).value, isTrue);
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Submit Button',
+    );
+
+    await tester.enterText(
+      find.byType(TextFormField).last,
+      'Submit',
+    );
+
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
+
+    expect(savedItems, isNotNull);
+    expect(savedItems, hasLength(1));
+
+    final saved = savedItems!.single;
+    final properties = Map<String, dynamic>.from(saved['properties'] as Map);
+
+    expect(saved['id'], isNotEmpty);
+    expect(saved['screenId'], 'screen-1');
+    expect(saved['type'], 'button');
+    expect(saved['label'], 'Submit Button');
+    expect(saved['text'], 'Submit');
+    expect(properties['enabled'], isTrue);
+  });
 }
