@@ -30,6 +30,53 @@ class ComponentRegistry {
     'image',
   ];
 
+  static String? validateV4ComponentId({
+    required String id,
+    required Iterable<String> existingIds,
+    String? editingId,
+  }) {
+    if (id.trim().isEmpty) {
+      return 'Component ID is required';
+    }
+
+    if (editingId != null && id != editingId) {
+      return 'Component ID cannot change during editing';
+    }
+
+    if (existingIds.any(
+      (existing) => existing == id && existing != editingId,
+    )) {
+      return 'Duplicate component ID';
+    }
+
+    return null;
+  }
+
+  static String? validateV4Component({
+    required String type,
+    required String label,
+    required String? screenId,
+    Iterable<String>? validScreenIds,
+  }) {
+    if (!isSupportedV4Type(type)) {
+      return 'Unsupported component type';
+    }
+
+    if (label.trim().isEmpty) {
+      return 'Component label is required';
+    }
+
+    if (screenId == null || screenId.trim().isEmpty) {
+      return 'Select Screen';
+    }
+
+    if (validScreenIds != null && !validScreenIds.contains(screenId)) {
+      return 'Selected screen does not exist';
+    }
+
+    return null;
+  }
+
   static bool isSupportedV4Type(String type) {
     return v4ComponentTypes.contains(type);
   }
