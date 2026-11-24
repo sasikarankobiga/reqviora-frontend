@@ -107,13 +107,7 @@ class _ContentState extends ConsumerState<_Content> {
       else if (n == 4)
         _ThemeEditor(workspace: w, onSave: save)
       else if (n == 5)
-        _ItemEditor(
-            workspace: w,
-            section: 'components',
-            title: 'Components Studio',
-            icon: Icons.widgets_outlined,
-            type: _ItemType.component,
-            onSave: save)
+        V4ComponentsStudio(workspace: w, onSave: save)
       else if (n == 6)
         _ItemEditor(
             workspace: w,
@@ -146,6 +140,30 @@ class _ContentState extends ConsumerState<_Content> {
               label: Text('Continue to Step ${n + 1}')),
       ]),
     ]);
+  }
+}
+
+/// Testable entry point for the original V4 Components Studio.
+class V4ComponentsStudio extends StatelessWidget {
+  const V4ComponentsStudio({
+    super.key,
+    required this.workspace,
+    required this.onSave,
+  });
+
+  final Workspace workspace;
+  final Future<void> Function(String section, dynamic data) onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ItemEditor(
+      workspace: workspace,
+      section: 'components',
+      title: 'Components Studio',
+      icon: Icons.widgets_outlined,
+      type: _ItemType.component,
+      onSave: onSave,
+    );
   }
 }
 
