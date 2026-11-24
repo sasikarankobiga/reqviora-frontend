@@ -12,6 +12,7 @@ import '../application/workspace_providers.dart';
 import '../domain/workspace.dart';
 import 'simulated_preview.dart';
 import 'v4_blueprint_selection_panel.dart';
+import 'v4_blueprint_property_inspector.dart';
 
 /// Service-backed authoring for Builder steps 02-08. All writes are owner-scoped
 /// and carry a draft version. No fake AI/approval states are produced here.
@@ -1491,9 +1492,83 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   bool generating = false;
   String? error;
   String? selectedBlueprintComponentId;
+  Map<String, dynamic>? draftBlueprint;
+
+  Map<String, dynamic>? selectedComponent(
+    Map<String, dynamic> blueprint,
+  ) {
+    final selectedId = selectedBlueprintComponentId;
+
+    if (selectedId == null) return null;
+
+    final components = blueprint['componentInstances'];
+
+    if (components is! List) return null;
+
+    for (final raw in components) {
+      if (raw is! Map) continue;
+
+      final component = Map<String, dynamic>.from(raw);
+
+      final id = (component['componentInstanceId'] ?? component['id'] ?? '')
+          .toString();
+
+      if (id == selectedId) {
+        return component;
+      }
+    }
+
+    return null;
+  }
+
+  void updateDraftComponent(
+    Map<String, dynamic> blueprint,
+    Map<String, dynamic> updated,
+  ) {
+    final id =
+        (updated['componentInstanceId'] ?? updated['id'] ?? '').toString();
+
+    if (id.isEmpty || id != selectedBlueprintComponentId) {
+      return;
+    }
+
+    final rawComponents = blueprint['componentInstances'];
+
+    if (rawComponents is! List) return;
+
+    var found = false;
+
+    final components = rawComponents.map((raw) {
+      if (raw is! Map) return raw;
+
+      final component = Map<String, dynamic>.from(raw);
+
+      final currentId =
+          (component['componentInstanceId'] ?? component['id'] ?? '')
+              .toString();
+
+      if (currentId == id) {
+        found = true;
+        return Map<String, dynamic>.from(updated);
+      }
+
+      return component;
+    }).toList();
+
+    if (!found) return;
+
+    final nextBlueprint = Map<String, dynamic>.from(blueprint);
+
+    nextBlueprint['componentInstances'] = components;
+
+    setState(() {
+      draftBlueprint = nextBlueprint;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final blueprint = widget.workspace.fields('blueprint');
+    final blueprint = draftBlueprint ?? widget.workspace.fields('blueprint');
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       SurfaceCard(
           child:
@@ -1557,10 +1632,17 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
             if (selectedBlueprintComponentId != null) ...[
               const SizedBox(height: 12),
               SurfaceCard(
-                child: Text(
-                  'Selected component: $selectedBlueprintComponentId',
-                  key: const ValueKey('step07-selected-component'),
+                child: V4BlueprintPropertyInspector(
+                  component: selectedComponent(blueprint),
+                  onChanged: (updated) {
+                    updateDraftComponent(blueprint, updated);
+                  },
                 ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Unsaved local preview changes · Backend not updated',
+                key: ValueKey('step07-unsaved-notice'),
               ),
             ],
             const SizedBox(height: 16),
