@@ -344,6 +344,10 @@ class _ItemDialogState extends State<_ItemDialog> {
   final fields = <String, TextEditingController>{};
   late String priority;
   late String componentType;
+  late bool componentEnabled;
+  late bool componentRequired;
+  late int componentFontSize;
+  late int componentElevation;
   late String state;
   String? fromId;
   String? toId;
@@ -365,6 +369,28 @@ class _ItemDialogState extends State<_ItemDialog> {
     }
     priority = (item['priority'] ?? 'Must').toString();
     componentType = (item['type'] ?? 'text').toString();
+    final componentProperties = item['properties'];
+    componentRequired =
+        componentProperties is Map && componentProperties['required'] == true;
+    final storedPlaceholder =
+        componentProperties is Map ? componentProperties['placeholder'] : null;
+    fields['placeholder'] = TextEditingController(
+      text: storedPlaceholder is String ? storedPlaceholder : 'Enter text',
+    );
+    componentEnabled =
+        componentProperties is Map && componentProperties['enabled'] is bool
+            ? componentProperties['enabled'] as bool
+            : true;
+    final storedFontSize =
+        componentProperties is Map ? componentProperties['fontSize'] : null;
+    componentFontSize = storedFontSize is num
+        ? storedFontSize.round().clamp(8, 96).toInt()
+        : 16;
+    final storedElevation =
+        componentProperties is Map ? componentProperties['elevation'] : null;
+    componentElevation = storedElevation is num
+        ? storedElevation.round().clamp(0, 24).toInt()
+        : 2;
     state = (item['state'] ?? 'default').toString();
     fromId = item['fromScreenId'] as String?;
     toId = item['toScreenId'] as String?;
@@ -473,7 +499,57 @@ class _ItemDialogState extends State<_ItemDialog> {
               onChanged: (v) => setState(() => componentType = v ?? 'text')),
           const SizedBox(height: 14),
           input('label', 'Component label', required: true),
-          input('text', 'Display text', lines: 2)
+          input('text', 'Display text', lines: 2),
+          if (componentType == 'input') ...[
+            input('placeholder', 'Placeholder'),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Required'),
+              subtitle: const Text('Require a value for this input'),
+              value: componentRequired,
+              onChanged: (value) => setState(() => componentRequired = value),
+            ),
+          ],
+          if (componentType == 'text')
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Font Size: $componentFontSize'),
+                Slider(
+                  value: componentFontSize.toDouble(),
+                  min: 8,
+                  max: 96,
+                  divisions: 88,
+                  label: '$componentFontSize',
+                  onChanged: (value) =>
+                      setState(() => componentFontSize = value.round()),
+                ),
+              ],
+            ),
+          if (componentType == 'card')
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Elevation: $componentElevation'),
+                Slider(
+                  value: componentElevation.toDouble(),
+                  min: 0,
+                  max: 24,
+                  divisions: 24,
+                  label: '$componentElevation',
+                  onChanged: (value) =>
+                      setState(() => componentElevation = value.round()),
+                ),
+              ],
+            ),
+          if (componentType == 'button')
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Enabled'),
+              subtitle: const Text('Allow button interaction'),
+              value: componentEnabled,
+              onChanged: (value) => setState(() => componentEnabled = value),
+            )
         ]);
         break;
       case _ItemType.interaction:
@@ -551,7 +627,40 @@ class _ItemDialogState extends State<_ItemDialog> {
                       'screenId': screenId,
                       'type': componentType,
                       'label': fields['label']!.text.trim(),
-                      'text': fields['text']!.text.trim()
+                      'text': fields['text']!.text.trim(),
+                      if (componentType == 'input')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'placeholder': fields['placeholder']!.text.trim(),
+                          'required': componentRequired,
+                        },
+                      if (componentType == 'text')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'fontSize': componentFontSize,
+                        },
+                      if (componentType == 'card')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'elevation': componentElevation,
+                        },
+                      if (componentType == 'button')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'enabled': componentEnabled,
+                        }
                     });
                     break;
                   case _ItemType.interaction:
