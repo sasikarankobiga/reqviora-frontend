@@ -420,4 +420,28 @@ void main() {
     expect(find.text('Component label is required'), findsWidgets);
     expect(find.text('Add component'), findsOneWidget);
   });
+
+  testWidgets('shows screen validation when no screen is selected',
+      (tester) async {
+    var saveCalls = 0;
+
+    await openStudio(tester, (section, data) async {
+      saveCalls++;
+    });
+
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Submit Button',
+    );
+
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(saveCalls, 0);
+    expect(find.text('Select Screen'), findsWidgets);
+    expect(find.text('Add component'), findsOneWidget);
+  });
 }
