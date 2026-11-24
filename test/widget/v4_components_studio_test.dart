@@ -391,4 +391,33 @@ void main() {
     expect(find.text('Temporary Component'), findsNothing);
     expect(saveCalls, 0);
   });
+
+  testWidgets('rejects empty component label', (tester) async {
+    var saveCalls = 0;
+
+    await openStudio(tester, (section, data) async {
+      saveCalls++;
+    });
+
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+
+    // Choose a valid screen so the label is the only invalid field.
+    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dashboard').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      '   ',
+    );
+
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(saveCalls, 0);
+    expect(find.text('Component label is required'), findsWidgets);
+    expect(find.text('Add component'), findsOneWidget);
+  });
 }
