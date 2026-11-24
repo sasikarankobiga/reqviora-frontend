@@ -1198,4 +1198,88 @@ void main() {
     expect(properties['required'], isFalse);
     expect(properties['placeholder'], 'Enter text');
   });
+
+  testWidgets(
+    'updates card elevation while preserving properties',
+    (tester) async {
+      final workspace = Workspace(
+        projectId: 'project-1',
+        draftId: 'draft-1',
+        version: 1,
+        projectName: 'Test Project',
+        designTargets: const ['web'],
+        sections: {
+          'screens': [
+            {'id': 'screen-1', 'name': 'Dashboard'},
+          ],
+          'components': [
+            {
+              'id': 'component-card-123',
+              'screenId': 'screen-1',
+              'type': 'card',
+              'label': 'Profile Card',
+              'text': 'User Profile',
+              'properties': {
+                'elevation': 4,
+                'variant': 'outlined',
+                'borderRadius': 12,
+              },
+            },
+          ],
+        },
+      );
+
+      List<Map<String, dynamic>>? savedItems;
+
+      await openStudio(tester, (section, data) async {
+        expect(section, 'components');
+        savedItems = (data as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      }, workspace: workspace);
+
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+
+      final elevationSlider = find.byType(Slider);
+
+      expect(elevationSlider, findsOneWidget);
+
+      expect(
+        tester.widget<Slider>(elevationSlider).value,
+        4,
+      );
+
+      // Change elevation through the slider callback.
+      tester.widget<Slider>(elevationSlider).onChanged!(12);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<Slider>(elevationSlider).value,
+        12,
+      );
+
+      await tester.ensureVisible(find.text('Save').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Save').last);
+      await tester.pumpAndSettle();
+
+      expect(savedItems, isNotNull);
+      expect(savedItems, hasLength(1));
+
+      final saved = savedItems!.single;
+      final properties = Map<String, dynamic>.from(saved['properties'] as Map);
+
+      expect(saved['id'], 'component-card-123');
+      expect(saved['screenId'], 'screen-1');
+      expect(saved['type'], 'card');
+      expect(saved['label'], 'Profile Card');
+      expect(saved['text'], 'User Profile');
+
+      expect(properties['elevation'], 12);
+      expect(properties['variant'], 'outlined');
+      expect(properties['borderRadius'], 12);
+    },
+  );
 }
