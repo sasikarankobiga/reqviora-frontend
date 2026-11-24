@@ -221,4 +221,99 @@ void main() {
     expect(find.text('Old Submit'), findsOneWidget);
     expect(find.text('Updated Submit'), findsNothing);
   });
+
+  testWidgets('removes component after confirmation', (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'component-123',
+            'screenId': 'screen-1',
+            'type': 'button',
+            'label': 'Submit',
+            'text': 'Submit',
+          },
+        ],
+      },
+    );
+
+    var saveCalls = 0;
+    List<Map<String, dynamic>>? savedItems;
+
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      saveCalls++;
+      savedItems = (data as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    }, workspace: workspace);
+
+    await tester.tap(find.byTooltip('Remove'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Remove this item?'), findsOneWidget);
+
+    await tester.tap(find.text('Remove').last);
+    await tester.pumpAndSettle();
+
+    expect(saveCalls, 1);
+    expect(savedItems, isNotNull);
+    expect(savedItems, isEmpty);
+
+    // Original UI remains until workspace refresh.
+    expect(find.byTooltip('Edit'), findsOneWidget);
+  });
+
+  testWidgets('keeps component when removal is cancelled', (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'component-123',
+            'screenId': 'screen-1',
+            'type': 'button',
+            'label': 'Submit',
+            'text': 'Submit',
+          },
+        ],
+      },
+    );
+
+    var saveCalls = 0;
+
+    await openStudio(tester, (section, data) async {
+      saveCalls++;
+    }, workspace: workspace);
+
+    expect(find.text('Submit'), findsWidgets);
+
+    await tester.tap(find.byTooltip('Remove'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Remove this item?'), findsOneWidget);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Remove this item?'), findsNothing);
+    expect(find.text('Submit'), findsWidgets);
+    expect(find.byTooltip('Edit'), findsOneWidget);
+    expect(saveCalls, 0);
+  });
 }
