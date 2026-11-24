@@ -248,6 +248,27 @@ class _ItemEditorState extends State<_ItemEditor> {
     await widget.onSave(widget.section, nextItems);
   }
 
+  Future<void> reorderComponents(int oldIndex, int newIndex) async {
+    if (widget.type != _ItemType.component) return;
+
+    if (oldIndex < 0 || oldIndex >= items.length) return;
+
+    if (newIndex < 0 || newIndex >= items.length) return;
+    if (oldIndex == newIndex) return;
+
+    final reordered = List<Map<String, dynamic>>.from(items);
+    final moved = reordered.removeAt(oldIndex);
+    reordered.insert(newIndex, moved);
+
+    // Persist first; keep the existing order if saving fails.
+    await widget.onSave(widget.section, reordered);
+
+    if (!mounted) return;
+    setState(() {
+      items = reordered;
+    });
+  }
+
   Future<void> remove(Map<String, dynamic> item) async {
     final yes = await showDialog<bool>(
         context: context,
@@ -301,7 +322,53 @@ class _ItemEditorState extends State<_ItemEditor> {
                     textAlign: TextAlign.center,
                     style: TextStyle(color: AppColors.muted))
               ]))
-        else ...[
+        else if (widget.type == _ItemType.component) ...[
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: items.length,
+            onReorderItem: reorderComponents,
+            itemBuilder: (context, index) {
+              final row = items[index];
+              return Padding(
+                key: ValueKey(row['id']),
+                padding: const EdgeInsets.only(bottom: 9),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.line),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ListTile(
+                    title: Text(
+                      itemTitle(row),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(
+                      itemDescription(row),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Wrap(
+                      spacing: 2,
+                      children: [
+                        IconButton(
+                          tooltip: 'Edit',
+                          icon: const Icon(Icons.edit_outlined),
+                          onPressed: () => edit(row),
+                        ),
+                        IconButton(
+                          tooltip: 'Remove',
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => remove(row),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ] else ...[
           for (final row in items)
             Padding(
               padding: const EdgeInsets.only(bottom: 9),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reqviora_frontend/features/workspace/domain/workspace.dart';
@@ -1280,6 +1281,184 @@ void main() {
       expect(properties['elevation'], 12);
       expect(properties['variant'], 'outlined');
       expect(properties['borderRadius'], 12);
+    },
+  );
+
+  testWidgets(
+    'reorders components and preserves their data',
+    (tester) async {
+      final workspace = Workspace(
+        projectId: 'project-1',
+        draftId: 'draft-1',
+        version: 1,
+        projectName: 'Test Project',
+        designTargets: const ['web'],
+        sections: {
+          'screens': [
+            {'id': 'screen-1', 'name': 'Dashboard'},
+          ],
+          'components': [
+            {
+              'id': 'component-a',
+              'screenId': 'screen-1',
+              'type': 'text',
+              'label': 'First Component',
+              'text': 'First',
+              'properties': {'fontSize': 18},
+            },
+            {
+              'id': 'component-b',
+              'screenId': 'screen-1',
+              'type': 'button',
+              'label': 'Second Component',
+              'text': 'Second',
+              'properties': {'enabled': true},
+            },
+            {
+              'id': 'component-c',
+              'screenId': 'screen-1',
+              'type': 'card',
+              'label': 'Third Component',
+              'text': 'Third',
+              'properties': {'elevation': 4},
+            },
+          ],
+        },
+      );
+
+      List<Map<String, dynamic>>? savedItems;
+      var saveCalls = 0;
+
+      await openStudio(tester, (section, data) async {
+        expect(section, 'components');
+        saveCalls++;
+        savedItems = (data as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      }, workspace: workspace);
+
+      final reorderList = find.byType(ReorderableListView);
+
+      expect(reorderList, findsOneWidget);
+
+      final list = tester.widget<ReorderableListView>(reorderList);
+
+      // Move first component to the final position.
+      list.onReorderItem!(0, 2);
+      await tester.pumpAndSettle();
+
+      expect(saveCalls, 1);
+      expect(savedItems, isNotNull);
+      expect(savedItems, hasLength(3));
+
+      expect(
+        savedItems!.map((item) => item['id']).toList(),
+        ['component-b', 'component-c', 'component-a'],
+      );
+
+      // Component identities and mappings must stay unchanged.
+      expect(savedItems![0]['screenId'], 'screen-1');
+      expect(savedItems![1]['screenId'], 'screen-1');
+      expect(savedItems![2]['screenId'], 'screen-1');
+
+      expect(
+        (savedItems![0]['properties'] as Map)['enabled'],
+        isTrue,
+      );
+      expect(
+        (savedItems![1]['properties'] as Map)['elevation'],
+        4,
+      );
+      expect(
+        (savedItems![2]['properties'] as Map)['fontSize'],
+        18,
+      );
+
+      // Confirm the visible list also uses the saved order.
+      final visibleLabels = tester
+          .widgetList<ListTile>(find.byType(ListTile))
+          .map((tile) => (tile.title as Text).data)
+          .toList();
+
+      expect(
+        visibleLabels,
+        ['Second Component', 'Third Component', 'First Component'],
+      );
+    },
+  );
+
+  testWidgets(
+    'keeps component order until reorder save completes',
+    (tester) async {
+      final workspace = Workspace(
+        projectId: 'project-1',
+        draftId: 'draft-1',
+        version: 1,
+        projectName: 'Test Project',
+        designTargets: const ['web'],
+        sections: {
+          'screens': [
+            {'id': 'screen-1', 'name': 'Dashboard'},
+          ],
+          'components': [
+            {
+              'id': 'component-a',
+              'screenId': 'screen-1',
+              'type': 'text',
+              'label': 'First',
+              'properties': {'fontSize': 18},
+            },
+            {
+              'id': 'component-b',
+              'screenId': 'screen-1',
+              'type': 'button',
+              'label': 'Second',
+              'properties': {'enabled': true},
+            },
+          ],
+        },
+      );
+
+      final saveCompleter = Completer<void>();
+      var saveCalls = 0;
+
+      await openStudio(tester, (section, data) async {
+        expect(section, 'components');
+        saveCalls++;
+
+        final next = (data as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+
+        expect(
+          next.map((item) => item['id']).toList(),
+          ['component-b', 'component-a'],
+        );
+
+        await saveCompleter.future;
+      }, workspace: workspace);
+
+      List<String?> visibleOrder() => tester
+          .widgetList<ListTile>(find.byType(ListTile))
+          .map((tile) => (tile.title as Text).data)
+          .toList();
+
+      expect(visibleOrder(), ['First', 'Second']);
+
+      final reorderList = tester.widget<ReorderableListView>(
+        find.byType(ReorderableListView),
+      );
+
+      reorderList.onReorderItem!(0, 1);
+      await tester.pump();
+
+      expect(saveCalls, 1);
+      expect(visibleOrder(), ['First', 'Second']);
+
+      saveCompleter.complete();
+      await tester.pumpAndSettle();
+
+      expect(visibleOrder(), ['Second', 'First']);
     },
   );
 }
