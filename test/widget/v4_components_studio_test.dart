@@ -633,4 +633,61 @@ void main() {
     expect(savedItems!.first['screenId'], 'screen-1');
     expect(savedItems!.first['type'], 'text');
   });
+
+  testWidgets('reassigns component screen while preserving ID', (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+          {'id': 'screen-2', 'name': 'Settings'},
+        ],
+        'components': [
+          {
+            'id': 'component-123',
+            'screenId': 'screen-1',
+            'type': 'button',
+            'label': 'Save Changes',
+            'text': 'Save',
+          },
+        ],
+      },
+    );
+
+    List<Map<String, dynamic>>? savedItems;
+
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      savedItems = (data as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    }, workspace: workspace);
+
+    await tester.tap(find.byTooltip('Edit'));
+    await tester.pumpAndSettle();
+
+    // Change the component's assigned screen.
+    await tester.tap(
+      find.byType(DropdownButtonFormField<String>).first,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Settings').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
+
+    expect(savedItems, isNotNull);
+    expect(savedItems, hasLength(1));
+    expect(savedItems!.first['id'], 'component-123');
+    expect(savedItems!.first['screenId'], 'screen-2');
+    expect(savedItems!.first['type'], 'button');
+    expect(savedItems!.first['label'], 'Save Changes');
+    expect(savedItems!.first['text'], 'Save');
+  });
 }
