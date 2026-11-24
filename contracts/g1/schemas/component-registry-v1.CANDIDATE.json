@@ -1,0 +1,331 @@
+{
+  "registryVersion": "1.0.0",
+  "status": "CANDIDATE_REGISTRY_CONTRACT_NOT_IMPLEMENTED",
+  "sourceNote": "Six approved Components Studio families retained (button,input,card,dialog,tabs,chart), plus structural and expanded Step 05 families. Types must be implemented/tested before claiming renderer support.",
+  "noExecutableProps": true,
+  "simulationOnly": true,
+  "mockActionKinds": [
+    "navigate",
+    "openModal",
+    "closeModal",
+    "setMockState",
+    "submitMockForm",
+    "showMessage",
+    "simulateError",
+    "simulateLoading"
+  ],
+  "componentTypes": [
+    {
+      "type": "button",
+      "family": "approved-core",
+      "allowedProps": [
+        "label",
+        "variant",
+        "iconName",
+        "colorToken",
+        "visible"
+      ],
+      "requiredProps": [
+        "label"
+      ],
+      "allowedChildTypes": [],
+      "accessibleRole": "button"
+    },
+    {
+      "type": "input",
+      "family": "approved-core",
+      "allowedProps": [
+        "fieldName",
+        "fieldType",
+        "required",
+        "placeholder",
+        "label",
+        "visible",
+        "variant"
+      ],
+      "requiredProps": [
+        "fieldName",
+        "fieldType"
+      ],
+      "allowedChildTypes": [],
+      "accessibleRole": "textbox"
+    },
+    {
+      "type": "card",
+      "family": "approved-core",
+      "allowedProps": [
+        "title",
+        "text",
+        "variant",
+        "padding",
+        "colorToken",
+        "visible"
+      ],
+      "requiredProps": [],
+      "allowedChildTypes": [
+        "text",
+        "button",
+        "input",
+        "image",
+        "row",
+        "column",
+        "grid",
+        "chart",
+        "list",
+        "table"
+      ],
+      "accessibleRole": "group"
+    },
+    {
+      "type": "dialog",
+      "family": "approved-core",
+      "allowedProps": [
+        "title",
+        "text",
+        "variant",
+        "visible"
+      ],
+      "requiredProps": [],
+      "allowedChildTypes": [
+        "text",
+        "button",
+        "input",
+        "form",
+        "row",
+        "column"
+      ],
+      "accessibleRole": "dialog"
+    },
+    {
+      "type": "tabs",
+      "family": "approved-core",
+      "allowedProps": [
+        "items",
+        "variant",
+        "visible"
+      ],
+      "requiredProps": [
+        "items"
+      ],
+      "allowedChildTypes": [
+        "section",
+        "container",
+        "text",
+        "form",
+        "card"
+      ],
+      "accessibleRole": "tablist"
+    },
+    {
+      "type": "chart",
+      "family": "approved-core",
+      "allowedProps": [
+        "title",
+        "seriesKey",
+        "variant",
+        "visible"
+      ],
+      "requiredProps": [
+        "seriesKey"
+      ],
+      "allowedChildTypes": [],
+      "accessibleRole": "img"
+    },
+    {
+      "type": "text",
+      "family": "layout-primitive",
+      "allowedProps": [
+        "text",
+        "fontToken",
+        "colorToken",
+        "align",
+        "visible"
+      ],
+      "requiredProps": [
+        "text"
+      ],
+      "allowedChildTypes": [],
+      "accessibleRole": "text"
+    },
+    {
+      "type": "container",
+      "family": "layout-primitive",
+      "allowedProps": [
+        "padding",
+        "gap",
+        "colorToken",
+        "visible"
+      ],
+      "requiredProps": [],
+      "allowedChildTypes": [
+        "*"
+      ],
+      "accessibleRole": "group"
+    },
+    {
+      "type": "row",
+      "family": "layout-primitive",
+      "allowedProps": [
+        "gap",
+        "align",
+        "padding",
+        "visible"
+      ],
+      "requiredProps": [],
+      "allowedChildTypes": [
+        "*"
+      ],
+      "accessibleRole": "group"
+    },
+    {
+      "type": "column",
+      "family": "layout-primitive",
+      "allowedProps": [
+        "gap",
+        "align",
+        "padding",
+        "visible"
+      ],
+      "requiredProps": [],
+      "allowedChildTypes": [
+        "*"
+      ],
+      "accessibleRole": "group"
+    },
+    {
+      "type": "grid",
+      "family": "layout-primitive",
+      "allowedProps": [
+        "gap",
+        "padding",
+        "visible"
+      ],
+      "requiredProps": [],
+      "allowedChildTypes": [
+        "*"
+      ],
+      "accessibleRole": "group"
+    },
+    {
+      "type": "section",
+      "family": "expanded-step05",
+      "allowedProps": [
+        "title",
+        "text",
+        "padding",
+        "gap",
+        "visible"
+      ],
+      "requiredProps": [],
+      "allowedChildTypes": [
+        "*"
+      ],
+      "accessibleRole": "region"
+    },
+    {
+      "type": "list",
+      "family": "expanded-step05",
+      "allowedProps": [
+        "items",
+        "variant",
+        "visible"
+      ],
+      "requiredProps": [],
+      "allowedChildTypes": [],
+      "accessibleRole": "list"
+    },
+    {
+      "type": "table",
+      "family": "expanded-step05",
+      "allowedProps": [
+        "columns",
+        "items",
+        "variant",
+        "visible"
+      ],
+      "requiredProps": [
+        "columns"
+      ],
+      "allowedChildTypes": [],
+      "accessibleRole": "table"
+    },
+    {
+      "type": "navbar",
+      "family": "expanded-step05",
+      "allowedProps": [
+        "title",
+        "items",
+        "visible"
+      ],
+      "requiredProps": [],
+      "allowedChildTypes": [
+        "button",
+        "text"
+      ],
+      "accessibleRole": "navigation"
+    },
+    {
+      "type": "sidebar",
+      "family": "expanded-step05",
+      "allowedProps": [
+        "title",
+        "items",
+        "visible"
+      ],
+      "requiredProps": [],
+      "allowedChildTypes": [
+        "button",
+        "text"
+      ],
+      "accessibleRole": "navigation"
+    },
+    {
+      "type": "header",
+      "family": "expanded-step05",
+      "allowedProps": [
+        "title",
+        "text",
+        "visible"
+      ],
+      "requiredProps": [],
+      "allowedChildTypes": [
+        "text",
+        "button"
+      ],
+      "accessibleRole": "banner"
+    },
+    {
+      "type": "form",
+      "family": "expanded-step05",
+      "allowedProps": [
+        "title",
+        "gap",
+        "padding",
+        "visible"
+      ],
+      "requiredProps": [],
+      "allowedChildTypes": [
+        "input",
+        "button",
+        "text",
+        "row",
+        "column"
+      ],
+      "accessibleRole": "form"
+    },
+    {
+      "type": "image",
+      "family": "expanded-step05",
+      "allowedProps": [
+        "imageAssetId",
+        "text",
+        "visible"
+      ],
+      "requiredProps": [
+        "imageAssetId"
+      ],
+      "allowedChildTypes": [],
+      "accessibleRole": "img"
+    }
+  ]
+}

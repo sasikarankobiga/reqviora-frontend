@@ -1,0 +1,3688 @@
+openapi: 3.1.0
+info:
+  title: REQVIORA V1 API — G1 Candidate Contract
+  version: 1.0.0-candidate
+  description: Candidate contract derived from BRD v0.5 and approved product/UX/RBAC baselines. Not evidence of
+    an implemented service or provider sign-off.
+servers:
+- url: https://api.example.invalid
+  description: Placeholder only — hosting/domain pending
+tags:
+- name: AI Review
+- name: Accounts
+- name: Admin
+- name: Approval
+- name: Audit
+- name: Blueprint
+- name: Builder
+- name: Design
+- name: Drafts
+- name: Exports
+- name: Features
+- name: Interactions
+- name: MCP
+- name: Membership
+- name: Preview
+- name: Projects
+- name: Requirements
+- name: Routes
+- name: Screens
+- name: Sharing
+- name: Sources
+- name: Traceability
+- name: Validation
+paths:
+  /api/v1/me:
+    get:
+      tags:
+      - Accounts
+      summary: Read current authenticated account
+      operationId: get_api_v1_me
+      x-rbac-action: RBAC-01
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read current authenticated account
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  userId: &id002
+                    type: string
+                    format: uuid
+                  accountStatus:
+                    enum:
+                    - active
+                    - suspended
+                    - disabled
+                  verified:
+                    type: boolean
+                required:
+                - userId
+                - accountStatus
+                - verified
+        '400': &id001
+          description: Typed problem response
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+  /api/v1/projects:
+    get:
+      tags:
+      - Projects
+      summary: List projects accessible to member
+      operationId: get_api_v1_projects
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful list projects accessible to member
+          content:
+            application/json:
+              schema:
+                type: array
+                items: &id003
+                  type: object
+                  additionalProperties: false
+                  properties:
+                    projectId: *id002
+                    name: &id004
+                      type: string
+                    status:
+                      enum:
+                      - active
+                      - archived
+                    currentDraftId: *id002
+                    updatedAt:
+                      type: string
+                      format: date-time
+                  required:
+                  - projectId
+                  - name
+                  - status
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+    post:
+      tags:
+      - Projects
+      summary: Create project and atomic Owner membership
+      operationId: post_api_v1_projects
+      x-rbac-action: RBAC-02
+      x-contract-state: candidate-v1
+      responses:
+        '201':
+          description: Successful create project and atomic owner membership
+          content:
+            application/json:
+              schema: *id003
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: &id005
+              type: object
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 160
+                description: *id004
+                category: *id004
+                designTargets:
+                  type: array
+                  items:
+                    enum:
+                    - web
+                    - mobile
+                    - desktop
+                  minItems: 1
+                  uniqueItems: true
+                workspaceId: *id002
+              required:
+              - name
+              - designTargets
+      parameters:
+      - &id009
+        name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 128
+        description: Deduplicate accepted commands within an implementation-defined retention window.
+  /api/v1/projects/{projectId}:
+    get:
+      tags:
+      - Projects
+      summary: Read project overview
+      operationId: get_api_v1_projects_projectId
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read project overview
+          content:
+            application/json:
+              schema: *id003
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+    patch:
+      tags:
+      - Projects
+      summary: Owner update project identity and scope
+      operationId: patch_api_v1_projects_projectId
+      x-rbac-action: RBAC-05
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful owner update project identity and scope
+          content:
+            application/json:
+              schema: *id003
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id005
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - &id006
+        name: If-Match
+        in: header
+        required: true
+        description: Opaque strong ETag of the current saved project draft returned by GET /draft; server rejects
+          stale token with 409.
+        schema: *id004
+  /api/v1/projects/{projectId}/draft:
+    get:
+      tags:
+      - Drafts
+      summary: Get current canonical editable draft and ETag
+      operationId: get_api_v1_projects_projectId_draft
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful get current canonical editable draft and etag
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/project-draft-v1.schema.json
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Response includes strong ETag header representing saved version. All dependent writes must provide
+        If-Match.
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+    put:
+      tags:
+      - Drafts
+      summary: Version-safe update to current draft
+      operationId: put_api_v1_projects_projectId_draft
+      x-rbac-action: RBAC-09
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful version-safe update to current draft
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/project-draft-v1.schema.json
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Server enforces field-level Owner/Editor/Designer permissions; document body is not wholesale
+        trusted. Audit proposed vs confirmed fields.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/project-draft-v1.schema.json
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/builder:
+    get:
+      tags:
+      - Builder
+      summary: Get eight-step progress and status
+      operationId: get_api_v1_projects_projectId_builder
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful get eight-step progress and status
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  draftId: *id002
+                  draftVersion:
+                    type: integer
+                  steps:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        stepNo:
+                          type: integer
+                          minimum: 1
+                          maximum: 8
+                        stage: *id004
+                        status: *id004
+                      required:
+                      - stepNo
+                      - stage
+                      - status
+                required:
+                - draftId
+                - draftVersion
+                - steps
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/builder/steps/{stepNo}:
+    get:
+      tags:
+      - Builder
+      summary: Get one Builder stage payload
+      operationId: get_api_v1_projects_projectId_builder_steps_stepNo
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful get one builder stage payload
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  stepNo:
+                    type: integer
+                  status: *id004
+                  payload:
+                    type: object
+                required:
+                - stepNo
+                - status
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - &id007
+        name: stepNo
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 8
+    put:
+      tags:
+      - Builder
+      summary: Save one Builder stage with version
+      operationId: put_api_v1_projects_projectId_builder_steps_stepNo
+      x-rbac-action: RBAC-09
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful save one builder stage with version
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  draftVersion:
+                    type: integer
+                    minimum: 1
+                  stepNo:
+                    type: integer
+                  status: *id004
+                required:
+                - draftVersion
+                - stepNo
+                - status
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Each stage payload must pass its versioned domain schema; completion checks distinct from save-draft.
+        Step 8 name Review & Export.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                stepNo:
+                  type: integer
+                  minimum: 1
+                  maximum: 8
+                payload:
+                  type: object
+                status:
+                  enum:
+                  - in-progress
+                  - needs-review
+                  - complete
+              required:
+              - stepNo
+              - payload
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id007
+      - *id006
+  /api/v1/projects/{projectId}/builder/validate-step:
+    post:
+      tags:
+      - Builder
+      summary: Validate one Builder step
+      operationId: post_api_v1_projects_projectId_builder_validate_step
+      x-rbac-action: RBAC-17
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful validate one builder step
+          content:
+            application/json:
+              schema: &id014
+                type: object
+                additionalProperties: false
+                properties:
+                  validationRunId: *id002
+                  draftId: *id002
+                  draftVersion:
+                    type: integer
+                    minimum: 1
+                  draftSha256:
+                    type: string
+                    pattern: ^[a-f0-9]{64}$
+                  status:
+                    enum:
+                    - ready
+                    - blocked
+                  blockers:
+                    type: integer
+                    minimum: 0
+                  advisories:
+                    type: integer
+                    minimum: 0
+                  findings:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ValidationFinding'
+                required:
+                - validationRunId
+                - draftId
+                - draftVersion
+                - draftSha256
+                - status
+                - blockers
+                - advisories
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                stepNo:
+                  type: integer
+                  minimum: 1
+                  maximum: 8
+                expectedDraftVersion:
+                  type: integer
+                  minimum: 1
+              required:
+              - stepNo
+              - expectedDraftVersion
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/builder/migration-preview:
+    post:
+      tags:
+      - Builder
+      summary: Preview legacy seven-to-eight draft migration
+      operationId: post_api_v1_projects_projectId_builder_migration_preview
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful preview legacy seven-to-eight draft migration
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  legacyDraftId: *id002
+                  warnings:
+                    type: array
+                    items: *id004
+                  proposedMapping:
+                    type: object
+                required:
+                - legacyDraftId
+                - warnings
+                - proposedMapping
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                legacyDraftId: *id002
+              required:
+              - legacyDraftId
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/sources:
+    get:
+      tags:
+      - Sources
+      summary: List permitted input sources
+      operationId: get_api_v1_projects_projectId_sources
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful list permitted input sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items: &id008
+                  type: object
+                  additionalProperties: false
+                  properties:
+                    sourceId: *id002
+                    kind:
+                      enum:
+                      - pdf
+                      - docx
+                      - txt
+                      - voice
+                      - text
+                      - manual
+                    status: *id004
+                    fileName: *id004
+                  required:
+                  - sourceId
+                  - kind
+                  - status
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/sources/text:
+    post:
+      tags:
+      - Sources
+      summary: Create text or manual source
+      operationId: post_api_v1_projects_projectId_sources_text
+      x-rbac-action: RBAC-06
+      x-contract-state: candidate-v1
+      responses:
+        '201':
+          description: Successful create text or manual source
+          content:
+            application/json:
+              schema: *id008
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                kind:
+                  enum:
+                  - text
+                  - manual
+                text:
+                  type: string
+                  minLength: 1
+                  maxLength: 200000
+              required:
+              - kind
+              - text
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/projects/{projectId}/sources/files:
+    post:
+      tags:
+      - Sources
+      summary: Upload PDF DOCX TXT file
+      operationId: post_api_v1_projects_projectId_sources_files
+      x-rbac-action: RBAC-06
+      x-contract-state: candidate-v1
+      responses:
+        '202':
+          description: Successful upload pdf docx txt file
+          content:
+            application/json:
+              schema: *id008
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Provider-neutral multipart upload; enforce media sniff, size/type/malware checks and private
+        object storage. Upload maxima and privacy retention pending.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                consentReference: *id004
+              required:
+              - file
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/projects/{projectId}/transcripts/{transcriptId}:
+    patch:
+      tags:
+      - Sources
+      summary: Correct speech transcript before AI review
+      operationId: patch_api_v1_projects_projectId_transcripts_transcriptId
+      x-rbac-action: RBAC-06
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful correct speech transcript before ai review
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  transcriptId: *id002
+                  status:
+                    const: corrected
+                required:
+                - transcriptId
+                - status
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                text:
+                  type: string
+                  maxLength: 200000
+                language:
+                  enum:
+                  - ta
+                  - en
+                  - mixed
+              required:
+              - text
+              - language
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: transcriptId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/transcription-jobs:
+    post:
+      tags:
+      - Sources
+      summary: Request consented speech transcription
+      operationId: post_api_v1_projects_projectId_transcription_jobs
+      x-rbac-action: RBAC-06
+      x-contract-state: candidate-v1
+      responses:
+        '202':
+          description: Successful request consented speech transcription
+          content:
+            application/json:
+              schema: &id010
+                type: object
+                additionalProperties: false
+                properties:
+                  jobId: *id002
+                  kind:
+                    enum:
+                    - document-parse
+                    - speech-transcription
+                    - requirements-analysis
+                    - ui-generation
+                    - canonical-export
+                  status:
+                    enum:
+                    - queued
+                    - running
+                    - partial
+                    - completed
+                    - failed
+                    - cancelled
+                  createdAt:
+                    type: string
+                    format: date-time
+                  errorCode: *id004
+                required:
+                - jobId
+                - kind
+                - status
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                sourceId: *id002
+                language:
+                  enum:
+                  - ta
+                  - en
+                  - mixed
+                consentId: *id002
+              required:
+              - sourceId
+              - language
+              - consentId
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/projects/{projectId}/analysis-jobs:
+    post:
+      tags:
+      - AI Review
+      summary: Start optional provider-gateway analysis
+      operationId: post_api_v1_projects_projectId_analysis_jobs
+      x-rbac-action: RBAC-07
+      x-contract-state: candidate-v1
+      responses:
+        '202':
+          description: Successful start optional provider-gateway analysis
+          content:
+            application/json:
+              schema: *id010
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: G0-07 provider/service decision remains deferred; schema defines a safe interface only, never
+        presumes remote provider selection.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                sourceIds:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: *id002
+                expectedDraftVersion:
+                  type: integer
+                  minimum: 1
+              required:
+              - sourceIds
+              - expectedDraftVersion
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/projects/{projectId}/analysis-jobs/{jobId}:
+    get:
+      tags:
+      - AI Review
+      summary: Get asynchronous job state
+      operationId: get_api_v1_projects_projectId_analysis_jobs_jobId
+      x-rbac-action: RBAC-07
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful get asynchronous job state
+          content:
+            application/json:
+              schema: *id010
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: jobId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/candidate-claims:
+    get:
+      tags:
+      - AI Review
+      summary: List suggestions with source evidence
+      operationId: get_api_v1_projects_projectId_candidate_claims
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful list suggestions with source evidence
+          content:
+            application/json:
+              schema: &id011
+                type: object
+                additionalProperties: false
+                properties:
+                  items:
+                    type: array
+                    items: &id012
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        objectId: *id002
+                        projectId: *id002
+                        title: *id004
+                        status: *id004
+                        payload:
+                          type: object
+                        revisionToken: *id004
+                      required:
+                      - objectId
+                      - projectId
+                      - title
+                      - status
+                  nextCursor:
+                    type:
+                    - string
+                    - 'null'
+                required:
+                - items
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/candidate-claims/{claimId}/decision:
+    post:
+      tags:
+      - AI Review
+      summary: Submit authoritative Owner decision or Editor proposal
+      operationId: post_api_v1_projects_projectId_candidate_claims_claimId_decision
+      x-rbac-action: RBAC-08
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful submit authoritative owner decision or editor proposal
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  candidateId: *id002
+                  status:
+                    enum:
+                    - suggested
+                    - confirmed
+                    - rejected
+                    - deferred
+                  decisionActorId: *id002
+                required:
+                - candidateId
+                - status
+                - decisionActorId
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Editor proposal does not confirm. Server enforces AC-01D C1 Owner-only confirmed status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: &id021
+              type: object
+              additionalProperties: false
+              properties:
+                decision:
+                  enum:
+                  - confirm
+                  - reject
+                  - defer
+                  - propose-edit
+                reason:
+                  type: string
+                  maxLength: 3000
+                editedText:
+                  type: string
+                  maxLength: 10000
+                expectedDraftVersion:
+                  type: integer
+                  minimum: 1
+              required:
+              - decision
+              - expectedDraftVersion
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: claimId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/clarifications:
+    get:
+      tags:
+      - AI Review
+      summary: List unresolved clarifications
+      operationId: get_api_v1_projects_projectId_clarifications
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful list unresolved clarifications
+          content:
+            application/json:
+              schema: *id011
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/clarifications/{clarificationId}/answers:
+    post:
+      tags:
+      - AI Review
+      summary: Answer a clarification with traceability
+      operationId: post_api_v1_projects_projectId_clarifications_clarificationId_answers
+      x-rbac-action: RBAC-09
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful answer a clarification with traceability
+          content:
+            application/json:
+              schema: *id012
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                answer:
+                  type: string
+                  maxLength: 10000
+                sourceIds:
+                  type: array
+                  items: *id002
+              required:
+              - answer
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: clarificationId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/requirements:
+    get:
+      tags:
+      - Requirements
+      summary: List requirements with stable IDs
+      operationId: get_api_v1_projects_projectId_requirements
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful list requirements with stable ids
+          content:
+            application/json:
+              schema: *id011
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+    post:
+      tags:
+      - Requirements
+      summary: Create a requirement draft object
+      operationId: post_api_v1_projects_projectId_requirements
+      x-rbac-action: RBAC-09
+      x-contract-state: candidate-v1
+      responses:
+        '201':
+          description: Successful create a requirement draft object
+          content:
+            application/json:
+              schema: *id012
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Typed domain-specific validation, resource references, and Owner confirmation policy enforced
+        beyond general envelope. See detailed domain schema backlog.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: &id013
+              type: object
+              additionalProperties: false
+              properties:
+                objectId: *id002
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 300
+                status:
+                  enum:
+                  - proposed
+                  - confirmed
+                  - selected
+                  - deferred
+                  - rejected
+                payload:
+                  type: object
+                relatedIds:
+                  type: array
+                  items: *id002
+              required:
+              - title
+              - payload
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/requirements/{objectId}:
+    patch:
+      tags:
+      - Requirements
+      summary: Update one requirement object
+      operationId: patch_api_v1_projects_projectId_requirements_objectId
+      x-rbac-action: RBAC-09
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful update one requirement object
+          content:
+            application/json:
+              schema: *id012
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id013
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: objectId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/features:
+    get:
+      tags:
+      - Features
+      summary: List features with stable IDs
+      operationId: get_api_v1_projects_projectId_features
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful list features with stable ids
+          content:
+            application/json:
+              schema: *id011
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+    post:
+      tags:
+      - Features
+      summary: Create a feature draft object
+      operationId: post_api_v1_projects_projectId_features
+      x-rbac-action: RBAC-09
+      x-contract-state: candidate-v1
+      responses:
+        '201':
+          description: Successful create a feature draft object
+          content:
+            application/json:
+              schema: *id012
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Typed domain-specific validation, resource references, and Owner confirmation policy enforced
+        beyond general envelope. See detailed domain schema backlog.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id013
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/features/{objectId}:
+    patch:
+      tags:
+      - Features
+      summary: Update one feature object
+      operationId: patch_api_v1_projects_projectId_features_objectId
+      x-rbac-action: RBAC-09
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful update one feature object
+          content:
+            application/json:
+              schema: *id012
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id013
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: objectId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/screens:
+    get:
+      tags:
+      - Screens
+      summary: List screens with stable IDs
+      operationId: get_api_v1_projects_projectId_screens
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful list screens with stable ids
+          content:
+            application/json:
+              schema: *id011
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+    post:
+      tags:
+      - Screens
+      summary: Create a screen draft object
+      operationId: post_api_v1_projects_projectId_screens
+      x-rbac-action: RBAC-10
+      x-contract-state: candidate-v1
+      responses:
+        '201':
+          description: Successful create a screen draft object
+          content:
+            application/json:
+              schema: *id012
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Typed domain-specific validation, resource references, and Owner confirmation policy enforced
+        beyond general envelope. See detailed domain schema backlog.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id013
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/screens/{objectId}:
+    patch:
+      tags:
+      - Screens
+      summary: Update one screen object
+      operationId: patch_api_v1_projects_projectId_screens_objectId
+      x-rbac-action: RBAC-10
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful update one screen object
+          content:
+            application/json:
+              schema: *id012
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id013
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: objectId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/routes:
+    get:
+      tags:
+      - Routes
+      summary: List routes with stable IDs
+      operationId: get_api_v1_projects_projectId_routes
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful list routes with stable ids
+          content:
+            application/json:
+              schema: *id011
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+    post:
+      tags:
+      - Routes
+      summary: Create a route draft object
+      operationId: post_api_v1_projects_projectId_routes
+      x-rbac-action: RBAC-12
+      x-contract-state: candidate-v1
+      responses:
+        '201':
+          description: Successful create a route draft object
+          content:
+            application/json:
+              schema: *id012
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Typed domain-specific validation, resource references, and Owner confirmation policy enforced
+        beyond general envelope. See detailed domain schema backlog.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id013
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/routes/{objectId}:
+    patch:
+      tags:
+      - Routes
+      summary: Update one route object
+      operationId: patch_api_v1_projects_projectId_routes_objectId
+      x-rbac-action: RBAC-12
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful update one route object
+          content:
+            application/json:
+              schema: *id012
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id013
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: objectId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/interactions:
+    get:
+      tags:
+      - Interactions
+      summary: List interactions with stable IDs
+      operationId: get_api_v1_projects_projectId_interactions
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful list interactions with stable ids
+          content:
+            application/json:
+              schema: *id011
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+    post:
+      tags:
+      - Interactions
+      summary: Create a interaction draft object
+      operationId: post_api_v1_projects_projectId_interactions
+      x-rbac-action: RBAC-14
+      x-contract-state: candidate-v1
+      responses:
+        '201':
+          description: Successful create a interaction draft object
+          content:
+            application/json:
+              schema: *id012
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Typed domain-specific validation, resource references, and Owner confirmation policy enforced
+        beyond general envelope. See detailed domain schema backlog.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id013
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/interactions/{objectId}:
+    patch:
+      tags:
+      - Interactions
+      summary: Update one interaction object
+      operationId: patch_api_v1_projects_projectId_interactions_objectId
+      x-rbac-action: RBAC-14
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful update one interaction object
+          content:
+            application/json:
+              schema: *id012
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id013
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: objectId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/traceability:
+    get:
+      tags:
+      - Traceability
+      summary: Read requirement to feature screen action coverage
+      operationId: get_api_v1_projects_projectId_traceability
+      x-rbac-action: RBAC-18
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read requirement to feature screen action coverage
+          content:
+            application/json:
+              schema: *id011
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/routes/validate:
+    post:
+      tags:
+      - Routes
+      summary: Run route reference and reachability checks
+      operationId: post_api_v1_projects_projectId_routes_validate
+      x-rbac-action: RBAC-17
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful run route reference and reachability checks
+          content:
+            application/json:
+              schema: *id014
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                expectedDraftVersion:
+                  type: integer
+                  minimum: 1
+              required:
+              - expectedDraftVersion
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/component-registry:
+    get:
+      tags:
+      - Design
+      summary: Read active allowlisted registry and prop versions
+      operationId: get_api_v1_component_registry
+      x-rbac-action: RBAC-16
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read active allowlisted registry and prop versions
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  registryVersion: *id004
+                  componentTypes:
+                    type: array
+                    items: *id004
+                  mockActionKinds:
+                    type: array
+                    items: *id004
+                required:
+                - registryVersion
+                - componentTypes
+                - mockActionKinds
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+  /api/v1/projects/{projectId}/design-tokens:
+    get:
+      tags:
+      - Design
+      summary: Get theme token set
+      operationId: get_api_v1_projects_projectId_design_tokens
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful get theme token set
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+    put:
+      tags:
+      - Design
+      summary: Save theme tokens
+      operationId: put_api_v1_projects_projectId_design_tokens
+      x-rbac-action: RBAC-13
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful save theme tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  draftVersion:
+                    type: integer
+                required:
+                - draftVersion
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                primaryColor:
+                  type: string
+                  pattern: ^#[A-Fa-f0-9]{6}$
+                mode:
+                  enum:
+                  - light
+                  - dark
+                  - system
+                spacingScale:
+                  type: array
+                  items:
+                    type: integer
+                    minimum: 0
+              required:
+              - primaryColor
+              - mode
+              - spacingScale
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/blueprint:
+    get:
+      tags:
+      - Blueprint
+      summary: Read saved validated Blueprint
+      operationId: get_api_v1_projects_projectId_blueprint
+      x-rbac-action: RBAC-16
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read saved validated blueprint
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/blueprint-v1.schema.json
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/blueprint/compile:
+    post:
+      tags:
+      - Blueprint
+      summary: Compile from confirmed project model
+      operationId: post_api_v1_projects_projectId_blueprint_compile
+      x-rbac-action: RBAC-15
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful compile from confirmed project model
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/blueprint-v1.schema.json
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: AI-assisted mode can only execute when separate provider decision and consent/quota are satisfied;
+        deterministic template fallback remains.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                expectedDraftVersion:
+                  type: integer
+                  minimum: 1
+                mode:
+                  enum:
+                  - template
+                  - ai-assisted
+              required:
+              - expectedDraftVersion
+              - mode
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/generations:
+    post:
+      tags:
+      - Blueprint
+      summary: Start UI generation job
+      operationId: post_api_v1_projects_projectId_generations
+      x-rbac-action: RBAC-15
+      x-contract-state: candidate-v1
+      responses:
+        '202':
+          description: Successful start ui generation job
+          content:
+            application/json:
+              schema: *id010
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                blueprintId: *id002
+                screenIds:
+                  type: array
+                  items: *id002
+                source:
+                  enum:
+                  - template
+                  - ai-assisted
+              required:
+              - blueprintId
+              - screenIds
+              - source
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/projects/{projectId}/generations/{jobId}:
+    get:
+      tags:
+      - Blueprint
+      summary: Read generation status
+      operationId: get_api_v1_projects_projectId_generations_jobId
+      x-rbac-action: RBAC-16
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read generation status
+          content:
+            application/json:
+              schema: *id010
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: jobId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/designs/{designId}:
+    get:
+      tags:
+      - Design
+      summary: Read saved editable design revision
+      operationId: get_api_v1_projects_projectId_designs_designId
+      x-rbac-action: RBAC-16
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read saved editable design revision
+          content:
+            application/json:
+              schema: *id012
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: designId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/designs/{designId}/edits:
+    post:
+      tags:
+      - Design
+      summary: Append validated editor edit event
+      operationId: post_api_v1_projects_projectId_designs_designId_edits
+      x-rbac-action: RBAC-15
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful append validated editor edit event
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  designId: *id002
+                  designVersion:
+                    type: integer
+                  impactWarnings:
+                    type: array
+                    items: *id004
+                required:
+                - designId
+                - designVersion
+                - impactWarnings
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                componentInstanceId: *id002
+                operation:
+                  enum:
+                  - set-prop
+                  - reorder
+                  - add-component
+                  - remove-component
+                  - set-action
+                change:
+                  type: object
+                expectedDesignVersion:
+                  type: integer
+                  minimum: 1
+              required:
+              - componentInstanceId
+              - operation
+              - change
+              - expectedDesignVersion
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: designId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/preview-sessions:
+    post:
+      tags:
+      - Preview
+      summary: Create safe simulated preview session
+      operationId: post_api_v1_projects_projectId_preview_sessions
+      x-rbac-action: RBAC-16
+      x-contract-state: candidate-v1
+      responses:
+        '201':
+          description: Successful create safe simulated preview session
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  previewSessionId: *id002
+                  notice:
+                    const: SIMULATED_PREVIEW_NO_LIVE_TRANSACTIONS
+                required:
+                - previewSessionId
+                - notice
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                blueprintId: *id002
+                startScreenId: *id002
+              required:
+              - blueprintId
+              - startScreenId
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/validation-runs:
+    post:
+      tags:
+      - Validation
+      summary: Validate exact current draft
+      operationId: post_api_v1_projects_projectId_validation_runs
+      x-rbac-action: RBAC-17
+      x-contract-state: candidate-v1
+      responses:
+        '201':
+          description: Successful validate exact current draft
+          content:
+            application/json:
+              schema: *id014
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                draftId: *id002
+                expectedDraftVersion:
+                  type: integer
+                  minimum: 1
+              required:
+              - draftId
+              - expectedDraftVersion
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/projects/{projectId}/validation-runs/{validationRunId}:
+    get:
+      tags:
+      - Validation
+      summary: Read deterministic findings
+      operationId: get_api_v1_projects_projectId_validation_runs_validationRunId
+      x-rbac-action: RBAC-18
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read deterministic findings
+          content:
+            application/json:
+              schema: *id014
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: validationRunId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/reviews:
+    post:
+      tags:
+      - Approval
+      summary: Record reviewer comment or change request
+      operationId: post_api_v1_projects_projectId_reviews
+      x-rbac-action: RBAC-19/20
+      x-contract-state: candidate-v1
+      responses:
+        '201':
+          description: Successful record reviewer comment or change request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  reviewEventId: *id002
+                  createdAt:
+                    type: string
+                    format: date-time
+                required:
+                - reviewEventId
+                - createdAt
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                draftId: *id002
+                eventType:
+                  enum:
+                  - comment
+                  - request-changes
+                comment:
+                  type: string
+                  minLength: 1
+                  maxLength: 10000
+              required:
+              - draftId
+              - eventType
+              - comment
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/approvals:
+    post:
+      tags:
+      - Approval
+      summary: Approve validated immutable revision
+      operationId: post_api_v1_projects_projectId_approvals
+      x-rbac-action: RBAC-21
+      x-contract-state: candidate-v1
+      responses:
+        '201':
+          description: Successful approve validated immutable revision
+          content:
+            application/json:
+              schema: &id015
+                type: object
+                additionalProperties: false
+                properties:
+                  revisionId: *id002
+                  projectId: *id002
+                  draftId: *id002
+                  draftVersion:
+                    type: integer
+                    minimum: 1
+                  contentSha256:
+                    type: string
+                    pattern: ^[a-f0-9]{64}$
+                  approvedAt:
+                    type: string
+                    format: date-time
+                required:
+                - revisionId
+                - projectId
+                - draftId
+                - draftVersion
+                - contentSha256
+                - approvedAt
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Requires explicit Approver grant and independent material-editor check. Under a transaction compare
+        draft version/hash/validation run and zero blockers. Super Admin never permitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                draftId: *id002
+                expectedDraftVersion:
+                  type: integer
+                  minimum: 1
+                validationRunId: *id002
+                expectedDraftSha256:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+              required:
+              - draftId
+              - expectedDraftVersion
+              - validationRunId
+              - expectedDraftSha256
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/projects/{projectId}/revisions:
+    get:
+      tags:
+      - Approval
+      summary: List available immutable approved revisions
+      operationId: get_api_v1_projects_projectId_revisions
+      x-rbac-action: RBAC-22
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful list available immutable approved revisions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: *id015
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/revisions/{revisionId}:
+    get:
+      tags:
+      - Approval
+      summary: Read one approved revision metadata
+      operationId: get_api_v1_projects_projectId_revisions_revisionId
+      x-rbac-action: RBAC-22
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read one approved revision metadata
+          content:
+            application/json:
+              schema: *id015
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: revisionId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/second-brain:
+    get:
+      tags:
+      - Exports
+      summary: Read permitted canonical references for current draft
+      operationId: get_api_v1_projects_projectId_second_brain
+      x-rbac-action: RBAC-23
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read permitted canonical references for current draft
+          content:
+            application/json:
+              schema: *id011
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/revisions/{revisionId}/second-brain:
+    get:
+      tags:
+      - Exports
+      summary: Read canonical references from exact approved revision
+      operationId: get_api_v1_projects_projectId_revisions_revisionId_second_brain
+      x-rbac-action: RBAC-24
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read canonical references from exact approved revision
+          content:
+            application/json:
+              schema: *id011
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: revisionId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/exports:
+    post:
+      tags:
+      - Exports
+      summary: Request single-revision canonical19 export
+      operationId: post_api_v1_projects_projectId_exports
+      x-rbac-action: RBAC-23/24
+      x-contract-state: candidate-v1
+      responses:
+        '202':
+          description: Successful request single-revision canonical19 export
+          content:
+            application/json:
+              schema: &id016
+                type: object
+                additionalProperties: false
+                properties:
+                  exportId: *id002
+                  projectId: *id002
+                  sourceType:
+                    enum:
+                    - draft
+                    - approved
+                  status:
+                    enum:
+                    - queued
+                    - running
+                    - ready
+                    - failed
+                  revisionId: *id002
+                  draftId: *id002
+                  manifestSha256: *id004
+                required:
+                - exportId
+                - projectId
+                - sourceType
+                - status
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                sourceType:
+                  enum:
+                  - draft
+                  - approved
+                draftId: *id002
+                revisionId: *id002
+                packageProfile:
+                  const: canonical19
+                expectedDraftVersion:
+                  type: integer
+                  minimum: 1
+              required:
+              - sourceType
+              - packageProfile
+              allOf:
+              - if:
+                  properties:
+                    sourceType:
+                      const: approved
+                then:
+                  required:
+                  - revisionId
+              - if:
+                  properties:
+                    sourceType:
+                      const: draft
+                then:
+                  required:
+                  - draftId
+                  - expectedDraftVersion
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/projects/{projectId}/exports/{exportId}:
+    get:
+      tags:
+      - Exports
+      summary: Read one export job status
+      operationId: get_api_v1_projects_projectId_exports_exportId
+      x-rbac-action: RBAC-23/24
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read one export job status
+          content:
+            application/json:
+              schema: *id016
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: exportId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/exports/{exportId}/manifest:
+    get:
+      tags:
+      - Exports
+      summary: Read manifest with permission and version check
+      operationId: get_api_v1_projects_projectId_exports_exportId_manifest
+      x-rbac-action: RBAC-24
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read manifest with permission and version check
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/manifest-v1.schema.json
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Approved canonical19 manifests use the provided JSON schema. Draft exports must be explicitly
+        labeled draft and use a separately versioned variant; never mislabel draft as approved.
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: exportId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/exports/{exportId}/download:
+    get:
+      tags:
+      - Exports
+      summary: Download authorized private ZIP
+      operationId: get_api_v1_projects_projectId_exports_exportId_download
+      x-rbac-action: RBAC-24
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Authorized ZIP
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Content-Type application/zip, content-disposition attachment; reauthorize at download time, separate
+        download grant; MCP cannot call this endpoint.
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: exportId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/mcp-grants:
+    get:
+      tags:
+      - MCP
+      summary: List own issued grants metadata
+      operationId: get_api_v1_projects_projectId_mcp_grants
+      x-rbac-action: RBAC-28
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful list own issued grants metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items: &id017
+                  type: object
+                  additionalProperties: false
+                  properties:
+                    grantId: *id002
+                    revisionId: *id002
+                    clientId: *id002
+                    scopes:
+                      type: array
+                      items: *id004
+                    expiresAt:
+                      type: string
+                      format: date-time
+                    revokedAt:
+                      type:
+                      - string
+                      - 'null'
+                      format: date-time
+                  required:
+                  - grantId
+                  - revisionId
+                  - clientId
+                  - scopes
+                  - expiresAt
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+    post:
+      tags:
+      - MCP
+      summary: Owner creates read-only approved revision MCP grant
+      operationId: post_api_v1_projects_projectId_mcp_grants
+      x-rbac-action: RBAC-28
+      x-contract-state: candidate-v1
+      responses:
+        '201':
+          description: Successful owner creates read-only approved revision mcp grant
+          content:
+            application/json:
+              schema: *id017
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                revisionId: *id002
+                scopes:
+                  type: array
+                  uniqueItems: true
+                  minItems: 1
+                  items:
+                    enum:
+                    - read:overview
+                    - read:requirements
+                    - read:screens
+                    - read:traceability
+                    - read:manifest
+                expiresAt:
+                  type: string
+                  format: date-time
+                clientId: *id002
+              required:
+              - revisionId
+              - scopes
+              - expiresAt
+              - clientId
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/projects/{projectId}/mcp-grants/{grantId}:
+    delete:
+      tags:
+      - MCP
+      summary: Revoke own project MCP grant
+      operationId: delete_api_v1_projects_projectId_mcp_grants_grantId
+      x-rbac-action: RBAC-28
+      x-contract-state: candidate-v1
+      responses:
+        '204':
+          description: Successful revoke own project mcp grant
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: grantId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/audit-events:
+    get:
+      tags:
+      - Audit
+      summary: Read action-limited project audit entries
+      operationId: get_api_v1_projects_projectId_audit_events
+      x-rbac-action: RBAC-31
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read action-limited project audit entries
+          content:
+            application/json:
+              schema: *id011
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/admin/usage-summary:
+    get:
+      tags:
+      - Admin
+      summary: Read safe aggregated operation counts
+      operationId: get_api_v1_admin_usage_summary
+      x-rbac-action: RBAC-32/35
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read safe aggregated operation counts
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  usersActive:
+                    type: integer
+                    minimum: 0
+                  projectsActive:
+                    type: integer
+                    minimum: 0
+                  jobsRunning:
+                    type: integer
+                    minimum: 0
+                required:
+                - usersActive
+                - projectsActive
+                - jobsRunning
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+  /api/v1/admin/job-health:
+    get:
+      tags:
+      - Admin
+      summary: Read safe queue health metrics
+      operationId: get_api_v1_admin_job_health
+      x-rbac-action: RBAC-35
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read safe queue health metrics
+          content:
+            application/json:
+              schema: *id011
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+  /api/v1/projects/{projectId}/members:
+    get:
+      tags:
+      - Membership
+      summary: List active project memberships and roles
+      operationId: get_api_v1_projects_projectId_members
+      x-rbac-action: RBAC-26
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful list active project memberships and roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: &id019
+                  type: object
+                  additionalProperties: false
+                  properties:
+                    userId: *id002
+                    roles:
+                      type: array
+                      uniqueItems: true
+                      items: &id018
+                        enum:
+                        - Owner
+                        - RequirementsEditor
+                        - Designer
+                        - Reviewer
+                        - Approver
+                        - Viewer
+                    status:
+                      enum:
+                      - invited
+                      - active
+                      - revoked
+                  required:
+                  - userId
+                  - roles
+                  - status
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/invitations:
+    post:
+      tags:
+      - Membership
+      summary: Owner invites a verified recipient to specific project roles
+      operationId: post_api_v1_projects_projectId_invitations
+      x-rbac-action: RBAC-26
+      x-contract-state: candidate-v1
+      responses:
+        '201':
+          description: Successful owner invites a verified recipient to specific project roles
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  invitationId: *id002
+                  projectId: *id002
+                  inviteeEmail:
+                    type: string
+                    format: email
+                  roles:
+                    type: array
+                    minItems: 1
+                    uniqueItems: true
+                    items: *id018
+                  status:
+                    enum:
+                    - pending
+                    - accepted
+                    - expired
+                    - revoked
+                required:
+                - invitationId
+                - projectId
+                - roles
+                - status
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                inviteeEmail:
+                  type: string
+                  format: email
+                roles:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: *id018
+              required:
+              - inviteeEmail
+              - roles
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/invitations/{invitationId}/accept:
+    post:
+      tags:
+      - Membership
+      summary: Invitee accepts project invitation
+      operationId: post_api_v1_invitations_invitationId_accept
+      x-rbac-action: RBAC-26
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful invitee accepts project invitation
+          content:
+            application/json:
+              schema: *id019
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                accept:
+                  const: true
+              required:
+              - accept
+      parameters:
+      - name: invitationId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/projects/{projectId}/members/{userId}/roles:
+    post:
+      tags:
+      - Membership
+      summary: Owner grants a project role with audit
+      operationId: post_api_v1_projects_projectId_members_userId_roles
+      x-rbac-action: RBAC-26
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful owner grants a project role with audit
+          content:
+            application/json:
+              schema: *id019
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                role: *id018
+              required:
+              - role
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: userId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/projects/{projectId}/members/{userId}/roles/{roleCode}:
+    delete:
+      tags:
+      - Membership
+      summary: Owner revokes a role subject to last Owner rule
+      operationId: delete_api_v1_projects_projectId_members_userId_roles_roleCode
+      x-rbac-action: RBAC-27
+      x-contract-state: candidate-v1
+      responses:
+        '204':
+          description: Successful owner revokes a role subject to last owner rule
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: userId
+        in: path
+        required: true
+        schema: *id002
+      - name: roleCode
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/ownership-transfer:
+    post:
+      tags:
+      - Membership
+      summary: Atomically transfer Owner responsibility to accepted member
+      operationId: post_api_v1_projects_projectId_ownership_transfer
+      x-rbac-action: RBAC-27
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful atomically transfer owner responsibility to accepted member
+          content:
+            application/json:
+              schema: *id019
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                fromUserId: *id002
+                toUserId: *id002
+                reason:
+                  type: string
+                  maxLength: 1000
+              required:
+              - fromUserId
+              - toUserId
+              - reason
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/projects/{projectId}/viewer-grants:
+    get:
+      tags:
+      - Sharing
+      summary: Owner lists frozen resource grants
+      operationId: get_api_v1_projects_projectId_viewer_grants
+      x-rbac-action: RBAC-25
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful owner lists frozen resource grants
+          content:
+            application/json:
+              schema:
+                type: array
+                items: &id020
+                  type: object
+                  additionalProperties: false
+                  properties:
+                    viewerGrantId: *id002
+                    revisionId: *id002
+                    resources:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        properties:
+                          resourceKind: *id004
+                          resourceId: *id002
+                        required:
+                        - resourceKind
+                        - resourceId
+                    revokedAt:
+                      type:
+                      - string
+                      - 'null'
+                      format: date-time
+                  required:
+                  - viewerGrantId
+                  - revisionId
+                  - resources
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+    post:
+      tags:
+      - Sharing
+      summary: Owner grants frozen resource or screen group access
+      operationId: post_api_v1_projects_projectId_viewer_grants
+      x-rbac-action: RBAC-25
+      x-contract-state: candidate-v1
+      responses:
+        '201':
+          description: Successful owner grants frozen resource or screen group access
+          content:
+            application/json:
+              schema: *id020
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Resource IDs are frozen at creation for the selected approved revision; no implicit newly added
+        screens. Download remains separately scoped.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                viewerUserId: *id002
+                revisionId: *id002
+                resources:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      resourceKind:
+                        enum:
+                        - screen
+                        - preview
+                        - document
+                        - revision
+                        - screen-group
+                        - export
+                      resourceId: *id002
+                    required:
+                    - resourceKind
+                    - resourceId
+                canDownload:
+                  type: boolean
+                expiresAt:
+                  type: string
+                  format: date-time
+              required:
+              - viewerUserId
+              - revisionId
+              - resources
+              - canDownload
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/projects/{projectId}/viewer-grants/{viewerGrantId}:
+    delete:
+      tags:
+      - Sharing
+      summary: Owner revokes resource grant
+      operationId: delete_api_v1_projects_projectId_viewer_grants_viewerGrantId
+      x-rbac-action: RBAC-25
+      x-contract-state: candidate-v1
+      responses:
+        '204':
+          description: Successful owner revokes resource grant
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: viewerGrantId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/sources/{sourceId}:
+    delete:
+      tags:
+      - Sources
+      summary: Remove source under dependency and retention policy
+      operationId: delete_api_v1_projects_projectId_sources_sourceId
+      x-rbac-action: RBAC-06
+      x-contract-state: candidate-v1
+      responses:
+        '204':
+          description: Successful remove source under dependency and retention policy
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: May only soft-delete or deny if linked confirmed source evidence would be orphaned. Consent/privacy
+        retention still pending.
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: sourceId
+        in: path
+        required: true
+        schema: *id002
+    get:
+      tags:
+      - Sources
+      summary: Read authorized source metadata and parse status
+      operationId: get_api_v1_projects_projectId_sources_sourceId
+      x-rbac-action: RBAC-03
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read authorized source metadata and parse status
+          content:
+            application/json:
+              schema: *id008
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - name: sourceId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/route-layout:
+    put:
+      tags:
+      - Routes
+      summary: Save visual graph coordinates separately from route logic
+      operationId: put_api_v1_projects_projectId_route_layout
+      x-rbac-action: RBAC-12
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful save visual graph coordinates separately from route logic
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  draftVersion:
+                    type: integer
+                required:
+                - draftVersion
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                nodes:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      screenId: *id002
+                      x:
+                        type: number
+                      y:
+                        type: number
+                    required:
+                    - screenId
+                    - x
+                    - y
+              required:
+              - nodes
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+      - *id006
+  /api/v1/projects/{projectId}/designs:
+    get:
+      tags:
+      - Design
+      summary: List saved generated/edited design revisions
+      operationId: get_api_v1_projects_projectId_designs
+      x-rbac-action: RBAC-16
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful list saved generated/edited design revisions
+          content:
+            application/json:
+              schema: *id011
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/projects/{projectId}/ai-usage:
+    get:
+      tags:
+      - AI Review
+      summary: Read project AI quota/usage metadata
+      operationId: get_api_v1_projects_projectId_ai_usage
+      x-rbac-action: RBAC-07
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful read project ai quota/usage metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  usageEvents:
+                    type: integer
+                    minimum: 0
+                  quotaRemaining:
+                    type:
+                    - integer
+                    - 'null'
+                    minimum: 0
+                required:
+                - usageEvents
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/admin/users:
+    get:
+      tags:
+      - Admin
+      summary: Super Admin reads safe account directory metadata
+      operationId: get_api_v1_admin_users
+      x-rbac-action: RBAC-32
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful super admin reads safe account directory metadata
+          content:
+            application/json:
+              schema: *id011
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+  /api/v1/admin/users/{userId}/suspend:
+    post:
+      tags:
+      - Admin
+      summary: Super Admin suspends account and revokes sessions
+      operationId: post_api_v1_admin_users_userId_suspend
+      x-rbac-action: RBAC-33
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful super admin suspends account and revokes sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  userId: *id002
+                  status:
+                    const: suspended
+                required:
+                - userId
+                - status
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 1000
+              required:
+              - reason
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/admin/users/{userId}/reactivate:
+    post:
+      tags:
+      - Admin
+      summary: Super Admin reactivates account with audit
+      operationId: post_api_v1_admin_users_userId_reactivate
+      x-rbac-action: RBAC-33
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful super admin reactivates account with audit
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  userId: *id002
+                  status:
+                    const: active
+                required:
+                - userId
+                - status
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 1000
+              required:
+              - reason
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema: *id002
+      - *id009
+  /api/v1/admin/mcp-grants:
+    get:
+      tags:
+      - Admin
+      summary: Super Admin sees grant metadata only
+      operationId: get_api_v1_admin_mcp_grants
+      x-rbac-action: RBAC-36
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful super admin sees grant metadata only
+          content:
+            application/json:
+              schema:
+                type: array
+                items: *id017
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      description: Never return grant secret, token, source content or private approved project data.
+  /api/v1/admin/mcp-grants/{grantId}:
+    delete:
+      tags:
+      - Admin
+      summary: Super Admin emergency revokes MCP grant
+      operationId: delete_api_v1_admin_mcp_grants_grantId
+      x-rbac-action: RBAC-36
+      x-contract-state: candidate-v1
+      responses:
+        '204':
+          description: Successful super admin emergency revokes mcp grant
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+      parameters:
+      - name: grantId
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/admin/security-audit:
+    get:
+      tags:
+      - Admin
+      summary: Super Admin reads redacted security event metadata
+      operationId: get_api_v1_admin_security_audit
+      x-rbac-action: RBAC-37
+      x-contract-state: candidate-v1
+      responses:
+        '200':
+          description: Successful super admin reads redacted security event metadata
+          content:
+            application/json:
+              schema: *id011
+        '400': *id001
+        '401': *id001
+        '403': *id001
+        '404': *id001
+        '409': *id001
+        '422': *id001
+        '429': *id001
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Candidate access-token transport; provider and token profile remain pending. Server must check
+        session revocation.
+  schemas:
+    ProjectInfo: *id005
+    ProjectSummary: *id003
+    ClaimDecision: *id021
+    Validation: *id014
+    ValidationFinding:
+      type: object
+      additionalProperties: false
+      properties:
+        ruleId: *id004
+        severity:
+          enum:
+          - blocker
+          - advisory
+        objectId: *id002
+        message: *id004
+        fixLink: *id004
+      required:
+      - ruleId
+      - severity
+      - message
+    Job: *id010
+    Approval: *id015
+    ExportJob: *id016
+    Grant: *id017
+    Problem:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          const: about:blank
+        title: *id004
+        status:
+          type: integer
+        code: *id004
+        correlationId: *id002
+        detail: *id004
+      required:
+      - title
+      - status
+      - code
+      - correlationId
+security:
+- BearerAuth: []
+x-contract-rules:
+  draftConcurrency: If-Match strong ETag; 409 on stale
+  approval: exact persisted draft version + current validation hash, explicit Approver, no material self-approval
+  superAdmin: no implicit project content, export or project approval
+  mock: no live transactions
+  mcp: read-only approved revision scopes only

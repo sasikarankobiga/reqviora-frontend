@@ -1,0 +1,40 @@
+﻿ID,Action,Owner,Requirements_Editor,Designer,Reviewer,Approver,Viewer,Super_Admin,External_MCP,Policy Notes
+RBAC-01,Register / sign in own account,H,H,H,H,H,H,B,D,Account registration/sign-in does not depend on already holding a project role; privileged Super Admin uses controlled provisioning and mandatory MFA.
+RBAC-02,Create new REQVIORA project,H,H,H,H,H,H,D,D,Eligible verified active account creates project; server atomically assigns project Owner. Project role is not a prerequisite. Quotas separately enforced.
+RBAC-03,Read project draft/overview,Y,Y,Y,Y,Y,G,M,D,Viewer metadata only without resource grant; full draft context requires exact draft resource grant. SA sees safe operational metadata only.
+RBAC-04,Read approved project context,Y,Y,Y,Y,Y,G,M,R,Viewer needs approved-revision grant; MCP only approved-revision read tools in granted scope.
+RBAC-05,"Edit project name, scope, target",Y,P,D,D,D,D,D,D,"Owner alone changes name, category, target and in/out scope. Editor can edit description/tagline in draft and propose other identity/scope changes."
+RBAC-06,Upload/edit sources or transcript,Y,Y,D,D,D,D,D,D,Owner/Editor handle sources and transcript with consent and data-class permissions; an Editor cannot confirm extracted requirements.
+RBAC-07,Run AI requirements extraction,Y,Y,Y,D,D,D,D,D,"Designer may run AI analysis with quotas/consent, but cannot confirm resulting requirements. No AI auto-confirmation."
+RBAC-08,Accept/edit/reject AI requirement,Y,P,D,D,D,D,D,D,Owner alone makes accepted/rejected/deferred authoritative decisions; Editor can annotate and submit proposal to Owner.
+RBAC-09,"Edit goals, requirements, features",Y,P,D,D,D,D,D,D,"Editor writes draft goals, requirements, and features; authoritative confirmation and key goals/audience changes require Owner."
+RBAC-10,"Define/select screens, feature mapping",Y,Y,Y,D,D,D,D,D,Requirements Editor and Designer may add/map screens; confirmed requirement and scope records remain Owner-controlled.
+RBAC-11,Edit Builder Step 1 identity/audience,Y,P,D,D,D,D,D,D,"Editor can draft description/tagline; for goals/audience/personas/application roles, submit proposed change. Prefilled Project fields remain canonical."
+RBAC-12,Edit navigation graph & routes,Y,P,Y,D,D,D,D,D,Designer edits graph/routes; Editor can propose change but not directly edit live route model.
+RBAC-13,"Edit theme, component, layouts",Y,D,Y,D,D,D,D,D,"Designer and Owner edit visual design, supported registry and layout; no arbitrary executable UI."
+RBAC-14,Edit interactions & UI states,Y,P,Y,D,D,D,D,D,Designer edits interaction/state definitions; Editor proposes corrections; confirmed business rules cannot silently change.
+RBAC-15,Run UI generation / edit design,Y,D,Y,D,D,D,D,D,Only allowlisted Blueprint-driven UI generation/editing; human review and mock-only preview.
+RBAC-16,View simulated preview,Y,Y,Y,Y,Y,G,D,D,Viewer preview requires explicit resource/revision grant. External MCP context read does not open interactive preview.
+RBAC-17,Execute validation,Y,Y,Y,Y,Y,D,D,D,Reviewer and Approver may run deterministic validation but cannot mutate approved revision; validation artifacts revision/version-bound.
+RBAC-18,Read validation and review findings,Y,Y,Y,Y,Y,G,M,R,"Viewer may see only explicitly granted findings; SA aggregate/operational stats only, no sensitive findings; MCP only separately granted approved findings."
+RBAC-19,Comment on review,Y,Y,Y,Y,Y,D,D,D,Commenting grants no revision approval or requirement confirmation authority.
+RBAC-20,Request changes,Y,Y,Y,Y,Y,D,D,D,Every human project collaborator except Viewer may request changes. Request is not an authoritative edit or approval.
+RBAC-21,Approve immutable revision,A,D,D,D,A,D,D,D,"Approver role is mandatory; Owner alone is not enough. No self-approval of a revision with material work by the approver; exact version, no blockers, explicit audit required."
+RBAC-22,Read revision history and approved snapshots,Y,Y,Y,Y,Y,G,M,R,Viewer needs exact revision/history grant. SA only operational metadata. MCP only exact approved revision-scoped context.
+RBAC-23,Create/download draft export,Y,G,G,D,D,D,D,D,Owner may download labeled draft; Editor/Designer need explicit export grant; a draft export must not appear approved.
+RBAC-24,Download approved Second Brain / ZIP,Y,G,G,G,G,G,D,D,Approved ZIP/download separately authorized to specified account and revision. External MCP read grant never authorizes arbitrary ZIP download.
+RBAC-25,Create/revoke preview share grants,Y,D,D,D,D,D,D,D,Only project Owner issues/revokes resource grants and share grants; no public anonymous links by default.
+RBAC-26,Create project member invitation,Y,D,D,D,D,D,D,D,"Owner-only invitations, project-specific role assignment, explicit recipient acceptance and audit."
+RBAC-27,Revoke project member role,Y,D,D,D,D,D,D,D,Owner-only membership revocation; last Owner protected; transfer is separate atomic verified workflow.
+RBAC-28,Create/revoke own project MCP grant,Y,D,D,D,D,D,V,D,Owner creates/revokes project-scoped read-only MCP grants; SA can revoke platform-wide for security but cannot create customer grant or read content.
+RBAC-29,MCP read authorized approved revision,D,D,D,D,D,D,D,R,"External client can only use allowlisted read tools for one approved revision with authenticated, unexpired, revocable grant."
+RBAC-30,MCP write / approve / delete,D,D,D,D,D,D,D,D,"No MCP write, approve, mutate, delete or customer-app deployment endpoints in V1."
+RBAC-31,View project-specific audit events,Y,L,D,L,L,D,M,D,Editor own-action audit only; Reviewer/Approver review events only; SA redacted platform metadata; Owner project audit.
+RBAC-32,Use admin dashboard/user directory,D,D,D,D,D,D,Y,D,Super Admin-only dashboard/user directory after privileged authentication and authorization.
+RBAC-33,"Suspend/reactivate account, revoke session",D,D,D,D,D,D,Y,D,"SA suspension/reactivation/session revoke needs step-up auth, reason, audit; no customer project approval privilege."
+RBAC-34,Read platform project operational metadata,D,D,D,D,D,D,M,D,"SA can inspect project count, identifiers, processing state and safe diagnostic metadata, never private customer documents/designs/ZIP."
+RBAC-35,"Monitor export, validation, system health",D,D,D,D,D,D,Y,D,"Operations metrics and queued-job health only, redacted diagnostic messages, no export-body access."
+RBAC-36,View/revoke MCP grants platform-wide,D,D,D,D,D,D,V,D,SA can view metadata of grants and revoke for risk response; cannot mint customer grants or use them to read contents.
+RBAC-37,Inspect platform security audit/alerts,D,D,D,D,D,D,Y,D,SA can inspect security/audit events redacted and within policy; no hidden project content escalation.
+RBAC-38,Change versioned platform settings,D,D,D,D,D,D,C,D,"SA can change versioned allowlisted platform settings with step-up auth, change reason, audit, validation and rollback; never arbitrary secret/customer data access."
+RBAC-39,Use support/incident case queue,D,D,D,D,D,D,Y,D,V1 minimal incident/support queue allowed for metadata and incident status only; no automatic customer content access.
