@@ -821,4 +821,81 @@ void main() {
     expect(saved['text'], 'Submit');
     expect(properties['enabled'], isTrue);
   });
+
+  testWidgets(
+    'updates text font size while preserving existing properties',
+    (tester) async {
+      final workspace = Workspace(
+        projectId: 'project-1',
+        draftId: 'draft-1',
+        version: 1,
+        projectName: 'Test Project',
+        designTargets: const ['web'],
+        sections: {
+          'screens': [
+            {'id': 'screen-1', 'name': 'Dashboard'},
+          ],
+          'components': [
+            {
+              'id': 'component-text-123',
+              'screenId': 'screen-1',
+              'type': 'text',
+              'label': 'Welcome Message',
+              'text': 'Welcome to REQVIORA',
+              'properties': {
+                'fontSize': 24,
+                'color': '#663399',
+              },
+            },
+          ],
+        },
+      );
+
+      List<Map<String, dynamic>>? savedItems;
+
+      await openStudio(tester, (section, data) async {
+        expect(section, 'components');
+        savedItems = (data as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      }, workspace: workspace);
+
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+
+      final fontSlider = find.byType(Slider);
+
+      expect(fontSlider, findsOneWidget);
+      expect(
+        tester.widget<Slider>(fontSlider).value,
+        24,
+      );
+
+      // Update the font-size slider.
+      tester.widget<Slider>(fontSlider).onChanged!(32);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<Slider>(fontSlider).value,
+        32,
+      );
+
+      await tester.tap(find.text('Save').last);
+      await tester.pumpAndSettle();
+
+      expect(savedItems, isNotNull);
+      expect(savedItems, hasLength(1));
+
+      final saved = savedItems!.single;
+      final properties = Map<String, dynamic>.from(saved['properties'] as Map);
+
+      expect(saved['id'], 'component-text-123');
+      expect(saved['screenId'], 'screen-1');
+      expect(saved['type'], 'text');
+      expect(saved['label'], 'Welcome Message');
+      expect(saved['text'], 'Welcome to REQVIORA');
+      expect(properties['fontSize'], 32);
+      expect(properties['color'], '#663399');
+    },
+  );
 }

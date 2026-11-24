@@ -345,6 +345,7 @@ class _ItemDialogState extends State<_ItemDialog> {
   late String priority;
   late String componentType;
   late bool componentEnabled;
+  late int componentFontSize;
   late String state;
   String? fromId;
   String? toId;
@@ -371,6 +372,11 @@ class _ItemDialogState extends State<_ItemDialog> {
         componentProperties is Map && componentProperties['enabled'] is bool
             ? componentProperties['enabled'] as bool
             : true;
+    final storedFontSize =
+        componentProperties is Map ? componentProperties['fontSize'] : null;
+    componentFontSize = storedFontSize is num
+        ? storedFontSize.round().clamp(8, 96).toInt()
+        : 16;
     state = (item['state'] ?? 'default').toString();
     fromId = item['fromScreenId'] as String?;
     toId = item['toScreenId'] as String?;
@@ -480,6 +486,22 @@ class _ItemDialogState extends State<_ItemDialog> {
           const SizedBox(height: 14),
           input('label', 'Component label', required: true),
           input('text', 'Display text', lines: 2),
+          if (componentType == 'text')
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Font Size: $componentFontSize'),
+                Slider(
+                  value: componentFontSize.toDouble(),
+                  min: 8,
+                  max: 96,
+                  divisions: 88,
+                  label: '$componentFontSize',
+                  onChanged: (value) =>
+                      setState(() => componentFontSize = value.round()),
+                ),
+              ],
+            ),
           if (componentType == 'button')
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -566,6 +588,14 @@ class _ItemDialogState extends State<_ItemDialog> {
                       'type': componentType,
                       'label': fields['label']!.text.trim(),
                       'text': fields['text']!.text.trim(),
+                      if (componentType == 'text')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'fontSize': componentFontSize,
+                        },
                       if (componentType == 'button')
                         'properties': {
                           ...?((widget.original?['properties'] is Map)
