@@ -518,4 +518,64 @@ void main() {
     expect(savedItems!.first['text'], 'Welcome to REQVIORA');
     expect(savedItems!.first['screenId'], 'screen-1');
   });
+
+  testWidgets('updates component type while preserving ID', (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'component-123',
+            'screenId': 'screen-1',
+            'type': 'button',
+            'label': 'Submit',
+            'text': 'Submit Form',
+          },
+        ],
+      },
+    );
+
+    List<Map<String, dynamic>>? savedItems;
+
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      savedItems = (data as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    }, workspace: workspace);
+
+    await tester.tap(find.byTooltip('Edit'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit component'), findsOneWidget);
+
+    // Change existing button component to input.
+    await tester.tap(
+      find.byType(DropdownButtonFormField<String>).last,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('input').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(savedItems, isNotNull);
+    expect(savedItems, hasLength(1));
+
+    // Existing component identity must remain unchanged.
+    expect(savedItems!.first['id'], 'component-123');
+    expect(savedItems!.first['type'], 'input');
+    expect(savedItems!.first['label'], 'Submit');
+    expect(savedItems!.first['screenId'], 'screen-1');
+    expect(savedItems!.first['text'], 'Submit Form');
+  });
 }
