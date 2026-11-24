@@ -30,7 +30,11 @@ class _SafePreviewState extends State<SafePreview> {
         screenId = id;
         inputs.clear();
       });
-  Widget component(Map<String, dynamic> c, Color accent) {
+  Widget component(
+    Map<String, dynamic> c,
+    Color accent, {
+    List<Widget> children = const [],
+  }) {
     final type = (c['type'] ?? '').toString();
     final props = obj(c['props'] ?? c['properties']);
     final text = (props['text'] ?? props['label'] ?? '').toString();
@@ -65,15 +69,31 @@ class _SafePreviewState extends State<SafePreview> {
       case 'section':
       case 'container':
         return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 7),
-            child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                    color: const Color(0xFFF6F4FC),
-                    borderRadius: BorderRadius.circular(15)),
-                child: Text(text,
-                    style: const TextStyle(fontWeight: FontWeight.w600))));
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          child: Container(
+            key: ValueKey(
+              'preview-parent-${c['componentInstanceId'] ?? c['id']}',
+            ),
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF6F4FC),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (text.isNotEmpty)
+                  Text(
+                    text,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ...children,
+              ],
+            ),
+          ),
+        );
+
       case 'button':
         return Padding(
             padding: const EdgeInsets.symmetric(vertical: 7),
@@ -211,6 +231,46 @@ class _SafePreviewState extends State<SafePreview> {
     }
   }
 
+  String instanceId(Map<String, dynamic> value) =>
+      (value['componentInstanceId'] ?? value['id'] ?? '').toString();
+
+  String parentId(Map<String, dynamic> value) {
+    final props = obj(value['props'] ?? value['properties']);
+    return (value['parentComponentId'] ?? props['parentComponentId'] ?? '')
+        .toString()
+        .trim();
+  }
+
+  bool isContainer(Map<String, dynamic> value) =>
+      const {'card', 'container', 'section'}.contains(value['type']);
+
+  Widget nestedComponent(
+    Map<String, dynamic> item,
+    Color accent,
+    List<Map<String, dynamic>> components,
+    Set<String> ancestors,
+  ) {
+    final id = instanceId(item);
+
+    if (id.isEmpty || ancestors.contains(id)) {
+      return const Text('Invalid nested component reference');
+    }
+
+    final path = {...ancestors, id};
+
+    final children = components
+        .where(
+          (candidate) =>
+              parentId(candidate) == id && instanceId(candidate) != id,
+        )
+        .map(
+          (candidate) => nestedComponent(candidate, accent, components, path),
+        )
+        .toList();
+
+    return component(item, accent, children: children);
+  }
+
   @override
   Widget build(BuildContext context) {
     final screens = array('screens');
@@ -228,6 +288,21 @@ class _SafePreviewState extends State<SafePreview> {
         .toList()
       ..sort((a, b) => ((a['order'] as num?)?.toInt() ?? 0)
           .compareTo((b['order'] as num?)?.toInt() ?? 0));
+    final ids = components.map(instanceId).toSet();
+
+    final roots = components.where((item) {
+      final parent = parentId(item);
+      if (parent.isEmpty || !ids.contains(parent)) {
+        return true;
+      }
+
+      final matches = components.where(
+        (candidate) => instanceId(candidate) == parent,
+      );
+
+      return matches.isEmpty || !isContainer(matches.first);
+    }).toList();
+
     final routes = array('routes')
         .where((r) => r['sourceScreenId'] == selected && r['enabled'] != false)
         .toList();
@@ -281,7 +356,8 @@ class _SafePreviewState extends State<SafePreview> {
                                   fontWeight: FontWeight.w900, fontSize: 17))
                         ]),
                         const Divider(height: 27),
-                        for (final c in components) component(c, accent),
+                        for (final c in roots.isEmpty ? components : roots)
+                          nestedComponent(c, accent, components, <String>{}),
                         const SizedBox(height: 18),
                         if (routes.isNotEmpty)
                           const Text('Mock navigation',
