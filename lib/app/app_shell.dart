@@ -20,8 +20,10 @@ class AppShell extends StatelessWidget {
         child: Padding(padding: EdgeInsets.symmetric(
           horizontal: desktop ? 32 : 18, vertical: desktop ? 28 : 20), child: child))))),
     ]);
-    if (desktop) return Scaffold(body: Row(children: [SizedBox(width: 245, child: sidebar),
+    if (desktop) {
+      return Scaffold(body: Row(children: [SizedBox(width: 245, child: sidebar),
       Expanded(child: main)]));
+    }
     return Scaffold(drawer: Drawer(width: 260, child: sidebar),
       appBar: AppBar(title: const _Brand(compact: true)),
       body: Column(children: [Expanded(child: main)]));

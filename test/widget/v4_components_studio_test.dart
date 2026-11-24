@@ -22,14 +22,15 @@ void main() {
 
   Future<void> openStudio(
     WidgetTester tester,
-    Future<void> Function(String, dynamic) onSave,
-  ) async {
+    Future<void> Function(String, dynamic) onSave, {
+    Workspace? workspace,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: SingleChildScrollView(
             child: V4ComponentsStudio(
-              workspace: sampleWorkspace(),
+              workspace: workspace ?? sampleWorkspace(),
               onSave: onSave,
             ),
           ),
@@ -112,5 +113,112 @@ void main() {
     expect(savedItems!.first['type'], 'text');
     expect(savedItems!.first['label'], 'Submit');
     expect((savedItems!.first['id'] as String).isNotEmpty, isTrue);
+  });
+
+  testWidgets('preserves existing component ID when editing', (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'component-123',
+            'screenId': 'screen-1',
+            'type': 'button',
+            'label': 'Old Submit',
+            'text': 'Submit',
+          },
+        ],
+      },
+    );
+
+    List<Map<String, dynamic>>? savedItems;
+
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      savedItems = (data as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    }, workspace: workspace);
+
+    await tester.tap(find.byTooltip('Edit'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit component'), findsOneWidget);
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Updated Submit',
+    );
+
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(savedItems, isNotNull);
+    expect(savedItems, hasLength(1));
+    expect(savedItems!.first['id'], 'component-123');
+    expect(savedItems!.first['label'], 'Updated Submit');
+    expect(savedItems!.first['screenId'], 'screen-1');
+    expect(savedItems!.first['type'], 'button');
+  });
+
+  testWidgets('keeps original component when save is not persisted',
+      (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'component-123',
+            'screenId': 'screen-1',
+            'type': 'button',
+            'label': 'Old Submit',
+            'text': 'Submit',
+          },
+        ],
+      },
+    );
+
+    var saveCalls = 0;
+    String? requestedLabel;
+
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      saveCalls++;
+      requestedLabel = (data as List).first['label'] as String;
+      // Simulates a parent that handles a failed save without refresh.
+    }, workspace: workspace);
+
+    expect(find.text('Old Submit'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Edit'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Updated Submit',
+    );
+
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(saveCalls, 1);
+    expect(requestedLabel, 'Updated Submit');
+
+    expect(find.text('Old Submit'), findsOneWidget);
+    expect(find.text('Updated Submit'), findsNothing);
   });
 }

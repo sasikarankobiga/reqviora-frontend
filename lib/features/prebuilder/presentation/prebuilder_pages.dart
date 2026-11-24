@@ -29,8 +29,10 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
         w.version, input.text, label.text);
       input.clear();
       ref.invalidate(workspaceProvider(w.projectId));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Text source saved with a source reference')));
+      }
     } catch (e) { if (mounted) setState(() => error = '$e'); }
     finally { if (mounted) setState(() => busy = false); }
   }
@@ -42,8 +44,10 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
       final result = await ref.read(workspaceRepositoryProvider).upload(
         w.projectId, w.version, picked.name, picked.bytes);
       ref.invalidate(workspaceProvider(w.projectId));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Uploaded ${picked.name} · ${result['parseStatus']}')));
+      }
     } catch (e) { if (mounted) setState(() => error = '$e'); }
     finally { if (mounted) setState(() => busy = false); }
   }
@@ -52,8 +56,10 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
     try {
       final result = await ref.read(workspaceRepositoryProvider).analyze(w.projectId, w.version);
       ref.invalidate(workspaceProvider(w.projectId));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('${result['newSuggestions']} local-rule suggestions created · user review required')));
+      }
     } catch (e) { if (mounted) setState(() => error = '$e'); }
     finally { if (mounted) setState(() => busy = false); }
   }
@@ -135,8 +141,10 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
       await ref.read(workspaceRepositoryProvider).decideCandidate(w.projectId,
         id, w.version, decision);
       ref.invalidate(workspaceProvider(w.projectId));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Suggestion $decision · decision recorded')));
+      }
     } catch (e) { if (mounted) setState(() => error = '$e'); }
     finally { if (mounted) setState(() => pendingId = null); }
   }
