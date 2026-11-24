@@ -1,5 +1,6 @@
 import '../../builder/domain/registry/component_registry.dart';
 import '../../builder/domain/registry/v4_component_layout.dart';
+import '../../builder/domain/registry/v4_interaction_rule_validator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -557,6 +558,11 @@ class _ItemDialogState extends State<_ItemDialog> {
   late bool componentTableStriped;
   String? parentComponentId;
   late String state;
+  String? interactionComponentId;
+  String? interactionTrigger;
+  String interactionAction = 'navigate';
+  String? interactionTargetScreenId;
+  String interactionTargetState = 'default';
   String? fromId;
   String? toId;
   String? screenId;
@@ -571,7 +577,8 @@ class _ItemDialogState extends State<_ItemDialog> {
       'purpose',
       'label',
       'text',
-      'trigger'
+      'trigger',
+      'message'
     ]) {
       fields[key] = TextEditingController(text: (item[key] ?? '').toString());
     }
@@ -629,6 +636,11 @@ class _ItemDialogState extends State<_ItemDialog> {
         componentProperties['stripedRows'] == true;
 
     state = (item['state'] ?? 'default').toString();
+    interactionComponentId = item['componentId']?.toString();
+    interactionTrigger = item['trigger']?.toString();
+    interactionAction = item['action']?.toString() ?? 'navigate';
+    interactionTargetScreenId = item['targetScreenId']?.toString();
+    interactionTargetState = item['targetState']?.toString() ?? 'default';
     fromId = item['fromScreenId'] as String?;
     toId = item['toScreenId'] as String?;
     screenId = item['screenId'] as String?;
@@ -679,6 +691,11 @@ class _ItemDialogState extends State<_ItemDialog> {
   Widget build(BuildContext context) {
     final screens = widget.workspace.items('screens');
     final features = widget.workspace.items('features');
+    final interactionComponents = widget.workspace
+        .items('components')
+        .where((component) => V4InteractionRuleValidator.componentTriggers
+            .containsKey(component['type']))
+        .toList();
     final resultFields = <Widget>[];
     switch (widget.type) {
       case _ItemType.feature:
@@ -897,23 +914,155 @@ class _ItemDialogState extends State<_ItemDialog> {
         ]);
         break;
       case _ItemType.interaction:
+        final selectedComponent = interactionComponents.where(
+          (component) => component['id'] == interactionComponentId,
+        );
+
+        final selectedType = selectedComponent.isEmpty
+            ? ''
+            : selectedComponent.first['type'].toString();
+
+        final availableTriggers =
+            V4InteractionRuleValidator.componentTriggers[selectedType] ??
+                <String>{};
+
         resultFields.addAll([
           input('name', 'Rule name', required: true),
-          DropdownButtonFormField<String>(
-              initialValue: state,
-              decoration: const InputDecoration(labelText: 'UI State'),
+          if (interactionComponents.isNotEmpty) ...[
+            DropdownButtonFormField<String>(
+              key: const ValueKey('interaction-source-component'),
+              initialValue: interactionComponents.any(
+                (component) => component['id'] == interactionComponentId,
+              )
+                  ? interactionComponentId
+                  : null,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Source Component',
+              ),
               items: [
-                'default',
-                'loading',
-                'empty',
-                'error',
-                'success',
-                'disabled',
-                'permission-denied'
-              ].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
-              onChanged: (v) => setState(() => state = v ?? 'default')),
+                const DropdownMenuItem<String>(
+                  value: '',
+                  child: Text('None - state-only rule'),
+                ),
+                for (final component in interactionComponents)
+                  DropdownMenuItem<String>(
+                    value: component['id'].toString(),
+                    child: Text(
+                      (component['label'] ??
+                              component['name'] ??
+                              component['id'])
+                          .toString(),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: (value) => setState(() {
+                interactionComponentId =
+                    value == null || value.isEmpty ? null : value;
+                interactionTrigger = null;
+              }),
+            ),
+            const SizedBox(height: 14),
+            if (interactionComponentId != null) ...[
+              DropdownButtonFormField<String>(
+                key: ValueKey(
+                  'interaction-trigger-$interactionComponentId',
+                ),
+                initialValue: availableTriggers.contains(interactionTrigger)
+                    ? interactionTrigger
+                    : null,
+                decoration: const InputDecoration(labelText: 'Trigger'),
+                items: [
+                  for (final trigger in availableTriggers)
+                    DropdownMenuItem(
+                      value: trigger,
+                      child: Text(trigger),
+                    ),
+                ],
+                onChanged: (value) =>
+                    setState(() => interactionTrigger = value),
+                validator: (value) => value == null ? 'Select Trigger' : null,
+              ),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<String>(
+                initialValue: V4InteractionRuleValidator.actions.contains(
+                  interactionAction,
+                )
+                    ? interactionAction
+                    : 'navigate',
+                decoration: const InputDecoration(labelText: 'Action'),
+                items: [
+                  for (final action in [
+                    'navigate',
+                    'show-message',
+                    'set-state',
+                  ])
+                    DropdownMenuItem(
+                      value: action,
+                      child: Text(action),
+                    ),
+                ],
+                onChanged: (value) => setState(
+                  () => interactionAction = value ?? 'navigate',
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (interactionAction == 'navigate')
+                selector(
+                  'Destination Screen',
+                  interactionTargetScreenId,
+                  screens,
+                  (value) => setState(
+                    () => interactionTargetScreenId = value,
+                  ),
+                ),
+              if (interactionAction == 'show-message')
+                input('message', 'Message text', required: true),
+              if (interactionAction == 'set-state')
+                DropdownButtonFormField<String>(
+                  initialValue: interactionTargetState,
+                  decoration: const InputDecoration(
+                    labelText: 'Target UI State',
+                  ),
+                  items: [
+                    for (final target in [
+                      'default',
+                      'loading',
+                      'empty',
+                      'error',
+                      'success',
+                      'disabled',
+                      'permission-denied',
+                    ])
+                      DropdownMenuItem(
+                        value: target,
+                        child: Text(target),
+                      ),
+                  ],
+                  onChanged: (value) => setState(
+                    () => interactionTargetState = value ?? 'default',
+                  ),
+                ),
+              const SizedBox(height: 14),
+            ],
+          ],
+          DropdownButtonFormField<String>(
+            initialValue: state,
+            decoration: const InputDecoration(labelText: 'UI State'),
+            items: [
+              'default',
+              'loading',
+              'empty',
+              'error',
+              'success',
+              'disabled',
+              'permission-denied',
+            ].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+            onChanged: (v) => setState(() => state = v ?? 'default'),
+          ),
           const SizedBox(height: 14),
-          input('description', 'Behavior / validation / recovery', lines: 3)
+          input('description', 'Behavior / validation / recovery', lines: 3),
         ]);
         break;
     }
@@ -1057,8 +1206,49 @@ class _ItemDialogState extends State<_ItemDialog> {
                     result.addAll({
                       'name': fields['name']!.text.trim(),
                       'state': state,
-                      'description': fields['description']!.text.trim()
+                      'description': fields['description']!.text.trim(),
                     });
+
+                    if (interactionComponentId != null) {
+                      result.addAll({
+                        'componentId': interactionComponentId,
+                        'trigger': interactionTrigger,
+                        'action': interactionAction,
+                      });
+
+                      result.remove('targetScreenId');
+                      result.remove('message');
+                      result.remove('targetState');
+
+                      if (interactionAction == 'navigate') {
+                        result['targetScreenId'] = interactionTargetScreenId;
+                      } else if (interactionAction == 'show-message') {
+                        result['message'] = fields['message']!.text.trim();
+                      } else if (interactionAction == 'set-state') {
+                        result['targetState'] = interactionTargetState;
+                      }
+
+                      final error = V4InteractionRuleValidator.validate(
+                        rule: result,
+                        components: widget.workspace.items('components'),
+                        screens: widget.workspace.items('screens'),
+                      );
+
+                      if (error != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(error)),
+                        );
+                        return;
+                      }
+                    } else {
+                      // Existing state-only rules remain supported.
+                      result.remove('componentId');
+                      result.remove('trigger');
+                      result.remove('action');
+                      result.remove('targetScreenId');
+                      result.remove('message');
+                      result.remove('targetState');
+                    }
                     break;
                 }
                 if (widget.type == _ItemType.component) {
