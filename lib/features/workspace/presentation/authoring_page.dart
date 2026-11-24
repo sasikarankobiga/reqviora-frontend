@@ -347,6 +347,7 @@ class _ItemDialogState extends State<_ItemDialog> {
   late bool componentEnabled;
   late bool componentRequired;
   late int componentFontSize;
+  late int componentElevation;
   late String state;
   String? fromId;
   String? toId;
@@ -385,6 +386,11 @@ class _ItemDialogState extends State<_ItemDialog> {
     componentFontSize = storedFontSize is num
         ? storedFontSize.round().clamp(8, 96).toInt()
         : 16;
+    final storedElevation =
+        componentProperties is Map ? componentProperties['elevation'] : null;
+    componentElevation = storedElevation is num
+        ? storedElevation.round().clamp(0, 24).toInt()
+        : 2;
     state = (item['state'] ?? 'default').toString();
     fromId = item['fromScreenId'] as String?;
     toId = item['toScreenId'] as String?;
@@ -520,6 +526,22 @@ class _ItemDialogState extends State<_ItemDialog> {
                 ),
               ],
             ),
+          if (componentType == 'card')
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Elevation: $componentElevation'),
+                Slider(
+                  value: componentElevation.toDouble(),
+                  min: 0,
+                  max: 24,
+                  divisions: 24,
+                  label: '$componentElevation',
+                  onChanged: (value) =>
+                      setState(() => componentElevation = value.round()),
+                ),
+              ],
+            ),
           if (componentType == 'button')
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -622,6 +644,14 @@ class _ItemDialogState extends State<_ItemDialog> {
                                   widget.original!['properties'] as Map)
                               : null),
                           'fontSize': componentFontSize,
+                        },
+                      if (componentType == 'card')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'elevation': componentElevation,
                         },
                       if (componentType == 'button')
                         'properties': {
