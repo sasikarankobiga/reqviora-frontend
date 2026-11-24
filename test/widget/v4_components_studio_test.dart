@@ -1047,4 +1047,89 @@ void main() {
     expect(saved['text'], 'Email');
     expect(properties['placeholder'], 'Enter text');
   });
+
+  testWidgets(
+    'updates input required property while preserving placeholder',
+    (tester) async {
+      final workspace = Workspace(
+        projectId: 'project-1',
+        draftId: 'draft-1',
+        version: 1,
+        projectName: 'Test Project',
+        designTargets: const ['web'],
+        sections: {
+          'screens': [
+            {'id': 'screen-1', 'name': 'Dashboard'},
+          ],
+          'components': [
+            {
+              'id': 'component-input-required-1',
+              'screenId': 'screen-1',
+              'type': 'input',
+              'label': 'Email',
+              'text': 'Email address',
+              'properties': {
+                'placeholder': 'Enter your email',
+                'required': true,
+                'variant': 'outlined',
+              },
+            },
+          ],
+        },
+      );
+
+      List<Map<String, dynamic>>? savedItems;
+
+      await openStudio(tester, (section, data) async {
+        expect(section, 'components');
+        savedItems = (data as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      }, workspace: workspace);
+
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+
+      final requiredSwitch = find.widgetWithText(
+        SwitchListTile,
+        'Required',
+      );
+
+      expect(requiredSwitch, findsOneWidget);
+      expect(
+        tester.widget<SwitchListTile>(requiredSwitch).value,
+        isTrue,
+      );
+
+      await tester.ensureVisible(requiredSwitch);
+      await tester.pumpAndSettle();
+
+      await tester.tap(requiredSwitch);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<SwitchListTile>(requiredSwitch).value,
+        isFalse,
+      );
+
+      await tester.tap(find.text('Save').last);
+      await tester.pumpAndSettle();
+
+      expect(savedItems, isNotNull);
+      expect(savedItems, hasLength(1));
+
+      final saved = savedItems!.single;
+      final properties = Map<String, dynamic>.from(saved['properties'] as Map);
+
+      expect(saved['id'], 'component-input-required-1');
+      expect(saved['screenId'], 'screen-1');
+      expect(saved['type'], 'input');
+      expect(saved['label'], 'Email');
+      expect(saved['text'], 'Email address');
+
+      expect(properties['required'], isFalse);
+      expect(properties['placeholder'], 'Enter your email');
+      expect(properties['variant'], 'outlined');
+    },
+  );
 }
