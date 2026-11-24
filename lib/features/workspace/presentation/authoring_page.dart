@@ -1,3 +1,4 @@
+import '../../builder/domain/registry/component_registry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,36 +16,24 @@ import '../domain/local_preview_blueprint.dart';
 /// Service-backed authoring for Builder steps 02-08. All writes are owner-scoped
 /// and carry a draft version. No fake AI/approval states are produced here.
 class BuilderAuthoringPage extends ConsumerWidget {
-  const BuilderAuthoringPage({
-    super.key,
-    required this.projectId,
-    required this.step,
-  });
+  const BuilderAuthoringPage(
+      {super.key, required this.projectId, required this.step});
   final String projectId;
   final int step;
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ref
-      .watch(workspaceProvider(projectId))
-      .when(
-        loading:
-            () => const Center(
-              child: Padding(
-                padding: EdgeInsets.all(50),
-                child: CircularProgressIndicator(),
-              ),
-            ),
-        error:
-            (e, _) => InlineError(
-              '$e',
-              onRetry: () => ref.invalidate(workspaceProvider(projectId)),
-            ),
-        data:
-            (workspace) => _Content(
-              key: ValueKey('$projectId-$step-${workspace.version}'),
-              workspace: workspace,
-              step: step,
-            ),
-      );
+  Widget build(BuildContext context, WidgetRef ref) =>
+      ref.watch(workspaceProvider(projectId)).when(
+            loading: () => const Center(
+                child: Padding(
+                    padding: EdgeInsets.all(50),
+                    child: CircularProgressIndicator())),
+            error: (e, _) => InlineError('$e',
+                onRetry: () => ref.invalidate(workspaceProvider(projectId))),
+            data: (workspace) => _Content(
+                key: ValueKey('$projectId-$step-${workspace.version}'),
+                workspace: workspace,
+                step: step),
+          );
 }
 
 class _Content extends ConsumerStatefulWidget {
@@ -64,20 +53,13 @@ class _ContentState extends ConsumerState<_Content> {
       message = null;
     });
     try {
-      await ref
-          .read(workspaceRepositoryProvider)
-          .save(
-            widget.workspace.projectId,
-            section,
-            widget.workspace.version,
-            data,
-          );
+      await ref.read(workspaceRepositoryProvider).save(
+          widget.workspace.projectId, section, widget.workspace.version, data);
       ref.invalidate(workspaceProvider(widget.workspace.projectId));
       ref.invalidate(projectValidationProvider(widget.workspace.projectId));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$section saved Â· next version created')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('$section saved · next version created')));
       }
     } catch (e) {
       if (mounted) setState(() => message = '$e');
@@ -90,104 +72,102 @@ class _ContentState extends ConsumerState<_Content> {
   Widget build(BuildContext context) {
     final w = widget.workspace;
     final n = widget.step;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SurfaceCard(
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SurfaceCard(
           color: Color(0xFFF3F0FF),
           padding: EdgeInsets.all(15),
-          child: Row(
-            children: [
-              Icon(Icons.save_as_outlined, color: AppColors.purple),
-              SizedBox(width: 12),
-              Expanded(
+          child: Row(children: [
+            Icon(Icons.save_as_outlined, color: AppColors.purple),
+            SizedBox(width: 12),
+            Expanded(
                 child: Text(
-                  'Real server-backed draft editor Â· Owner-controlled Â· Saved content stays after refresh.',
-                  style: TextStyle(fontSize: 12, height: 1.45),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (n == 2) ...[
-          _ItemEditor(
+                    'Real server-backed draft editor · Owner-controlled · Saved content stays after refresh.',
+                    style: TextStyle(fontSize: 12, height: 1.45)))
+          ])),
+      const SizedBox(height: 16),
+      if (n == 2) ...[
+        _ItemEditor(
             workspace: w,
             section: 'features',
             title: 'Feature catalogue',
             icon: Icons.auto_awesome_motion,
             type: _ItemType.feature,
-            onSave: save,
-          ),
-          const SizedBox(height: 18),
-          _ItemEditor(
+            onSave: save),
+        const SizedBox(height: 18),
+        _ItemEditor(
             workspace: w,
             section: 'screens',
             title: 'Screens & feature mapping',
             icon: Icons.grid_view_rounded,
             type: _ItemType.screen,
-            onSave: save,
-          ),
-        ] else if (n == 3)
-          _ItemEditor(
+            onSave: save),
+      ] else if (n == 3)
+        _ItemEditor(
             workspace: w,
             section: 'routes',
             title: 'Navigation connections',
             icon: Icons.hub_outlined,
             type: _ItemType.route,
-            onSave: save,
-          )
-        else if (n == 4)
-          _ThemeEditor(workspace: w, onSave: save)
-        else if (n == 5)
-          _ItemEditor(
-            workspace: w,
-            section: 'components',
-            title: 'Components Studio',
-            icon: Icons.widgets_outlined,
-            type: _ItemType.component,
-            onSave: save,
-          )
-        else if (n == 6)
-          _ItemEditor(
+            onSave: save)
+      else if (n == 4)
+        _ThemeEditor(workspace: w, onSave: save)
+      else if (n == 5)
+        V4ComponentsStudio(workspace: w, onSave: save)
+      else if (n == 6)
+        _ItemEditor(
             workspace: w,
             section: 'interactions',
             title: 'Interaction & state rules',
             icon: Icons.tune_rounded,
             type: _ItemType.interaction,
-            onSave: save,
-          )
-        else if (n == 7)
-          _BlueprintEditor(workspace: w)
-        else if (n == 8)
-          _ValidationEditor(workspace: w),
-        if (message != null) ...[
-          const SizedBox(height: 15),
-          InlineError(message!),
-        ],
-        if (busy) const LinearProgressIndicator(),
-        const SizedBox(height: 24),
-        Wrap(
-          spacing: 9,
-          runSpacing: 9,
-          children: [
-            OutlinedButton.icon(
-              onPressed:
-                  () => context.go('/projects/${w.projectId}/builder/${n - 1}'),
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Previous'),
-            ),
-            if (n < 8)
-              FilledButton.icon(
-                onPressed:
-                    () =>
-                        context.go('/projects/${w.projectId}/builder/${n + 1}'),
-                icon: const Icon(Icons.arrow_forward),
-                label: Text('Continue to Step ${n + 1}'),
-              ),
-          ],
-        ),
+            onSave: save)
+      else if (n == 7)
+        _BlueprintEditor(workspace: w)
+      else if (n == 8)
+        _ValidationEditor(workspace: w),
+      if (message != null) ...[
+        const SizedBox(height: 15),
+        InlineError(message!)
       ],
+      if (busy) const LinearProgressIndicator(),
+      const SizedBox(height: 24),
+      Wrap(spacing: 9, runSpacing: 9, children: [
+        OutlinedButton.icon(
+            onPressed: () =>
+                context.go('/projects/${w.projectId}/builder/${n - 1}'),
+            icon: const Icon(Icons.arrow_back),
+            label: const Text('Previous')),
+        if (n < 8)
+          FilledButton.icon(
+              onPressed: () =>
+                  context.go('/projects/${w.projectId}/builder/${n + 1}'),
+              icon: const Icon(Icons.arrow_forward),
+              label: Text('Continue to Step ${n + 1}')),
+      ]),
+    ]);
+  }
+}
+
+/// Testable entry point for the original V4 Components Studio.
+class V4ComponentsStudio extends StatelessWidget {
+  const V4ComponentsStudio({
+    super.key,
+    required this.workspace,
+    required this.onSave,
+  });
+
+  final Workspace workspace;
+  final Future<void> Function(String section, dynamic data) onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ItemEditor(
+      workspace: workspace,
+      section: 'components',
+      title: 'Components Studio',
+      icon: Icons.widgets_outlined,
+      type: _ItemType.component,
+      onSave: onSave,
     );
   }
 }
@@ -195,14 +175,13 @@ class _ContentState extends ConsumerState<_Content> {
 enum _ItemType { feature, screen, route, component, interaction }
 
 class _ItemEditor extends StatefulWidget {
-  const _ItemEditor({
-    required this.workspace,
-    required this.section,
-    required this.title,
-    required this.icon,
-    required this.type,
-    required this.onSave,
-  });
+  const _ItemEditor(
+      {required this.workspace,
+      required this.section,
+      required this.title,
+      required this.icon,
+      required this.type,
+      required this.onSave});
   final Workspace workspace;
   final String section;
   final String title;
@@ -221,19 +200,18 @@ class _ItemEditorState extends State<_ItemEditor> {
     items = widget.workspace.items(widget.section);
   }
 
-  String itemTitle(Map<String, dynamic> row) =>
-      (row['name'] ??
-              row['label'] ??
-              row['type'] ??
-              row['trigger'] ??
-              'Untitled')
-          .toString();
+  String itemTitle(Map<String, dynamic> row) => (row['name'] ??
+          row['label'] ??
+          row['type'] ??
+          row['trigger'] ??
+          'Untitled')
+      .toString();
   String itemDescription(Map<String, dynamic> row) {
     if (widget.type == _ItemType.route) {
       final lookup = {
-        for (final s in widget.workspace.items('screens')) s['id']: s['name'],
+        for (final s in widget.workspace.items('screens')) s['id']: s['name']
       };
-      return '${lookup[row['fromScreenId']] ?? 'Missing source'} â†’ ${lookup[row['toScreenId']] ?? 'Missing target'}';
+      return '${lookup[row['fromScreenId']] ?? 'Missing source'} → ${lookup[row['toScreenId']] ?? 'Missing target'}';
     }
     return (row['description'] ??
             row['purpose'] ??
@@ -245,72 +223,73 @@ class _ItemEditorState extends State<_ItemEditor> {
 
   Future<void> edit([Map<String, dynamic>? existing]) async {
     final updated = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder:
-          (_) => _ItemDialog(
+        context: context,
+        builder: (_) => _ItemDialog(
             type: widget.type,
             original: existing,
-            workspace: widget.workspace,
-          ),
-    );
+            workspace: widget.workspace));
     if (updated == null) return;
-    if (existing == null) {
-      items.add(updated);
-    } else {
-      final index = items.indexWhere((e) => e['id'] == existing['id']);
-      if (index >= 0) items[index] = updated;
+    if (widget.type == _ItemType.component) {
+      final idError = ComponentRegistry.validateV4ComponentId(
+        id: (updated['id'] ?? '').toString(),
+        existingIds: items.map((item) => (item['id'] ?? '').toString()),
+        editingId: existing?['id']?.toString(),
+      );
+
+      if (idError != null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(idError)),
+        );
+        return;
+      }
     }
-    await widget.onSave(widget.section, items);
+    final nextItems = <Map<String, dynamic>>[
+      for (final item in items)
+        if (existing != null && item['id'] == existing['id']) updated else item,
+      if (existing == null) updated,
+    ];
+    await widget.onSave(widget.section, nextItems);
   }
 
   Future<void> remove(Map<String, dynamic> item) async {
     final yes = await showDialog<bool>(
-      context: context,
-      builder:
-          (c) => AlertDialog(
-            title: const Text('Remove this item?'),
-            content: const Text(
-              'Linked screens/routes/components may become invalid. Validation will flag dependencies.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(c, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(c, true),
-                child: const Text('Remove'),
-              ),
-            ],
-          ),
-    );
+        context: context,
+        builder: (c) => AlertDialog(
+                title: const Text('Remove this item?'),
+                content: const Text(
+                    'Linked screens/routes/components may become invalid. Validation will flag dependencies.'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(c, false),
+                      child: const Text('Cancel')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(c, true),
+                      child: const Text('Remove'))
+                ]));
     if (yes != true) return;
-    items.removeWhere((e) => e['id'] == item['id']);
-    await widget.onSave(widget.section, items);
+    final nextItems = <Map<String, dynamic>>[
+      for (final existing in items)
+        if (existing['id'] != item['id']) existing,
+    ];
+    await widget.onSave(widget.section, nextItems);
   }
 
   @override
   Widget build(BuildContext context) => SurfaceCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(widget.icon, color: AppColors.purple),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                widget.title,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-            FilledButton.icon(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(widget.icon, color: AppColors.purple),
+          const SizedBox(width: 10),
+          Expanded(
+              child: Text(widget.title,
+                  style: Theme.of(context).textTheme.titleLarge)),
+          FilledButton.icon(
               onPressed: () => edit(),
               icon: const Icon(Icons.add, size: 17),
-              label: const Text('Add'),
-            ),
-          ],
-        ),
+              label: const Text('Add'))
+        ]),
         const SizedBox(height: 16),
         if (widget.type == _ItemType.screen) ...[
           Builder(
@@ -390,73 +369,49 @@ class _ItemEditorState extends State<_ItemEditor> {
         ],
         if (items.isEmpty)
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8F7FD),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Column(
-              children: [
+              width: double.infinity,
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                  color: const Color(0xFFF8F7FD),
+                  borderRadius: BorderRadius.circular(14)),
+              child: const Column(children: [
                 Icon(Icons.layers_outlined, color: AppColors.muted, size: 28),
                 SizedBox(height: 8),
-                Text(
-                  'No items yet. Add your first item to get started.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.muted),
-                ),
-              ],
-            ),
-          )
+                Text('No items yet. Add your first item to get started.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.muted))
+              ]))
         else ...[
           for (final row in items)
             Padding(
               padding: const EdgeInsets.only(bottom: 9),
               child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.line),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: ListTile(
-                  title: Text(
-                    itemTitle(row),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Text(
-                    itemDescription(row),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: Wrap(
-                    spacing: 2,
-                    children: [
-                      IconButton(
-                        tooltip: 'Edit',
-                        icon: const Icon(Icons.edit_outlined),
-                        onPressed: () => edit(row),
-                      ),
-                      IconButton(
-                        tooltip: 'Remove',
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => remove(row),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+                  decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.line),
+                      borderRadius: BorderRadius.circular(12)),
+                  child: ListTile(
+                      title: Text(itemTitle(row),
+                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: Text(itemDescription(row),
+                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                      trailing: Wrap(spacing: 2, children: [
+                        IconButton(
+                            tooltip: 'Edit',
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () => edit(row)),
+                        IconButton(
+                            tooltip: 'Remove',
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => remove(row)),
+                      ]))),
+            )
         ],
-      ],
-    ),
-  );
+      ]));
 }
 
 class _ItemDialog extends StatefulWidget {
-  const _ItemDialog({
-    required this.type,
-    required this.original,
-    required this.workspace,
-  });
+  const _ItemDialog(
+      {required this.type, required this.original, required this.workspace});
   final _ItemType type;
   final Map<String, dynamic>? original;
   final Workspace workspace;
@@ -469,6 +424,10 @@ class _ItemDialogState extends State<_ItemDialog> {
   final fields = <String, TextEditingController>{};
   late String priority;
   late String componentType;
+  late bool componentEnabled;
+  late bool componentRequired;
+  late int componentFontSize;
+  late int componentElevation;
   late String state;
   String? fromId;
   String? toId;
@@ -484,12 +443,34 @@ class _ItemDialogState extends State<_ItemDialog> {
       'purpose',
       'label',
       'text',
-      'trigger',
+      'trigger'
     ]) {
       fields[key] = TextEditingController(text: (item[key] ?? '').toString());
     }
     priority = (item['priority'] ?? 'Must').toString();
     componentType = (item['type'] ?? 'text').toString();
+    final componentProperties = item['properties'];
+    componentRequired =
+        componentProperties is Map && componentProperties['required'] == true;
+    final storedPlaceholder =
+        componentProperties is Map ? componentProperties['placeholder'] : null;
+    fields['placeholder'] = TextEditingController(
+      text: storedPlaceholder is String ? storedPlaceholder : 'Enter text',
+    );
+    componentEnabled =
+        componentProperties is Map && componentProperties['enabled'] is bool
+            ? componentProperties['enabled'] as bool
+            : true;
+    final storedFontSize =
+        componentProperties is Map ? componentProperties['fontSize'] : null;
+    componentFontSize = storedFontSize is num
+        ? storedFontSize.round().clamp(8, 96).toInt()
+        : 16;
+    final storedElevation =
+        componentProperties is Map ? componentProperties['elevation'] : null;
+    componentElevation = storedElevation is num
+        ? storedElevation.round().clamp(0, 24).toInt()
+        : 2;
     state = (item['state'] ?? 'default').toString();
     fromId = item['fromScreenId'] as String?;
     toId = item['toScreenId'] as String?;
@@ -505,49 +486,37 @@ class _ItemDialogState extends State<_ItemDialog> {
     super.dispose();
   }
 
-  Widget input(
-    String key,
-    String label, {
-    bool required = false,
-    int lines = 1,
-  }) => Padding(
-    padding: const EdgeInsets.only(bottom: 13),
-    child: TextFormField(
-      controller: fields[key],
-      maxLines: lines,
-      decoration: InputDecoration(labelText: label),
-      validator:
-          required
-              ? (s) =>
-                  s == null || s.trim().isEmpty ? '$label is required' : null
-              : null,
-    ),
-  );
-  Widget selector(
-    String label,
-    String? value,
-    List<Map<String, dynamic>> items,
-    ValueChanged<String?> onChange,
-  ) => Padding(
-    padding: const EdgeInsets.only(bottom: 14),
-    child: DropdownButtonFormField<String>(
-      initialValue: items.any((e) => e['id'] == value) ? value : null,
-      isExpanded: true,
-      decoration: InputDecoration(labelText: label),
-      items: [
-        for (final s in items)
-          DropdownMenuItem(
-            value: s['id'] as String,
-            child: Text(
-              (s['name'] ?? s['label'] ?? 'Untitled').toString(),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-      ],
-      onChanged: onChange,
-      validator: (v) => v == null ? 'Select $label' : null,
-    ),
-  );
+  Widget input(String key, String label,
+          {bool required = false, int lines = 1}) =>
+      Padding(
+          padding: const EdgeInsets.only(bottom: 13),
+          child: TextFormField(
+              controller: fields[key],
+              maxLines: lines,
+              decoration: InputDecoration(labelText: label),
+              validator: required
+                  ? (s) => s == null || s.trim().isEmpty
+                      ? '$label is required'
+                      : null
+                  : null));
+  Widget selector(String label, String? value, List<Map<String, dynamic>> items,
+          ValueChanged<String?> onChange) =>
+      Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: DropdownButtonFormField<String>(
+              initialValue: items.any((e) => e['id'] == value) ? value : null,
+              isExpanded: true,
+              decoration: InputDecoration(labelText: label),
+              items: [
+                for (final s in items)
+                  DropdownMenuItem(
+                      value: s['id'] as String,
+                      child: Text(
+                          (s['name'] ?? s['label'] ?? 'Untitled').toString(),
+                          overflow: TextOverflow.ellipsis))
+              ],
+              onChanged: onChange,
+              validator: (v) => v == null ? 'Select $label' : null));
   @override
   Widget build(BuildContext context) {
     final screens = widget.workspace.items('screens');
@@ -559,14 +528,12 @@ class _ItemDialogState extends State<_ItemDialog> {
           input('name', 'Feature name', required: true),
           input('description', 'Description', lines: 3),
           DropdownButtonFormField<String>(
-            initialValue: priority,
-            decoration: const InputDecoration(labelText: 'Priority'),
-            items:
-                ['Must', 'Should', 'Could', "Won't"]
-                    .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                    .toList(),
-            onChanged: (v) => setState(() => priority = v ?? 'Must'),
-          ),
+              initialValue: priority,
+              decoration: const InputDecoration(labelText: 'Priority'),
+              items: ['Must', 'Should', 'Could', "Won't"]
+                  .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                  .toList(),
+              onChanged: (v) => setState(() => priority = v ?? 'Must'))
         ]);
         break;
       case _ItemType.screen:
@@ -574,185 +541,237 @@ class _ItemDialogState extends State<_ItemDialog> {
           input('name', 'Screen name', required: true),
           input('purpose', 'Screen purpose', lines: 2),
           const SizedBox(height: 8),
-          const Text(
-            'Map features to this screen',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
+          const Text('Map features to this screen',
+              style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 9),
           if (features.isEmpty)
-            const Text(
-              'Add features first',
-              style: TextStyle(color: AppColors.muted),
-            ),
-          Wrap(
-            spacing: 7,
-            children: [
-              for (final f in features)
-                FilterChip(
+            const Text('Add features first',
+                style: TextStyle(color: AppColors.muted)),
+          Wrap(spacing: 7, children: [
+            for (final f in features)
+              FilterChip(
                   label: Text((f['name'] ?? 'Unnamed').toString()),
                   selected: featureIds.contains(f['id']),
-                  onSelected:
-                      (selected) => setState(
-                        () =>
-                            selected
-                                ? featureIds.add(f['id'] as String)
-                                : featureIds.remove(f['id']),
-                      ),
-                ),
-            ],
-          ),
+                  onSelected: (selected) => setState(() => selected
+                      ? featureIds.add(f['id'] as String)
+                      : featureIds.remove(f['id'])))
+          ]),
         ]);
         break;
       case _ItemType.route:
         resultFields.addAll([
-          selector(
-            'From screen',
-            fromId,
-            screens,
-            (v) => setState(() => fromId = v),
-          ),
+          selector('From screen', fromId, screens,
+              (v) => setState(() => fromId = v)),
           selector('To screen', toId, screens, (v) => setState(() => toId = v)),
-          input('trigger', 'Trigger (e.g. tap)', required: true),
+          input('trigger', 'Trigger (e.g. tap)', required: true)
         ]);
         break;
       case _ItemType.component:
         resultFields.addAll([
           selector(
-            'Screen',
-            screenId,
-            screens,
-            (v) => setState(() => screenId = v),
-          ),
+              'Screen', screenId, screens, (v) => setState(() => screenId = v)),
           DropdownButtonFormField<String>(
-            initialValue: componentType,
-            decoration: const InputDecoration(labelText: 'Component type'),
-            items:
-                [
-                      'text',
-                      'button',
-                      'input',
-                      'card',
-                      'dialog',
-                      'tabs',
-                      'chart',
-                      'list',
-                      'table',
-                      'section',
-                      'container',
-                      'header',
-                      'image',
-                    ]
-                    .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                    .toList(),
-            onChanged: (v) => setState(() => componentType = v ?? 'text'),
-          ),
+              initialValue: componentType,
+              decoration: const InputDecoration(labelText: 'Component type'),
+              items: ComponentRegistry.v4ComponentTypes
+                  .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                  .toList(),
+              onChanged: (v) => setState(() => componentType = v ?? 'text')),
           const SizedBox(height: 14),
           input('label', 'Component label', required: true),
           input('text', 'Display text', lines: 2),
+          if (componentType == 'input') ...[
+            input('placeholder', 'Placeholder'),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Required'),
+              subtitle: const Text('Require a value for this input'),
+              value: componentRequired,
+              onChanged: (value) => setState(() => componentRequired = value),
+            ),
+          ],
+          if (componentType == 'text')
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Font Size: $componentFontSize'),
+                Slider(
+                  value: componentFontSize.toDouble(),
+                  min: 8,
+                  max: 96,
+                  divisions: 88,
+                  label: '$componentFontSize',
+                  onChanged: (value) =>
+                      setState(() => componentFontSize = value.round()),
+                ),
+              ],
+            ),
+          if (componentType == 'card')
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Elevation: $componentElevation'),
+                Slider(
+                  value: componentElevation.toDouble(),
+                  min: 0,
+                  max: 24,
+                  divisions: 24,
+                  label: '$componentElevation',
+                  onChanged: (value) =>
+                      setState(() => componentElevation = value.round()),
+                ),
+              ],
+            ),
+          if (componentType == 'button')
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Enabled'),
+              subtitle: const Text('Allow button interaction'),
+              value: componentEnabled,
+              onChanged: (value) => setState(() => componentEnabled = value),
+            )
         ]);
         break;
       case _ItemType.interaction:
         resultFields.addAll([
           input('name', 'Rule name', required: true),
           DropdownButtonFormField<String>(
-            initialValue: state,
-            decoration: const InputDecoration(labelText: 'UI State'),
-            items:
-                [
-                      'default',
-                      'loading',
-                      'empty',
-                      'error',
-                      'success',
-                      'disabled',
-                      'permission-denied',
-                    ]
-                    .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                    .toList(),
-            onChanged: (v) => setState(() => state = v ?? 'default'),
-          ),
+              initialValue: state,
+              decoration: const InputDecoration(labelText: 'UI State'),
+              items: [
+                'default',
+                'loading',
+                'empty',
+                'error',
+                'success',
+                'disabled',
+                'permission-denied'
+              ].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+              onChanged: (v) => setState(() => state = v ?? 'default')),
           const SizedBox(height: 14),
-          input('description', 'Behavior / validation / recovery', lines: 3),
+          input('description', 'Behavior / validation / recovery', lines: 3)
         ]);
         break;
     }
     return AlertDialog(
-      title: Text(
-        '${widget.original == null ? 'Add' : 'Edit'} ${widget.type.name}',
-      ),
-      content: SizedBox(
-        width: 490,
-        child: SingleChildScrollView(
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: resultFields,
-            ),
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () {
-            if (!(formKey.currentState?.validate() ?? false)) return;
-            final result = <String, dynamic>{
-              ...?widget.original,
-              'id': widget.original?['id'] ?? const Uuid().v4(),
-            };
-            switch (widget.type) {
-              case _ItemType.feature:
-                result.addAll({
-                  'name': fields['name']!.text.trim(),
-                  'description': fields['description']!.text.trim(),
-                  'priority': priority,
-                  'status': 'confirmed',
-                  'source': 'manual-owner',
-                });
-                break;
-              case _ItemType.screen:
-                result.addAll({
-                  'name': fields['name']!.text.trim(),
-                  'purpose': fields['purpose']!.text.trim(),
-                  'required': true,
-                  'featureIds': featureIds.toList(),
-                });
-                break;
-              case _ItemType.route:
-                result.addAll({
-                  'fromScreenId': fromId,
-                  'toScreenId': toId,
-                  'trigger': fields['trigger']!.text.trim(),
-                  'name': 'Route',
-                });
-                break;
-              case _ItemType.component:
-                result.addAll({
-                  'screenId': screenId,
-                  'type': componentType,
-                  'label': fields['label']!.text.trim(),
-                  'text': fields['text']!.text.trim(),
-                });
-                break;
-              case _ItemType.interaction:
-                result.addAll({
-                  'name': fields['name']!.text.trim(),
-                  'state': state,
-                  'description': fields['description']!.text.trim(),
-                });
-                break;
-            }
-            Navigator.pop(context, result);
-          },
-          child: const Text('Save'),
-        ),
-      ],
-    );
+        title: Text(
+            '${widget.original == null ? 'Add' : 'Edit'} ${widget.type.name}'),
+        content: SizedBox(
+            width: 490,
+            child: SingleChildScrollView(
+                child: Form(
+                    key: formKey,
+                    child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: resultFields)))),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () {
+                if (!(formKey.currentState?.validate() ?? false)) return;
+                final result = <String, dynamic>{
+                  ...?widget.original,
+                  'id': widget.original?['id'] ?? const Uuid().v4()
+                };
+                switch (widget.type) {
+                  case _ItemType.feature:
+                    result.addAll({
+                      'name': fields['name']!.text.trim(),
+                      'description': fields['description']!.text.trim(),
+                      'priority': priority,
+                      'status': 'confirmed',
+                      'source': 'manual-owner'
+                    });
+                    break;
+                  case _ItemType.screen:
+                    result.addAll({
+                      'name': fields['name']!.text.trim(),
+                      'purpose': fields['purpose']!.text.trim(),
+                      'required': true,
+                      'featureIds': featureIds.toList()
+                    });
+                    break;
+                  case _ItemType.route:
+                    result.addAll({
+                      'fromScreenId': fromId,
+                      'toScreenId': toId,
+                      'trigger': fields['trigger']!.text.trim(),
+                      'name': 'Route'
+                    });
+                    break;
+                  case _ItemType.component:
+                    result.addAll({
+                      'screenId': screenId,
+                      'type': componentType,
+                      'label': fields['label']!.text.trim(),
+                      'text': fields['text']!.text.trim(),
+                      if (componentType == 'input')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'placeholder': fields['placeholder']!.text.trim(),
+                          'required': componentRequired,
+                        },
+                      if (componentType == 'text')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'fontSize': componentFontSize,
+                        },
+                      if (componentType == 'card')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'elevation': componentElevation,
+                        },
+                      if (componentType == 'button')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'enabled': componentEnabled,
+                        }
+                    });
+                    break;
+                  case _ItemType.interaction:
+                    result.addAll({
+                      'name': fields['name']!.text.trim(),
+                      'state': state,
+                      'description': fields['description']!.text.trim()
+                    });
+                    break;
+                }
+                if (widget.type == _ItemType.component) {
+                  final error = ComponentRegistry.validateV4Component(
+                    type: componentType,
+                    label: fields['label']!.text,
+                    screenId: screenId,
+                    validScreenIds: widget.workspace
+                        .items('screens')
+                        .map((screen) => screen['id'].toString()),
+                  );
+
+                  if (error != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(error)),
+                    );
+                    return;
+                  }
+                }
+                Navigator.pop(context, result);
+              },
+              child: const Text('Save'))
+        ]);
   }
 }
 
@@ -774,11 +793,9 @@ class _ThemeEditorState extends State<_ThemeEditor> {
     super.initState();
     final values = widget.workspace.fields('theme');
     primary = TextEditingController(
-      text: (values['primaryColor'] ?? '#6654E8').toString(),
-    );
+        text: (values['primaryColor'] ?? '#6654E8').toString());
     secondary = TextEditingController(
-      text: (values['secondaryColor'] ?? '#2C8FCE').toString(),
-    );
+        text: (values['secondaryColor'] ?? '#2C8FCE').toString());
     mode = (values['mode'] ?? 'light').toString();
   }
 
@@ -790,43 +807,34 @@ class _ThemeEditorState extends State<_ThemeEditor> {
   }
 
   Color swatch(String value) => Color(
-    int.tryParse('FF${value.replaceAll('#', '')}', radix: 16) ?? 0xFF6654E8,
-  );
+      int.tryParse('FF${value.replaceAll('#', '')}', radix: 16) ?? 0xFF6654E8);
   @override
   Widget build(BuildContext context) => Form(
-    key: form,
-    child: SurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionTitle(
-            'Brand & theme',
-            subtitle: 'Persistent design tokens used by the template renderer.',
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 20,
-            runSpacing: 18,
-            children: [
-              for (final entry in <(String, TextEditingController)>[
-                ('Primary color', primary),
-                ('Secondary color', secondary),
-              ])
-                SizedBox(
-                  width: 240,
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
+      key: form,
+      child: SurfaceCard(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const SectionTitle('Brand & theme',
+            subtitle:
+                'Persistent design tokens used by the template renderer.'),
+        const SizedBox(height: 20),
+        Wrap(spacing: 20, runSpacing: 18, children: [
+          for (final entry in <(String, TextEditingController)>[
+            ('Primary color', primary),
+            ('Secondary color', secondary)
+          ])
+            SizedBox(
+                width: 240,
+                child: Row(children: [
+                  Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
                           color: swatch(entry.$2.text),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextFormField(
+                          borderRadius: BorderRadius.circular(10))),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: TextFormField(
                           controller: entry.$2,
                           decoration: InputDecoration(labelText: entry.$1),
                           onChanged: (_) => setState(() {}),
@@ -873,35 +881,28 @@ class _ThemeEditorState extends State<_ThemeEditor> {
           DropdownButtonFormField<String>(
             initialValue: mode,
             decoration: const InputDecoration(labelText: 'Color mode'),
-            items:
-                ['light', 'dark', 'system']
-                    .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                    .toList(),
-            onChanged: (v) => setState(() => mode = v ?? 'light'),
-          ),
-          const SizedBox(height: 20),
-          FilledButton.icon(
+            items: ['light', 'dark', 'system']
+                .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                .toList(),
+            onChanged: (v) => setState(() => mode = v ?? 'light')),
+        const SizedBox(height: 20),
+        FilledButton.icon(
             onPressed: () async {
               if (!(form.currentState?.validate() ?? false)) return;
               await widget.onSave('theme', {
                 'primaryColor': primary.text.trim(),
                 'secondaryColor': secondary.text.trim(),
-                'mode': mode,
+                'mode': mode
               });
             },
             icon: const Icon(Icons.save_outlined),
-            label: const Text('Save Theme'),
-          ),
-        ],
-      ),
-    ),
-  );
+            label: const Text('Save Theme')),
+      ])));
 }
 
 final projectValidationProvider =
     FutureProvider.family<Map<String, dynamic>, String>(
-      (ref, id) => ref.watch(workspaceRepositoryProvider).validate(id),
-    );
+        (ref, id) => ref.watch(workspaceRepositoryProvider).validate(id));
 
 class _BlueprintEditor extends ConsumerStatefulWidget {
   const _BlueprintEditor({required this.workspace});
@@ -915,49 +916,46 @@ class _BlueprintEditor extends ConsumerStatefulWidget {
 class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   bool generating = false;
   String? error;
+  Map<String, dynamic>? localPreview;
 
-  Future<void> generatePreview() async {
+  void generatePreview() {
+    try {
+      final preview = buildLocalPreviewBlueprint(widget.workspace);
+      setState(() {
+        localPreview = preview;
+        error = null;
+      });
+    } catch (e) {
+      setState(() {
+        localPreview = null;
+        error = e.toString();
+      });
+    }
+  }
+
+  Future<void> compileBlueprint() async {
     setState(() {
       generating = true;
       error = null;
     });
-
     try {
-      final blueprint = buildLocalPreviewBlueprint(widget.workspace);
-
-      await ref
-          .read(workspaceRepositoryProvider)
-          .save(
-            widget.workspace.projectId,
-            'blueprint',
-            widget.workspace.version,
-            blueprint,
-          );
-
-      ref.invalidate(workspaceProvider(widget.workspace.projectId));
-
+      final response = await ref.read(workspaceRepositoryProvider).compile(
+          widget.workspace.projectId, widget.workspace.version);
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Local Preview Blueprint saved to Draft.'),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Template Blueprint saved - v${response['draftVersion']}')));
+      ref.invalidate(projectValidationProvider(widget.workspace.projectId));
+      ref.invalidate(workspaceProvider(widget.workspace.projectId));
     } catch (e) {
-      if (mounted) {
-        setState(() => error = e.toString());
-      }
+      if (mounted) setState(() => error = e.toString());
     } finally {
-      if (mounted) {
-        setState(() => generating = false);
-      }
+      if (mounted) setState(() => generating = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final blueprint = widget.workspace.fields('blueprint');
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -967,23 +965,31 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
             children: [
               const SectionTitle(
                 'Blueprint & UI Studio',
-                subtitle:
-                    'Generate a simulated preview from your saved Builder data.',
+                subtitle: 'Preview saved Builder data or compile a Blueprint through the backend.',
               ),
               const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: generating ? null : generatePreview,
-                icon: const Icon(Icons.auto_awesome),
-                label: Text(
-                  generating
-                      ? 'Generating...'
-                      : 'Generate & Save Local Preview',
-                ),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: generating ? null : generatePreview,
+                    icon: const Icon(Icons.visibility_outlined),
+                    label: const Text('Generate Local Preview'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: generating ? null : compileBlueprint,
+                    icon: const Icon(Icons.auto_awesome),
+                    label: Text(generating
+                        ? 'Compiling...'
+                        : 'Compile & Save Template Blueprint'),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               const Text(
-                'Local preview only. This is not Backend Blueprint '
-                'approval or official Blueprint validation.',
+                'Local preview is temporary and does not overwrite the saved Blueprint. '
+                'Backend compilation is not approval or remote AI generation.',
                 style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
               if (error != null) ...[
@@ -993,15 +999,20 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
             ],
           ),
         ),
+        if (localPreview != null) ...[
+          const SizedBox(height: 16),
+          const SectionTitle('Local simulation - not validated'),
+          const SizedBox(height: 8),
+          SafePreview(key: ObjectKey(localPreview), blueprint: localPreview!),
+        ],
         const SizedBox(height: 16),
+        const SectionTitle('Saved Blueprint'),
+        const SizedBox(height: 8),
         if (blueprint['screens'] is List)
           SafePreview(blueprint: blueprint)
         else
           const SurfaceCard(
-            child: Text(
-              'No local preview yet. Add screens, components and '
-              'routes, then generate a preview.',
-            ),
+            child: Text('No compiled Blueprint yet. Add features, screens and routes; then compile.'),
           ),
       ],
     );
@@ -1019,6 +1030,7 @@ class _ValidationEditor extends ConsumerStatefulWidget {
 
 class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
   bool validating = false;
+  bool exporting = false;
   Map<String, dynamic>? result;
   String? error;
 
@@ -1028,32 +1040,45 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
       error = null;
       result = null;
     });
-
     try {
-      final response = await ref
-          .read(workspaceRepositoryProvider)
+      final response = await ref.read(workspaceRepositoryProvider)
           .validate(widget.workspace.projectId);
-
-      if (!mounted) return;
-
-      setState(() => result = response);
+      if (mounted) setState(() => result = response);
     } catch (e) {
-      if (mounted) {
-        setState(() => error = e.toString());
-      }
+      if (mounted) setState(() => error = e.toString());
     } finally {
-      if (mounted) {
-        setState(() => validating = false);
-      }
+      if (mounted) setState(() => validating = false);
+    }
+  }
+
+  Future<void> exportDraft() async {
+    setState(() {
+      exporting = true;
+      error = null;
+    });
+    try {
+      final bytes = await ref.read(workspaceRepositoryProvider)
+          .exportDraft(widget.workspace.projectId);
+      if (!mounted) return;
+      ref.read(downloadPortProvider).saveZip(
+          'reqviora-${widget.workspace.projectId}-draft-v${widget.workspace.version}.zip',
+          bytes);
+    } catch (e) {
+      if (mounted) setState(() => error = e.toString());
+    } finally {
+      if (mounted) setState(() => exporting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final findings =
-        (result?['findings'] as List? ?? [])
-            .map((item) => Map<String, dynamic>.from(item as Map))
-            .toList();
+    final current = result;
+    final findings = (current?['findings'] as List? ?? [])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    final blockers = current?['blockers'];
+    final advisories = current?['advisories'];
 
     return SurfaceCard(
       child: Column(
@@ -1061,51 +1086,70 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
         children: [
           const SectionTitle(
             'Review & Validation',
-            subtitle: 'Validate the saved Blueprint explicitly.',
+            subtitle: 'Run backend validation for the saved draft.',
           ),
           const SizedBox(height: 16),
-          Text(
-            result == null
-                ? 'Validation has not been run.'
-                : result!['passed'] == true
-                ? 'Backend validation passed.'
-                : 'Backend validation reported findings.',
-          ),
-          const SizedBox(height: 14),
           FilledButton.icon(
-            onPressed: validating ? null : runValidation,
+            onPressed: validating || exporting ? null : runValidation,
             icon: const Icon(Icons.fact_check_outlined),
-            label: Text(
-              validating ? 'Validating...' : 'Run Backend Validation',
-            ),
+            label: Text(validating ? 'Validating...' : 'Run Backend Validation'),
           ),
-          if (validating) ...[
-            const SizedBox(height: 12),
-            const LinearProgressIndicator(),
-          ],
-          for (final finding in findings)
-            ListTile(
-              leading: const Icon(Icons.info_outline),
-              title: Text((finding['code'] ?? 'Finding').toString()),
-              subtitle: Text((finding['message'] ?? '').toString()),
+          const SizedBox(height: 12),
+          if (validating)
+            const LinearProgressIndicator()
+          else if (current == null)
+            const Text('Validation has not been completed.')
+          else ...[
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                if (blockers is int)
+                  SmallLabel('$blockers blockers',
+                      color: blockers > 0
+                          ? const Color(0xFFCA5161)
+                          : AppColors.green),
+                if (advisories is int)
+                  SmallLabel('$advisories advisories'),
+                if (current['draftVersion'] != null)
+                  SmallLabel("Draft v${current['draftVersion']}"),
+              ],
             ),
-          if (error != null) ...[
             const SizedBox(height: 12),
-            InlineError(error!),
+            if (findings.isEmpty)
+              const Text('No validation findings returned for implemented rules.'),
+            for (final finding in findings)
+              ListTile(
+                leading: Icon(
+                  finding['severity'] == 'blocker'
+                      ? Icons.error_outline
+                      : Icons.info_outline,
+                  color: finding['severity'] == 'blocker'
+                      ? const Color(0xFFCA5161)
+                      : AppColors.purple,
+                ),
+                title: Text((finding['ruleId'] ?? finding['code'] ?? 'Finding').toString()),
+                subtitle: Text((finding['message'] ?? '').toString()),
+              ),
           ],
           const SizedBox(height: 20),
           const Divider(),
           const SizedBox(height: 12),
           const Text(
-            'Draft ZIP export is unavailable. '
-            'Official export requires an approved revision.',
+            'Draft export only. Official export requires an approved revision. '
+            'A draft ZIP is not approval or a deployable application.',
+            style: TextStyle(color: AppColors.muted, fontSize: 12),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: null,
+            onPressed: validating || exporting ? null : exportDraft,
             icon: const Icon(Icons.download_outlined),
-            label: const Text('Draft ZIP Export Unavailable'),
+            label: Text(exporting ? 'Preparing ZIP...' : 'Download Draft ZIP'),
           ),
+          if (error != null) ...[
+            const SizedBox(height: 12),
+            InlineError(error!),
+          ],
         ],
       ),
     );
