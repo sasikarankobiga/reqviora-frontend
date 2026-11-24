@@ -169,6 +169,30 @@ class V4ComponentsStudio extends StatelessWidget {
   }
 }
 
+/// Testable entry point for V4 Step 06.
+class V4InteractionsStudio extends StatelessWidget {
+  const V4InteractionsStudio({
+    super.key,
+    required this.workspace,
+    required this.onSave,
+  });
+
+  final Workspace workspace;
+  final Future<void> Function(String section, dynamic data) onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ItemEditor(
+      workspace: workspace,
+      section: 'interactions',
+      title: 'Interaction & state rules',
+      icon: Icons.tune_rounded,
+      type: _ItemType.interaction,
+      onSave: onSave,
+    );
+  }
+}
+
 enum _ItemType { feature, screen, route, component, interaction }
 
 class _ItemEditor extends StatefulWidget {
