@@ -6,6 +6,9 @@ import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
 import '../application/workspace_providers.dart';
 import '../domain/workspace.dart';
+import '../domain/navigation_diagnostics.dart';
+import '../domain/feature_coverage.dart';
+import '../domain/theme_accessibility.dart';
 import 'simulated_preview.dart';
 import '../domain/local_preview_blueprint.dart';
 
@@ -309,6 +312,82 @@ class _ItemEditorState extends State<_ItemEditor> {
           ],
         ),
         const SizedBox(height: 16),
+        if (widget.type == _ItemType.screen) ...[
+          Builder(
+            builder: (context) {
+              final coverage = FeatureCoverage.calculate(
+                widget.workspace.items('features'),
+                items,
+              );
+
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F0FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Feature coverage: ${coverage.mappedFeatures}/${coverage.totalFeatures} mapped',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    if (coverage.unmappedFeatureNames.isNotEmpty)
+                      Text(
+                        'Unmapped features: ${coverage.unmappedFeatureNames.join(', ')}',
+                      ),
+                    if (coverage.screensWithoutFeatures > 0)
+                      Text(
+                        'Screens without feature mappings: ${coverage.screensWithoutFeatures}',
+                      ),
+                    if (coverage.invalidFeatureReferences > 0)
+                      Text(
+                        'Invalid feature references: ${coverage.invalidFeatureReferences}',
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (widget.type == _ItemType.route) ...[
+          Builder(
+            builder: (context) {
+              final diagnostics = NavigationDiagnostics.inspect(
+                widget.workspace.items('screens'),
+                items,
+              );
+
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F0FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Navigation diagnostics',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    Text('Broken routes: ${diagnostics.brokenRoutes}'),
+                    Text('Duplicate routes: ${diagnostics.duplicateRoutes}'),
+                    Text(
+                      'Disconnected screens: '
+                      '${diagnostics.disconnectedScreenNames.isEmpty ? 'None' : diagnostics.disconnectedScreenNames.join(', ')}',
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 14),
+        ],
         if (items.isEmpty)
           Container(
             width: double.infinity,
@@ -762,6 +841,33 @@ class _ThemeEditorState extends State<_ThemeEditor> {
                   ),
                 ),
             ],
+          ),
+          Builder(
+            builder: (context) {
+              final color = primary.text.trim();
+              final valid = RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(color);
+
+              if (!valid) {
+                return const Text(
+                  'Enter a valid primary color to check contrast.',
+                );
+              }
+
+              final ratio = contrastRatio(color, '#FFFFFF');
+              final passes = meetsNormalTextContrast(color, '#FFFFFF');
+
+              return Text(
+                'Primary color on white: ${ratio.toStringAsFixed(2)}:1 — '
+                '${passes ? 'WCAG AA normal-text contrast passed' : 'Low contrast: use a darker primary color'}',
+                style: TextStyle(
+                  color:
+                      passes
+                          ? const Color(0xFF16734C)
+                          : const Color(0xFFB42318),
+                  fontWeight: FontWeight.w600,
+                ),
+              );
+            },
           ),
           const SizedBox(height: 17),
           DropdownButtonFormField<String>(

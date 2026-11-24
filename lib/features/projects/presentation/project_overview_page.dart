@@ -63,14 +63,14 @@ class _Contents extends StatelessWidget {
               icon: Icons.file_upload_outlined,
               title: 'Input Studio',
               subtitle: 'Documents · Tamil/English voice · Text · Manual',
-              label: 'Interface preview',
+              label: 'Text and document input',
               onTap: () => context.go('/projects/${draft.projectId}/sources'),
             ),
             FeatureTile(
               icon: Icons.fact_check_outlined,
               title: 'Requirements Review',
-              subtitle: 'AI suggestions and human confirmation',
-              label: 'Not connected',
+              subtitle: 'Local-rule suggestions and human review',
+              label: 'Local review available',
               onTap:
                   () => context.go('/projects/${draft.projectId}/review-input'),
             ),
@@ -78,7 +78,7 @@ class _Contents extends StatelessWidget {
               icon: Icons.layers_outlined,
               title: '8-Step Builder',
               subtitle: 'Plan screens, design UI and review',
-              label: 'Step 01 editable',
+              label: 'Draft editor available',
               active: true,
               onTap: () => context.go('/projects/${draft.projectId}/builder/1'),
             ),
@@ -153,7 +153,7 @@ class _Contents extends StatelessWidget {
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Only Step 01 draft editing is connected to the demo backend. Input Studio, AI review, later Builder stages and export are visual previews, not working services.',
+                'Project drafts, text input, document upload and local requirement review are implemented. Builder Steps 01-06 support draft editing, and Step 07 supports local simulated preview. Official AI, approval and export require Backend integration.',
                 style: TextStyle(
                   fontSize: 12,
                   color: AppColors.ink,

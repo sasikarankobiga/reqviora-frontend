@@ -6,6 +6,7 @@ import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
 import '../../workspace/application/workspace_providers.dart';
 import '../../workspace/domain/workspace.dart';
+import '../domain/review_summary.dart';
 
 /// PB-05 Ã¢â‚¬â€ persisted text/manual source intake; file and voice services are
 /// intentionally labeled unavailable, not falsely presented as functional.
@@ -476,6 +477,42 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
                           ),
                         ],
                       ),
+                    ),
+                    const SizedBox(height: 16),
+                    Builder(
+                      builder: (context) {
+                        final summary = ReviewSummary.fromCandidates(
+                          candidates,
+                        );
+
+                        return SurfaceCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Local requirement review summary',
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: [
+                                  SmallLabel('Suggested: ${summary.suggested}'),
+                                  SmallLabel('Accepted: ${summary.accepted}'),
+                                  SmallLabel('Rejected: ${summary.rejected}'),
+                                  SmallLabel('Deferred: ${summary.deferred}'),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'These are local draft decisions, not Backend approval.',
+                                style: TextStyle(fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                     if (candidates.isEmpty)
