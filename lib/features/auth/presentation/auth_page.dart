@@ -241,6 +241,9 @@ class _AuthPageState extends ConsumerState<AuthPage> {
               controller: passwordController,
               enabled: !isLoading,
               obscureText: !showPassword,
+              textInputAction:
+                  isRegister ? TextInputAction.next : TextInputAction.done,
+              onFieldSubmitted: isRegister ? null : (_) => submitForm(),
               autofillHints:
                   isRegister
                       ? const [AutofillHints.newPassword]
@@ -277,6 +280,8 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                 controller: confirmPasswordController,
                 enabled: !isLoading,
                 obscureText: !showConfirmPassword,
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => submitForm(),
                 decoration: InputDecoration(
                   labelText: 'Confirm Password',
                   prefixIcon: const Icon(Icons.lock_reset_outlined),
@@ -351,7 +356,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
             // API / validation errors.
             if (errorMessage != null) ...[
               const SizedBox(height: 12),
-              InlineError(errorMessage!),
+              Semantics(liveRegion: true, child: InlineError(errorMessage!)),
             ],
 
             // Success message after registration.

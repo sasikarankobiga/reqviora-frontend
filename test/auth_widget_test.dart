@@ -115,4 +115,88 @@ void main() {
 
     expect(tester.widget<EditableText>(editableText).obscureText, isTrue);
   });
+  testWidgets('Login keyboard Done validates the form', (tester) async {
+    await openAuthPage(tester);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-email')),
+      'invalid-email',
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-password')),
+      'StrongPassword123',
+    );
+
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(find.text('Enter a valid email address'), findsOneWidget);
+  });
+
+  testWidgets('Register keyboard Done validates confirmation', (tester) async {
+    await openAuthPage(tester, initialLocation: '/register');
+
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-display-name')),
+      'Test User',
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-email')),
+      'test@example.com',
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-password')),
+      'StrongPassword123',
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-confirm-password')),
+      'DifferentPassword123',
+    );
+
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(find.text('Passwords do not match'), findsOneWidget);
+  });
+  testWidgets('Login email Next focuses password', (tester) async {
+    await openAuthPage(tester);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-email')),
+      'test@example.com',
+    );
+
+    await tester.testTextInput.receiveAction(TextInputAction.next);
+    await tester.pump();
+
+    final password = find.descendant(
+      of: find.byKey(const ValueKey('auth-password')),
+      matching: find.byType(EditableText),
+    );
+
+    expect(tester.widget<EditableText>(password).focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets('Register name Next focuses email', (tester) async {
+    await openAuthPage(tester, initialLocation: '/register');
+
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-display-name')),
+      'Test User',
+    );
+
+    await tester.testTextInput.receiveAction(TextInputAction.next);
+    await tester.pump();
+
+    final email = find.descendant(
+      of: find.byKey(const ValueKey('auth-email')),
+      matching: find.byType(EditableText),
+    );
+
+    expect(tester.widget<EditableText>(email).focusNode.hasFocus, isTrue);
+  });
 }
