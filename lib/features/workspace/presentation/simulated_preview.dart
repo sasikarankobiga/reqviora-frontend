@@ -11,6 +11,7 @@ class SafePreview extends StatefulWidget {
     required this.blueprint,
     this.simulationRole,
     this.simulationState = 'default',
+    this.interactionRules,
   });
 
   final Map<String, dynamic> blueprint;
@@ -18,6 +19,7 @@ class SafePreview extends StatefulWidget {
   // For simulated preview only, not backend authorization.
   final String? simulationRole;
   final String simulationState;
+  final List<Map<String, dynamic>>? interactionRules;
   @override
   State<SafePreview> createState() => _SafePreviewState();
 }
@@ -25,6 +27,7 @@ class SafePreview extends StatefulWidget {
 class _SafePreviewState extends State<SafePreview> {
   String? screenId;
   String mode = 'mobile';
+  String? runtimeState;
   final Map<String, String> inputs = {};
   Map<String, dynamic> obj(dynamic v) =>
       v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
@@ -41,6 +44,61 @@ class _SafePreviewState extends State<SafePreview> {
         screenId = id;
         inputs.clear();
       });
+  bool executeInteraction(
+    Map<String, dynamic> component,
+    String trigger,
+  ) {
+    final identifiers = <String>{
+      for (final key in [
+        'componentInstanceId',
+        'componentId',
+        'templateSourceId',
+        'id',
+      ])
+        if (component[key] != null && component[key].toString().isNotEmpty)
+          component[key].toString(),
+    };
+
+    final rules = widget.interactionRules ?? array('interactions');
+
+    final matching = rules.where((rule) =>
+        identifiers.contains((rule['componentId'] ?? '').toString()) &&
+        rule['trigger'] == trigger);
+
+    if (matching.isEmpty) return false;
+
+    for (final rule in matching) {
+      switch (rule['action']) {
+        case 'navigate':
+          final target = (rule['targetScreenId'] ?? '').toString();
+          if (array('screens').any(
+            (screen) => screen['screenId'] == target,
+          )) {
+            navigate(target);
+          }
+          break;
+
+        case 'show-message':
+          final message = (rule['message'] ?? '').toString();
+          if (message.trim().isNotEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(message)),
+            );
+          }
+          break;
+
+        case 'set-state':
+          final target = (rule['targetState'] ?? '').toString();
+          if (V4VisibilityRules.states.contains(target)) {
+            setState(() => runtimeState = target);
+          }
+          break;
+      }
+    }
+
+    return true;
+  }
+
   Widget component(
     Map<String, dynamic> c,
     Color accent, {
@@ -112,19 +170,30 @@ class _SafePreviewState extends State<SafePreview> {
                 width: double.infinity,
                 child: FilledButton(
                     style: FilledButton.styleFrom(backgroundColor: accent),
-                    onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                    onPressed: () {
+                      if (!executeInteraction(c, 'onClick')) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
                             content: Text(
-                                'Mock action only · No live transaction executed'))),
+                              'Mock action only · No live transaction executed',
+                            ),
+                          ),
+                        );
+                      }
+                    },
                     child: Text(label.isEmpty ? 'Continue' : label))));
       case 'input':
         return Padding(
             padding: const EdgeInsets.symmetric(vertical: 7),
             child: TextField(
-                onChanged: (v) => setState(() {
-                      inputs[(c['componentInstanceId'] ?? c['id'] ?? '')
-                          .toString()] = v;
-                    }),
+                onChanged: (v) {
+                  setState(() {
+                    inputs[(c['componentInstanceId'] ?? c['id'] ?? '')
+                        .toString()] = v;
+                  });
+                  executeInteraction(c, 'onChange');
+                },
+                onSubmitted: (_) => executeInteraction(c, 'onSubmit'),
                 decoration: InputDecoration(
                     labelText: label,
                     hintText:
@@ -275,7 +344,7 @@ class _SafePreviewState extends State<SafePreview> {
     if (!V4VisibilityRules.isVisible(
       rule: visibility,
       userRole: widget.simulationRole,
-      uiState: widget.simulationState,
+      uiState: runtimeState ?? widget.simulationState,
       formValues: inputs,
     )) {
       return const SizedBox.shrink();

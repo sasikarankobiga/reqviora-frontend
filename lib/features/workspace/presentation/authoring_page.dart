@@ -1538,7 +1538,10 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
       ])),
       const SizedBox(height: 15),
       if (blueprint['screens'] is List)
-        SafePreview(blueprint: blueprint)
+        SafePreview(
+          blueprint: blueprint,
+          interactionRules: widget.workspace.items('interactions'),
+        )
       else
         const SurfaceCard(
             child: Text(
