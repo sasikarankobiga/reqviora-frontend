@@ -54,8 +54,8 @@ class _ContentState extends ConsumerState<_Content> {
       ref.invalidate(workspaceProvider(widget.workspace.projectId));
       ref.invalidate(projectValidationProvider(widget.workspace.projectId));
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$section saved Â· next version created')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('$section saved Ã‚Â· next version created')));
     } catch (e) {
       if (mounted) setState(() => message = '$e');
     } finally {
@@ -76,7 +76,7 @@ class _ContentState extends ConsumerState<_Content> {
             SizedBox(width: 12),
             Expanded(
                 child: Text(
-                    'Real server-backed draft editor Â· Owner-controlled Â· Saved content stays after refresh.',
+                    'Real server-backed draft editor Ã‚Â· Owner-controlled Ã‚Â· Saved content stays after refresh.',
                     style: TextStyle(fontSize: 12, height: 1.45)))
           ])),
       const SizedBox(height: 16),
@@ -188,7 +188,7 @@ class _ItemEditorState extends State<_ItemEditor> {
       final lookup = {
         for (final s in widget.workspace.items('screens')) s['id']: s['name']
       };
-      return '${lookup[row['fromScreenId']] ?? 'Missing source'} â†’ ${lookup[row['toScreenId']] ?? 'Missing target'}';
+      return '${lookup[row['fromScreenId']] ?? 'Missing source'} Ã¢â€ â€™ ${lookup[row['toScreenId']] ?? 'Missing target'}';
     }
     return (row['description'] ??
             row['purpose'] ??
@@ -206,6 +206,21 @@ class _ItemEditorState extends State<_ItemEditor> {
             original: existing,
             workspace: widget.workspace));
     if (updated == null) return;
+    if (widget.type == _ItemType.component) {
+      final idError = ComponentRegistry.validateV4ComponentId(
+        id: (updated['id'] ?? '').toString(),
+        existingIds: items.map((item) => (item['id'] ?? '').toString()),
+        editingId: existing?['id']?.toString(),
+      );
+
+      if (idError != null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(idError)),
+        );
+        return;
+      }
+    }
     if (existing == null) {
       items.add(updated);
     } else {
@@ -526,6 +541,23 @@ class _ItemDialogState extends State<_ItemDialog> {
                     });
                     break;
                 }
+                if (widget.type == _ItemType.component) {
+                  final error = ComponentRegistry.validateV4Component(
+                    type: componentType,
+                    label: fields['label']!.text,
+                    screenId: screenId,
+                    validScreenIds: widget.workspace
+                        .items('screens')
+                        .map((screen) => screen['id'].toString()),
+                  );
+
+                  if (error != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(error)),
+                    );
+                    return;
+                  }
+                }
                 Navigator.pop(context, result);
               },
               child: const Text('Save'))
@@ -668,7 +700,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                       if (mounted)
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                             content: Text(
-                                'Template Blueprint saved Â· v${result['draftVersion']}')));
+                                'Template Blueprint saved Ã‚Â· v${result['draftVersion']}')));
                     } catch (e) {
                       if (mounted) setState(() => error = '$e');
                     } finally {
@@ -677,7 +709,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                   },
             icon: const Icon(Icons.auto_awesome),
             label: Text(generating
-                ? 'Compilingâ€¦'
+                ? 'CompilingÃ¢â‚¬Â¦'
                 : 'Compile & Save Template Blueprint')),
         const SizedBox(height: 8),
         const Text(
@@ -722,7 +754,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
                     children: [
                   const SectionTitle('Review & Export',
                       subtitle:
-                          'Live deterministic checks Â· explicit draft-only handoff; approval service not yet enabled.'),
+                          'Live deterministic checks Ã‚Â· explicit draft-only handoff; approval service not yet enabled.'),
                   const SizedBox(height: 18),
                   Wrap(spacing: 10, runSpacing: 10, children: [
                     SmallLabel('${result['blockers']} blockers',
@@ -774,7 +806,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
                             },
                       icon: const Icon(Icons.download_outlined),
                       label: Text(exporting
-                          ? 'Preparing ZIPâ€¦'
+                          ? 'Preparing ZIPÃ¢â‚¬Â¦'
                           : 'Download Draft 19 + manifest ZIP')),
                   const SizedBox(height: 9),
                   const Text(
