@@ -484,4 +484,38 @@ void main() {
     expect(savedItems!.first['label'], 'Submit Button');
     expect(savedItems!.first['screenId'], 'screen-1');
   });
+
+  testWidgets('saves component display text', (tester) async {
+    List<Map<String, dynamic>>? savedItems;
+
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      savedItems = (data as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    });
+
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+
+    // Select a valid screen.
+    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dashboard').last);
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextFormField);
+
+    await tester.enterText(fields.first, 'Welcome Message');
+    await tester.enterText(fields.last, 'Welcome to REQVIORA');
+
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(savedItems, isNotNull);
+    expect(savedItems, hasLength(1));
+    expect(savedItems!.first['label'], 'Welcome Message');
+    expect(savedItems!.first['text'], 'Welcome to REQVIORA');
+    expect(savedItems!.first['screenId'], 'screen-1');
+  });
 }
