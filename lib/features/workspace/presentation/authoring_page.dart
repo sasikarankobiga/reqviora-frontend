@@ -1,4 +1,5 @@
 import '../../builder/domain/registry/component_registry.dart';
+import '../../builder/domain/registry/v4_component_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -245,7 +246,98 @@ class _ItemEditorState extends State<_ItemEditor> {
         if (existing != null && item['id'] == existing['id']) updated else item,
       if (existing == null) updated,
     ];
+    if (widget.type == _ItemType.component) {
+      final error = V4ComponentLayout.validate(nextItems);
+
+      if (error != null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error)),
+        );
+        return;
+      }
+    }
     await widget.onSave(widget.section, nextItems);
+  }
+
+  Future<void> reuseComponent(Map<String, dynamic> source) async {
+    final screens = widget.workspace.items('screens');
+
+    if (screens.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add a screen first')),
+      );
+      return;
+    }
+
+    String? targetScreenId = source['screenId']?.toString();
+
+    final selectedScreen = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, updateDialog) => AlertDialog(
+          title: const Text('Reuse component on screen'),
+          content: DropdownButtonFormField<String>(
+            initialValue: screens.any(
+              (screen) => screen['id'] == targetScreenId,
+            )
+                ? targetScreenId
+                : null,
+            decoration: const InputDecoration(
+              labelText: 'Target screen',
+            ),
+            isExpanded: true,
+            items: [
+              for (final screen in screens)
+                DropdownMenuItem<String>(
+                  value: screen['id'].toString(),
+                  child: Text(
+                    (screen['name'] ?? screen['id']).toString(),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            onChanged: (value) => updateDialog(() => targetScreenId = value),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: targetScreenId == null
+                  ? null
+                  : () => Navigator.pop(dialogContext, targetScreenId),
+              child: const Text('Reuse'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || selectedScreen == null) return;
+
+    final clone = V4ComponentLayout.cloneForReuse(
+      source: source,
+      newId: const Uuid().v4(),
+      targetScreenId: selectedScreen,
+    );
+
+    final updatedItems = <Map<String, dynamic>>[
+      ...items,
+      clone,
+    ];
+
+    final error = V4ComponentLayout.validate(updatedItems);
+
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error)),
+      );
+      return;
+    }
+
+    await widget.onSave(widget.section, updatedItems);
   }
 
   Future<void> reorderComponents(int oldIndex, int newIndex) async {
@@ -285,6 +377,21 @@ class _ItemEditorState extends State<_ItemEditor> {
                       child: const Text('Remove'))
                 ]));
     if (yes != true) return;
+    if (widget.type == _ItemType.component) {
+      final hasChildren = items.any(
+        (child) => child['parentComponentId'] == item['id'],
+      );
+
+      if (hasChildren) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Remove or reassign child components first'),
+          ),
+        );
+        return;
+      }
+    }
     final nextItems = <Map<String, dynamic>>[
       for (final existing in items)
         if (existing['id'] != item['id']) existing,
@@ -351,6 +458,11 @@ class _ItemEditorState extends State<_ItemEditor> {
                     trailing: Wrap(
                       spacing: 2,
                       children: [
+                        IconButton(
+                          tooltip: 'Reuse',
+                          icon: const Icon(Icons.copy_outlined),
+                          onPressed: () => reuseComponent(row),
+                        ),
                         IconButton(
                           tooltip: 'Edit',
                           icon: const Icon(Icons.edit_outlined),
@@ -419,6 +531,7 @@ class _ItemDialogState extends State<_ItemDialog> {
   late String componentHeaderAlignment;
   late bool componentListDense;
   late bool componentTableStriped;
+  String? parentComponentId;
   late String state;
   String? fromId;
   String? toId;
@@ -495,6 +608,7 @@ class _ItemDialogState extends State<_ItemDialog> {
     fromId = item['fromScreenId'] as String?;
     toId = item['toScreenId'] as String?;
     screenId = item['screenId'] as String?;
+    parentComponentId = item['parentComponentId']?.toString();
     featureIds = Set<String>.from(item['featureIds'] as List? ?? []);
   }
 
@@ -589,7 +703,13 @@ class _ItemDialogState extends State<_ItemDialog> {
       case _ItemType.component:
         resultFields.addAll([
           selector(
-              'Screen', screenId, screens, (v) => setState(() => screenId = v)),
+              'Screen',
+              screenId,
+              screens,
+              (v) => setState(() {
+                    screenId = v;
+                    parentComponentId = null;
+                  })),
           DropdownButtonFormField<String>(
               initialValue: componentType,
               decoration: const InputDecoration(labelText: 'Component type'),
@@ -599,6 +719,53 @@ class _ItemDialogState extends State<_ItemDialog> {
               onChanged: (v) => setState(() => componentType = v ?? 'text')),
           const SizedBox(height: 14),
           input('label', 'Component label', required: true),
+          Builder(
+            builder: (context) {
+              final parents = widget.workspace
+                  .items('components')
+                  .where((item) =>
+                      V4ComponentLayout.parentTypes.contains(item['type']) &&
+                      item['screenId'] == screenId &&
+                      item['id'] != widget.original?['id'])
+                  .toList();
+
+              final validParent = parents.any(
+                (item) => item['id'] == parentComponentId,
+              )
+                  ? parentComponentId
+                  : null;
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('parent-$screenId-$validParent'),
+                  initialValue: validParent ?? '',
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Parent component',
+                  ),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: '',
+                      child: Text('None (top level)'),
+                    ),
+                    for (final parent in parents)
+                      DropdownMenuItem<String>(
+                        value: parent['id'].toString(),
+                        child: Text(
+                          (parent['label'] ?? parent['id']).toString(),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() {
+                    parentComponentId =
+                        value == null || value.isEmpty ? null : value;
+                  }),
+                ),
+              );
+            },
+          ),
           input('text', 'Display text', lines: 2),
           if (componentType == 'input') ...[
             input('placeholder', 'Placeholder'),
@@ -776,8 +943,11 @@ class _ItemDialogState extends State<_ItemDialog> {
                     });
                     break;
                   case _ItemType.component:
+                    result.remove('parentComponentId');
                     result.addAll({
                       'screenId': screenId,
+                      if (parentComponentId != null)
+                        'parentComponentId': parentComponentId,
                       'type': componentType,
                       'label': fields['label']!.text.trim(),
                       'text': fields['text']!.text.trim(),

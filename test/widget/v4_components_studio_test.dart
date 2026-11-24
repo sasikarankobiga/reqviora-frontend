@@ -466,7 +466,11 @@ void main() {
     await tester.pumpAndSettle();
 
     // Select component type.
-    await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+    await tester.tap(find.byWidgetPredicate(
+      (widget) =>
+          widget is DropdownButtonFormField<String> &&
+          widget.decoration.labelText == 'Component type',
+    ));
     await tester.pumpAndSettle();
     await tester.tap(find.text('button').last);
     await tester.pumpAndSettle();
@@ -559,7 +563,11 @@ void main() {
 
     // Change existing button component to input.
     await tester.tap(
-      find.byType(DropdownButtonFormField<String>).last,
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DropdownButtonFormField<String> &&
+            widget.decoration.labelText == 'Component type',
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -786,7 +794,11 @@ void main() {
     await tester.tap(find.text('Dashboard').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+    await tester.tap(find.byWidgetPredicate(
+      (widget) =>
+          widget is DropdownButtonFormField<String> &&
+          widget.decoration.labelText == 'Component type',
+    ));
     await tester.pumpAndSettle();
     await tester.tap(find.text('button').last);
     await tester.pumpAndSettle();
@@ -1005,7 +1017,11 @@ void main() {
 
     // Select the Input component type.
     await tester.tap(
-      find.byType(DropdownButtonFormField<String>).last,
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DropdownButtonFormField<String> &&
+            widget.decoration.labelText == 'Component type',
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -1156,7 +1172,11 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(
-      find.byType(DropdownButtonFormField<String>).last,
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DropdownButtonFormField<String> &&
+            widget.decoration.labelText == 'Component type',
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -1695,4 +1715,251 @@ void main() {
       },
     );
   }
+
+  testWidgets('V4 reuse creates a separate component on another screen',
+      (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+          {'id': 'screen-2', 'name': 'Settings'},
+        ],
+        'components': [
+          {
+            'id': 'original-card',
+            'screenId': 'screen-1',
+            'type': 'card',
+            'label': 'Profile Card',
+            'text': 'Profile details',
+            'properties': {'padding': 16, 'elevation': 4},
+          },
+        ],
+      },
+    );
+
+    List<Map<String, dynamic>>? saved;
+
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      saved = (data as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    }, workspace: workspace);
+
+    await tester.tap(find.byTooltip('Reuse'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reuse component on screen'), findsOneWidget);
+
+    final screenDropdown = find.byWidgetPredicate(
+      (widget) =>
+          widget is DropdownButtonFormField<String> &&
+          widget.decoration.labelText == 'Target screen',
+    );
+
+    await tester.tap(screenDropdown);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Settings').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Reuse').last);
+    await tester.pumpAndSettle();
+
+    expect(saved, isNotNull);
+    expect(saved, hasLength(2));
+
+    final original = saved!.first;
+    final reused = saved!.last;
+
+    expect(original['id'], 'original-card');
+    expect(original['screenId'], 'screen-1');
+    expect(reused['id'], isNot('original-card'));
+    expect(reused['screenId'], 'screen-2');
+    expect(reused['templateSourceId'], 'original-card');
+    expect(reused['label'], 'Profile Card');
+    expect(reused['properties'], original['properties']);
+  });
+
+  testWidgets('V4 parent selector saves valid nested component',
+      (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'parent-card',
+            'screenId': 'screen-1',
+            'type': 'card',
+            'label': 'Parent Card',
+            'text': 'Container content',
+          },
+          {
+            'id': 'child-text',
+            'screenId': 'screen-1',
+            'type': 'text',
+            'label': 'Child Text',
+            'text': 'Nested text',
+          },
+        ],
+      },
+    );
+
+    List<Map<String, dynamic>>? saved;
+
+    await openStudio(tester, (section, data) async {
+      saved = (data as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    }, workspace: workspace);
+
+    await tester.tap(find.byTooltip('Edit').last);
+    await tester.pumpAndSettle();
+
+    final parentDropdown = find.byWidgetPredicate(
+      (widget) =>
+          widget is DropdownButtonFormField<String> &&
+          widget.decoration.labelText == 'Parent component',
+    );
+
+    await tester.ensureVisible(parentDropdown);
+    await tester.tap(parentDropdown);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Parent Card').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Save').last);
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
+
+    expect(saved, isNotNull);
+    expect(saved, hasLength(2));
+    expect(saved!.last['id'], 'child-text');
+    expect(saved!.last['parentComponentId'], 'parent-card');
+    expect(saved!.last['screenId'], 'screen-1');
+    expect(saved!.first['id'], 'parent-card');
+  });
+
+  testWidgets('V4 prevents circular nesting before saving', (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'card-a',
+            'screenId': 'screen-1',
+            'type': 'card',
+            'label': 'Card A',
+            'parentComponentId': 'card-b',
+          },
+          {
+            'id': 'card-b',
+            'screenId': 'screen-1',
+            'type': 'card',
+            'label': 'Card B',
+          },
+        ],
+      },
+    );
+
+    var saveCalls = 0;
+
+    await openStudio(tester, (_, __) async {
+      saveCalls++;
+    }, workspace: workspace);
+
+    await tester.tap(find.byTooltip('Edit').last);
+    await tester.pumpAndSettle();
+
+    final parentDropdown = find.byWidgetPredicate(
+      (widget) =>
+          widget is DropdownButtonFormField<String> &&
+          widget.decoration.labelText == 'Parent component',
+    );
+
+    await tester.ensureVisible(parentDropdown);
+    await tester.tap(parentDropdown);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Card A').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Save').last);
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
+
+    expect(saveCalls, 0);
+    expect(find.textContaining('Circular component hierarchy'), findsWidgets);
+  });
+
+  testWidgets('V4 protects a parent with children from deletion',
+      (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'parent-card',
+            'screenId': 'screen-1',
+            'type': 'card',
+            'label': 'Parent Card',
+          },
+          {
+            'id': 'child-text',
+            'screenId': 'screen-1',
+            'type': 'text',
+            'label': 'Child Text',
+            'parentComponentId': 'parent-card',
+          },
+        ],
+      },
+    );
+
+    var saveCalls = 0;
+
+    await openStudio(tester, (_, __) async {
+      saveCalls++;
+    }, workspace: workspace);
+
+    await tester.tap(find.byTooltip('Remove').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Remove this item?'), findsOneWidget);
+
+    await tester.tap(find.text('Remove').last);
+    await tester.pumpAndSettle();
+
+    expect(saveCalls, 0);
+    expect(
+      find.text('Remove or reassign child components first'),
+      findsWidgets,
+    );
+  });
 }
