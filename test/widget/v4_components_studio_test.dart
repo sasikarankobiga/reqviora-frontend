@@ -316,4 +316,53 @@ void main() {
     expect(find.byTooltip('Edit'), findsOneWidget);
     expect(saveCalls, 0);
   });
+
+  testWidgets('keeps original component when edit is cancelled',
+      (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'component-123',
+            'screenId': 'screen-1',
+            'type': 'button',
+            'label': 'Original Submit',
+            'text': 'Submit',
+          },
+        ],
+      },
+    );
+
+    var saveCalls = 0;
+
+    await openStudio(tester, (section, data) async {
+      saveCalls++;
+    }, workspace: workspace);
+
+    await tester.tap(find.byTooltip('Edit'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit component'), findsOneWidget);
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Cancelled Change',
+    );
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit component'), findsNothing);
+    expect(find.text('Original Submit'), findsOneWidget);
+    expect(find.text('Cancelled Change'), findsNothing);
+    expect(saveCalls, 0);
+  });
 }
