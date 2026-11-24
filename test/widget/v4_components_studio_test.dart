@@ -898,4 +898,83 @@ void main() {
       expect(properties['color'], '#663399');
     },
   );
+
+  testWidgets(
+    'updates input placeholder while preserving properties',
+    (tester) async {
+      final workspace = Workspace(
+        projectId: 'project-1',
+        draftId: 'draft-1',
+        version: 1,
+        projectName: 'Test Project',
+        designTargets: const ['web'],
+        sections: {
+          'screens': [
+            {'id': 'screen-1', 'name': 'Dashboard'},
+          ],
+          'components': [
+            {
+              'id': 'component-input-123',
+              'screenId': 'screen-1',
+              'type': 'input',
+              'label': 'Email Address',
+              'text': 'Email',
+              'properties': {
+                'placeholder': 'Enter your email',
+                'required': true,
+              },
+            },
+          ],
+        },
+      );
+
+      List<Map<String, dynamic>>? savedItems;
+
+      await openStudio(tester, (section, data) async {
+        expect(section, 'components');
+        savedItems = (data as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      }, workspace: workspace);
+
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit component'), findsOneWidget);
+      expect(find.byType(TextFormField), findsNWidgets(3));
+
+      final placeholderField = find.byType(TextFormField).last;
+
+      expect(
+        tester.widget<TextFormField>(placeholderField).controller!.text,
+        'Enter your email',
+      );
+
+      await tester.enterText(
+        placeholderField,
+        'Enter your new email address',
+      );
+
+      await tester.tap(find.text('Save').last);
+      await tester.pumpAndSettle();
+
+      expect(savedItems, isNotNull);
+      expect(savedItems, hasLength(1));
+
+      final saved = savedItems!.single;
+      final properties = Map<String, dynamic>.from(saved['properties'] as Map);
+
+      expect(saved['id'], 'component-input-123');
+      expect(saved['screenId'], 'screen-1');
+      expect(saved['type'], 'input');
+      expect(saved['label'], 'Email Address');
+      expect(saved['text'], 'Email');
+
+      expect(
+        properties['placeholder'],
+        'Enter your new email address',
+      );
+      expect(properties['required'], isTrue);
+    },
+  );
 }
