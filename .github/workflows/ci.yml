@@ -1,0 +1,27 @@
+name: Frontend Flutter Web CI (compatible with ASP.NET Core net10.0 API)
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  analyze-test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate platform scaffolding
+        run: flutter create . --platforms=web --project-name reqviora_frontend
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Flutter static analysis
+        run: flutter analyze
+      - name: Run tests
+        run: flutter test
+      - name: Build Web
+        run: flutter build web --release --dart-define=REQVIORA_API_BASE_URL=https://example.invalid
+      - name: G1 contract fixture checks
+        run: |
+          python3 -m pip install -r scripts/contract-requirements.txt
+          python3 contracts/g1/tests/validate_pack.py
