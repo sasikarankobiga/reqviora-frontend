@@ -6,6 +6,7 @@ import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
 import '../application/auth_providers.dart';
 import '../domain/auth_validation.dart';
+import '../domain/auth_error_message.dart';
 
 class AuthPage extends ConsumerStatefulWidget {
   const AuthPage({super.key});
@@ -111,7 +112,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
       if (!mounted) return;
 
       setState(() {
-        errorMessage = e.toString();
+        errorMessage = authErrorMessage(e);
       });
     } finally {
       if (mounted) {
