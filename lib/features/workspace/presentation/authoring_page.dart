@@ -1,6 +1,7 @@
 import '../../builder/domain/registry/component_registry.dart';
 import '../../builder/domain/registry/v4_component_layout.dart';
 import '../../builder/domain/registry/v4_interaction_rule_validator.dart';
+import '../../builder/domain/registry/v4_visibility_rules.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -548,6 +549,8 @@ class _ItemDialogState extends State<_ItemDialog> {
   final fields = <String, TextEditingController>{};
   late String priority;
   late String componentType;
+  String visibilityMode = 'always';
+  String visibilityState = 'default';
   late bool componentEnabled;
   late bool componentRequired;
   late int componentFontSize;
@@ -578,13 +581,35 @@ class _ItemDialogState extends State<_ItemDialog> {
       'label',
       'text',
       'trigger',
-      'message'
+      'message',
+      'visibilityRole',
+      'visibilityFieldId',
+      'visibilityEquals'
     ]) {
       fields[key] = TextEditingController(text: (item[key] ?? '').toString());
     }
     priority = (item['priority'] ?? 'Must').toString();
     componentType = (item['type'] ?? 'text').toString();
     final componentProperties = item['properties'];
+    final existingVisibility =
+        componentProperties is Map ? componentProperties['visibility'] : null;
+    final visibility = existingVisibility is Map
+        ? Map<String, dynamic>.from(existingVisibility)
+        : <String, dynamic>{};
+    visibilityMode = V4VisibilityRules.modes.contains(
+      visibility['mode'],
+    )
+        ? visibility['mode'].toString()
+        : 'always';
+    visibilityState = V4VisibilityRules.states.contains(
+      visibility['state'],
+    )
+        ? visibility['state'].toString()
+        : 'default';
+    fields['visibilityRole']!.text = (visibility['role'] ?? '').toString();
+    fields['visibilityFieldId']!.text =
+        (visibility['fieldId'] ?? '').toString();
+    fields['visibilityEquals']!.text = (visibility['equals'] ?? '').toString();
     componentRequired =
         componentProperties is Map && componentProperties['required'] == true;
     final storedPlaceholder =
@@ -910,7 +935,57 @@ class _ItemDialogState extends State<_ItemDialog> {
               subtitle: const Text('Allow button interaction'),
               value: componentEnabled,
               onChanged: (value) => setState(() => componentEnabled = value),
-            )
+            ),
+          const Divider(height: 30),
+          const Text(
+            'Conditional Visibility',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            key: const ValueKey('visibility-mode-selector'),
+            initialValue: visibilityMode,
+            decoration: const InputDecoration(
+              labelText: 'Visibility Condition',
+            ),
+            items: const [
+              DropdownMenuItem(value: 'always', child: Text('Always visible')),
+              DropdownMenuItem(value: 'role', child: Text('User role')),
+              DropdownMenuItem(value: 'state', child: Text('UI state')),
+              DropdownMenuItem(
+                value: 'fieldEquals',
+                child: Text('Form field equals value'),
+              ),
+            ],
+            onChanged: (value) => setState(
+              () => visibilityMode = value ?? 'always',
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (visibilityMode == 'role')
+            input('visibilityRole', 'Required User Role', required: true),
+          if (visibilityMode == 'state')
+            DropdownButtonFormField<String>(
+              key: const ValueKey('visibility-state-selector'),
+              initialValue: visibilityState,
+              decoration: const InputDecoration(
+                labelText: 'Required UI State',
+              ),
+              items: [
+                for (final value in V4VisibilityRules.states)
+                  DropdownMenuItem(
+                    value: value,
+                    child: Text(value),
+                  ),
+              ],
+              onChanged: (value) => setState(
+                () => visibilityState = value ?? 'default',
+              ),
+            ),
+          if (visibilityMode == 'fieldEquals') ...[
+            input('visibilityFieldId', 'Form Field ID', required: true),
+            input('visibilityEquals', 'Expected Value', required: true),
+          ],
         ]);
         break;
       case _ItemType.interaction:
@@ -1252,6 +1327,39 @@ class _ItemDialogState extends State<_ItemDialog> {
                     break;
                 }
                 if (widget.type == _ItemType.component) {
+                  final visibility = <String, dynamic>{
+                    'mode': visibilityMode,
+                    if (visibilityMode == 'role')
+                      'role': fields['visibilityRole']!.text.trim(),
+                    if (visibilityMode == 'state') 'state': visibilityState,
+                    if (visibilityMode == 'fieldEquals') ...{
+                      'fieldId': fields['visibilityFieldId']!.text.trim(),
+                      'equals': fields['visibilityEquals']!.text.trim(),
+                    },
+                  };
+
+                  final visibilityError =
+                      V4VisibilityRules.validate(visibility);
+
+                  if (visibilityError != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(visibilityError)),
+                    );
+                    return;
+                  }
+
+                  final currentProperties = result['properties'];
+                  final mergedProperties = currentProperties is Map
+                      ? Map<String, dynamic>.from(currentProperties)
+                      : <String, dynamic>{};
+
+                  if (visibilityMode == 'always') {
+                    mergedProperties.remove('visibility');
+                  } else {
+                    mergedProperties['visibility'] = visibility;
+                  }
+
+                  result['properties'] = mergedProperties;
                   final error = ComponentRegistry.validateV4Component(
                     type: componentType,
                     label: fields['label']!.text,

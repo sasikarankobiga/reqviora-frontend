@@ -1,12 +1,23 @@
 import 'package:flutter/material.dart';
+import '../../builder/domain/registry/v4_visibility_rules.dart';
 import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
 
 /// Restricted UI renderer. Only known, typed component labels and mock
 /// in-memory navigation are supported; never evaluates generated code.
 class SafePreview extends StatefulWidget {
-  const SafePreview({super.key, required this.blueprint});
+  const SafePreview({
+    super.key,
+    required this.blueprint,
+    this.simulationRole,
+    this.simulationState = 'default',
+  });
+
   final Map<String, dynamic> blueprint;
+
+  // For simulated preview only, not backend authorization.
+  final String? simulationRole;
+  final String simulationState;
   @override
   State<SafePreview> createState() => _SafePreviewState();
 }
@@ -110,8 +121,10 @@ class _SafePreviewState extends State<SafePreview> {
         return Padding(
             padding: const EdgeInsets.symmetric(vertical: 7),
             child: TextField(
-                onChanged: (v) =>
-                    inputs[(c['componentInstanceId'] ?? '').toString()] = v,
+                onChanged: (v) => setState(() {
+                      inputs[(c['componentInstanceId'] ?? c['id'] ?? '')
+                          .toString()] = v;
+                    }),
                 decoration: InputDecoration(
                     labelText: label,
                     hintText:
@@ -250,6 +263,24 @@ class _SafePreviewState extends State<SafePreview> {
     List<Map<String, dynamic>> components,
     Set<String> ancestors,
   ) {
+    final props = obj(item['props'] ?? item['properties']);
+    final rawVisibility = props['visibility'];
+
+    final visibility = rawVisibility is Map
+        ? Map<String, dynamic>.from(rawVisibility)
+        : rawVisibility == null
+            ? null
+            : <String, dynamic>{};
+
+    if (!V4VisibilityRules.isVisible(
+      rule: visibility,
+      userRole: widget.simulationRole,
+      uiState: widget.simulationState,
+      formValues: inputs,
+    )) {
+      return const SizedBox.shrink();
+    }
+
     final id = instanceId(item);
 
     if (id.isEmpty || ancestors.contains(id)) {
