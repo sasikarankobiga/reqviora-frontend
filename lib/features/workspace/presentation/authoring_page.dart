@@ -368,6 +368,11 @@ class _ItemDialogState extends State<_ItemDialog> {
     priority = (item['priority'] ?? 'Must').toString();
     componentType = (item['type'] ?? 'text').toString();
     final componentProperties = item['properties'];
+    final storedPlaceholder =
+        componentProperties is Map ? componentProperties['placeholder'] : null;
+    fields['placeholder'] = TextEditingController(
+      text: storedPlaceholder is String ? storedPlaceholder : 'Enter text',
+    );
     componentEnabled =
         componentProperties is Map && componentProperties['enabled'] is bool
             ? componentProperties['enabled'] as bool
@@ -486,6 +491,7 @@ class _ItemDialogState extends State<_ItemDialog> {
           const SizedBox(height: 14),
           input('label', 'Component label', required: true),
           input('text', 'Display text', lines: 2),
+          if (componentType == 'input') input('placeholder', 'Placeholder'),
           if (componentType == 'text')
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -588,6 +594,14 @@ class _ItemDialogState extends State<_ItemDialog> {
                       'type': componentType,
                       'label': fields['label']!.text.trim(),
                       'text': fields['text']!.text.trim(),
+                      if (componentType == 'input')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'placeholder': fields['placeholder']!.text.trim(),
+                        },
                       if (componentType == 'text')
                         'properties': {
                           ...?((widget.original?['properties'] is Map)
