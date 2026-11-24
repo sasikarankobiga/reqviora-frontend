@@ -345,6 +345,7 @@ class _ItemDialogState extends State<_ItemDialog> {
   late String priority;
   late String componentType;
   late bool componentEnabled;
+  late bool componentRequired;
   late int componentFontSize;
   late String state;
   String? fromId;
@@ -368,6 +369,8 @@ class _ItemDialogState extends State<_ItemDialog> {
     priority = (item['priority'] ?? 'Must').toString();
     componentType = (item['type'] ?? 'text').toString();
     final componentProperties = item['properties'];
+    componentRequired =
+        componentProperties is Map && componentProperties['required'] == true;
     final storedPlaceholder =
         componentProperties is Map ? componentProperties['placeholder'] : null;
     fields['placeholder'] = TextEditingController(
@@ -491,7 +494,16 @@ class _ItemDialogState extends State<_ItemDialog> {
           const SizedBox(height: 14),
           input('label', 'Component label', required: true),
           input('text', 'Display text', lines: 2),
-          if (componentType == 'input') input('placeholder', 'Placeholder'),
+          if (componentType == 'input') ...[
+            input('placeholder', 'Placeholder'),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Required'),
+              subtitle: const Text('Require a value for this input'),
+              value: componentRequired,
+              onChanged: (value) => setState(() => componentRequired = value),
+            ),
+          ],
           if (componentType == 'text')
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -601,6 +613,7 @@ class _ItemDialogState extends State<_ItemDialog> {
                                   widget.original!['properties'] as Map)
                               : null),
                           'placeholder': fields['placeholder']!.text.trim(),
+                          'required': componentRequired,
                         },
                       if (componentType == 'text')
                         'properties': {
