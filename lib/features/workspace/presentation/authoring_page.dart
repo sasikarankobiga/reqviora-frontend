@@ -415,6 +415,7 @@ class _ItemDialogState extends State<_ItemDialog> {
   late bool componentRequired;
   late int componentFontSize;
   late int componentElevation;
+  late int componentPadding;
   late String state;
   String? fromId;
   String? toId;
@@ -458,6 +459,10 @@ class _ItemDialogState extends State<_ItemDialog> {
     componentElevation = storedElevation is num
         ? storedElevation.round().clamp(0, 24).toInt()
         : 2;
+    final storedPadding =
+        componentProperties is Map ? componentProperties['padding'] : null;
+    componentPadding =
+        storedPadding is num ? storedPadding.round().clamp(0, 64).toInt() : 16;
     state = (item['state'] ?? 'default').toString();
     fromId = item['fromScreenId'] as String?;
     toId = item['toScreenId'] as String?;
@@ -593,6 +598,24 @@ class _ItemDialogState extends State<_ItemDialog> {
                 ),
               ],
             ),
+          if (componentType == 'card' ||
+              componentType == 'container' ||
+              componentType == 'section')
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Padding: $componentPadding'),
+                Slider(
+                  value: componentPadding.toDouble(),
+                  min: 0,
+                  max: 64,
+                  divisions: 64,
+                  label: '$componentPadding',
+                  onChanged: (value) =>
+                      setState(() => componentPadding = value.round()),
+                ),
+              ],
+            ),
           if (componentType == 'card')
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -719,6 +742,16 @@ class _ItemDialogState extends State<_ItemDialog> {
                                   widget.original!['properties'] as Map)
                               : null),
                           'elevation': componentElevation,
+                          'padding': componentPadding,
+                        },
+                      if (componentType == 'container' ||
+                          componentType == 'section')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'padding': componentPadding,
                         },
                       if (componentType == 'button')
                         'properties': {

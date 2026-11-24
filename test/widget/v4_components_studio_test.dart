@@ -1242,7 +1242,9 @@ void main() {
       await tester.tap(find.byTooltip('Edit'));
       await tester.pumpAndSettle();
 
-      final elevationSlider = find.byType(Slider);
+      final elevationSlider = find.byWidgetPredicate(
+        (widget) => widget is Slider && widget.min == 0 && widget.max == 24,
+      );
 
       expect(elevationSlider, findsOneWidget);
 
@@ -1461,4 +1463,95 @@ void main() {
       expect(visibleOrder(), ['Second', 'First']);
     },
   );
+
+  for (final type in ['card', 'container', 'section']) {
+    testWidgets(
+      '$type preserves data when editing layout padding',
+      (tester) async {
+        final workspace = Workspace(
+          projectId: 'project-1',
+          draftId: 'draft-1',
+          version: 1,
+          projectName: 'Test Project',
+          designTargets: const ['web'],
+          sections: {
+            'screens': [
+              {'id': 'screen-1', 'name': 'Dashboard'},
+            ],
+            'components': [
+              {
+                'id': 'component-layout-123',
+                'screenId': 'screen-1',
+                'type': type,
+                'label': 'Layout Component',
+                'text': 'Original Content',
+                'properties': {
+                  'padding': 8,
+                  'customToken': 'preserve-me',
+                  if (type == 'card') 'elevation': 4,
+                },
+              },
+            ],
+          },
+        );
+
+        List<Map<String, dynamic>>? savedItems;
+
+        await openStudio(tester, (section, data) async {
+          expect(section, 'components');
+          savedItems = (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+        }, workspace: workspace);
+
+        await tester.tap(find.byTooltip('Edit'));
+        await tester.pumpAndSettle();
+
+        final paddingSlider = find.byWidgetPredicate(
+          (widget) => widget is Slider && widget.min == 0 && widget.max == 64,
+        );
+
+        expect(paddingSlider, findsOneWidget);
+
+        expect(
+          tester.widget<Slider>(paddingSlider).value,
+          8,
+        );
+
+        tester.widget<Slider>(paddingSlider).onChanged!(32);
+        await tester.pumpAndSettle();
+
+        expect(
+          tester.widget<Slider>(paddingSlider).value,
+          32,
+        );
+
+        await tester.ensureVisible(find.text('Save').last);
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Save').last);
+        await tester.pumpAndSettle();
+
+        expect(savedItems, isNotNull);
+        expect(savedItems, hasLength(1));
+
+        final saved = savedItems!.single;
+        final properties =
+            Map<String, dynamic>.from(saved['properties'] as Map);
+
+        expect(saved['id'], 'component-layout-123');
+        expect(saved['screenId'], 'screen-1');
+        expect(saved['type'], type);
+        expect(saved['label'], 'Layout Component');
+        expect(saved['text'], 'Original Content');
+
+        expect(properties['padding'], 32);
+        expect(properties['customToken'], 'preserve-me');
+
+        if (type == 'card') {
+          expect(properties['elevation'], 4);
+        }
+      },
+    );
+  }
 }
