@@ -7,6 +7,7 @@ import '../../../app/widgets.dart';
 import '../application/workspace_providers.dart';
 import '../domain/workspace.dart';
 import 'simulated_preview.dart';
+import '../domain/local_preview_blueprint.dart';
 
 /// Service-backed authoring for Builder steps 02-08. All writes are owner-scoped
 /// and carry a draft version. No fake AI/approval states are produced here.
@@ -798,7 +799,9 @@ final projectValidationProvider =
 
 class _BlueprintEditor extends ConsumerStatefulWidget {
   const _BlueprintEditor({required this.workspace});
+
   final Workspace workspace;
+
   @override
   ConsumerState<_BlueprintEditor> createState() => _BlueprintEditorState();
 }
@@ -806,9 +809,49 @@ class _BlueprintEditor extends ConsumerStatefulWidget {
 class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   bool generating = false;
   String? error;
+
+  Future<void> generatePreview() async {
+    setState(() {
+      generating = true;
+      error = null;
+    });
+
+    try {
+      final blueprint = buildLocalPreviewBlueprint(widget.workspace);
+
+      await ref
+          .read(workspaceRepositoryProvider)
+          .save(
+            widget.workspace.projectId,
+            'blueprint',
+            widget.workspace.version,
+            blueprint,
+          );
+
+      ref.invalidate(workspaceProvider(widget.workspace.projectId));
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Local Preview Blueprint saved to Draft.'),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => error = e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => generating = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final blueprint = widget.workspace.fields('blueprint');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -819,35 +862,39 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
               const SectionTitle(
                 'Blueprint & UI Studio',
                 subtitle:
-                    'A deterministic local template generates validated design data, not executable customer code.',
+                    'Generate a simulated preview from your saved Builder data.',
               ),
-              const SizedBox(height: 17),
+              const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: null,
+                onPressed: generating ? null : generatePreview,
                 icon: const Icon(Icons.auto_awesome),
                 label: Text(
-                  generating ? 'Compilingâ€¦' : 'Compile Unavailable',
+                  generating
+                      ? 'Generating...'
+                      : 'Generate & Save Local Preview',
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               const Text(
-                'Requires mapped features and valid routes. Remote AI is intentionally not connected.',
+                'Local preview only. This is not Backend Blueprint '
+                'approval or official Blueprint validation.',
                 style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
               if (error != null) ...[
-                const SizedBox(height: 13),
+                const SizedBox(height: 12),
                 InlineError(error!),
               ],
             ],
           ),
         ),
-        const SizedBox(height: 15),
+        const SizedBox(height: 16),
         if (blueprint['screens'] is List)
           SafePreview(blueprint: blueprint)
         else
           const SurfaceCard(
             child: Text(
-              'No compiled blueprint yet. Add features, screens, and routes; then compile.',
+              'No local preview yet. Add screens, components and '
+              'routes, then generate a preview.',
             ),
           ),
       ],
