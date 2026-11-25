@@ -122,7 +122,7 @@ void main() {
     await tester.pump();
 
     expect(
-      find.text('Preview-only action · No backend request was made'),
+      find.text('Preview-only action - No backend request was made'),
       findsOneWidget,
     );
   });
