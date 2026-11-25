@@ -48,7 +48,7 @@ class AiIntelligenceRepository {
 
     final candidates = response['candidates'];
 
-    if (candidates is! List) {
+    if (response['contractVersion'] != '1.0' || candidates is! List) {
       throw const FormatException('Invalid AI candidate response');
     }
 
@@ -228,6 +228,27 @@ class AiIntelligenceRepository {
     return result;
   }
 
+  Map<String, dynamic> _blueprintResponse(dynamic value) {
+    final response = _object(value);
+
+    final token = response['concurrencyToken'];
+
+    if (response['applied'] is! bool ||
+        response['reason'] is! String ||
+        response['draftVersion'] is! int ||
+        (response['draftVersion'] as int) < 1 ||
+        token is! String ||
+        !RegExp(
+          r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
+        ).hasMatch(token) ||
+        token == '00000000-0000-0000-0000-000000000000' ||
+        response['blueprint'] is! Map) {
+      throw const FormatException('Invalid Blueprint workflow response');
+    }
+
+    return response;
+  }
+
   Future<Map<String, dynamic>> generateBlueprint({
     required String projectId,
     required String? expectedConcurrencyToken,
@@ -239,6 +260,10 @@ class AiIntelligenceRepository {
     required List<Map<String, dynamic>> actions,
     required List<Map<String, dynamic>> navigation,
   }) async {
+    if (features.isEmpty || screens.isEmpty) {
+      throw ArgumentError('Blueprint generation requires features and screens');
+    }
+
     if (confirmedRequirementIds.isEmpty ||
         confirmedRequirementIds.length > 200 ||
         confirmedRequirementIds.toSet().length !=
@@ -246,7 +271,7 @@ class AiIntelligenceRepository {
       throw ArgumentError('Invalid confirmed requirement selection');
     }
 
-    return _object(
+    return _blueprintResponse(
       await api.post('${_workflowPath(projectId)}/blueprints/generate', {
         'expectedConcurrencyToken': expectedConcurrencyToken,
         'blueprintId': blueprintId,
@@ -279,7 +304,7 @@ class AiIntelligenceRepository {
       throw ArgumentError('Design instructions are required');
     }
 
-    return _object(
+    return _blueprintResponse(
       await api.post('${_workflowPath(projectId)}/blueprints/regenerate', {
         'expectedConcurrencyToken': expectedConcurrencyToken,
         'languageCode': languageCode,

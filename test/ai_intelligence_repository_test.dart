@@ -183,7 +183,9 @@ void main() {
       return response({
         'applied': true,
         'draftVersion': 2,
-        'concurrencyToken': 'token-2',
+        'concurrencyToken': '11111111-1111-4111-8111-111111111111',
+        'reason': 'APPLIED',
+        'blueprint': {'blueprintId': 'BP-001'},
       });
     });
 
@@ -192,8 +194,20 @@ void main() {
       expectedConcurrencyToken: 'token-1',
       blueprintId: 'BP-001',
       confirmedRequirementIds: ['REQ-001'],
-      features: [],
-      screens: [],
+      features: [
+        {
+          'id': 'FEAT-001',
+          'name': 'Authentication',
+          'requirementIds': ['REQ-001'],
+        },
+      ],
+      screens: [
+        {
+          'id': 'SCR-001',
+          'name': 'Login',
+          'featureIds': ['FEAT-001'],
+        },
+      ],
       components: [],
       actions: [],
       navigation: [],
@@ -241,6 +255,59 @@ void main() {
         protectedComponentIds: [],
       ),
       throwsArgumentError,
+    );
+  });
+
+  test('Unsupported extraction contract is rejected', () async {
+    configure((request) async {
+      return response({
+        'contractVersion': '2.0',
+        'candidates': [candidate],
+      });
+    });
+
+    await expectLater(extract(), throwsFormatException);
+  });
+
+  test('Empty Blueprint features and screens are rejected', () async {
+    configure((request) async {
+      fail('Invalid proposal must not reach the API');
+    });
+
+    await expectLater(
+      repository.generateBlueprint(
+        projectId: 'project-1',
+        expectedConcurrencyToken: null,
+        blueprintId: 'BP-001',
+        confirmedRequirementIds: ['REQ-001'],
+        features: [],
+        screens: [],
+        components: [],
+        actions: [],
+        navigation: [],
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('Incomplete regeneration response is rejected', () async {
+    configure((request) async {
+      return response({'applied': true});
+    });
+
+    await expectLater(
+      repository.regenerateBlueprint(
+        projectId: 'project-1',
+        expectedConcurrencyToken: '11111111-1111-4111-8111-111111111111',
+        expectedRevision: 1,
+        languageCode: 'en',
+        instructions: 'Improve layout',
+        consentGranted: true,
+        protectedFeatureIds: [],
+        protectedScreenIds: [],
+        protectedComponentIds: [],
+      ),
+      throwsFormatException,
     );
   });
 }
