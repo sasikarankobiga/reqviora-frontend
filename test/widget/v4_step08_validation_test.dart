@@ -180,6 +180,67 @@ void main() {
     );
   });
 
+  testWidgets('Real backend passed response shows readiness', (
+    tester,
+  ) async {
+    var requests = 0;
+
+    await openStep08(
+      tester,
+      validation: {
+        'id': 'validation-1',
+        'draftVersionId': 'draft-version-1',
+        'passed': true,
+        'validatedAt': '2026-11-25T05:30:00Z',
+        'findings': [],
+      },
+      onValidate: () => requests++,
+    );
+
+    await validate(tester);
+
+    expect(requests, 1);
+    expect(find.text('Backend validation passed'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('step08-validation-ready')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Real backend failed response blocks readiness', (
+    tester,
+  ) async {
+    await openStep08(
+      tester,
+      validation: {
+        'id': 'validation-2',
+        'draftVersionId': 'draft-version-1',
+        'passed': false,
+        'findings': [
+          {
+            'ordinal': 1,
+            'code': 'SCREEN_MISSING',
+            'path': '/screens',
+            'message': 'Required screen is missing',
+          },
+        ],
+      },
+      onValidate: () {},
+    );
+
+    await validate(tester);
+
+    expect(find.text('Backend validation failed'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('step08-validation-blocked')),
+      findsOneWidget,
+    );
+    expect(find.text('Required screen is missing'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('step08-validation-ready')),
+      findsNothing,
+    );
+  });
   testWidgets('Unsupported ZIP export remains disabled', (
     tester,
   ) async {

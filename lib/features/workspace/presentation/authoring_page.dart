@@ -2121,10 +2121,14 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
     final blockers = current?['blockers'];
     final advisories = current?['advisories'];
     final hasValidation = current != null;
-    final hasBlockers = blockers is num && blockers > 0;
-    final validationReady = hasValidation &&
-        blockers is num &&
-        blockers == 0;
+    final backendPassed = current?['passed'];
+    final hasBlockers = backendPassed == false ||
+        (backendPassed == null && blockers is num && blockers > 0);
+    final validationReady = backendPassed == true ||
+        (backendPassed == null &&
+            hasValidation &&
+            blockers is num &&
+            blockers == 0);
 
     return SurfaceCard(
       child: Column(
@@ -2151,6 +2155,15 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
               spacing: 10,
               runSpacing: 10,
               children: [
+                if (backendPassed is bool)
+                  SmallLabel(
+                    backendPassed
+                        ? 'Backend validation passed'
+                        : 'Backend validation failed',
+                    color: backendPassed
+                        ? AppColors.green
+                        : const Color(0xFFCA5161),
+                  ),
                 if (blockers is int)
                   SmallLabel('$blockers blockers',
                       color: blockers > 0
