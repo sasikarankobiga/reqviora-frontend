@@ -1687,6 +1687,7 @@ class _BlueprintEditor extends ConsumerStatefulWidget {
 
 class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   bool generating = false;
+  bool savingDraft = false;
   String? error;
   String? selectedBlueprintComponentId;
   Map<String, dynamic>? draftBlueprint;
@@ -1695,6 +1696,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   int inspectorRevision = 0;
 
   void undoBlueprint() {
+    if (savingDraft) return;
     final restored = blueprintHistory?.undo();
     if (restored == null) return;
 
@@ -1705,6 +1707,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   }
 
   void redoBlueprint() {
+    if (savingDraft) return;
     final restored = blueprintHistory?.redo();
     if (restored == null) return;
 
@@ -1732,10 +1735,8 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   }
 
   // Edits are local preview-only. Never represent them as saved or approved.
-  void updateDraftComponent(
-    Map<String, dynamic> blueprint,
-    Map<String, dynamic> updated,
-  ) {
+  void updateDraftComponent(Map<String, dynamic> blueprint, Map<String, dynamic> updated) {
+    if (savingDraft) return;
     final id =
         (updated['componentInstanceId'] ?? updated['id'] ?? '').toString();
     if (id.isEmpty || id != selectedBlueprintComponentId) return;
@@ -1766,6 +1767,53 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     setState(() {
       draftBlueprint = history.current;
     });
+  }
+
+  Future<void> saveBlueprintDraft() async {
+    final nextBlueprint = draftBlueprint;
+    if (nextBlueprint == null || savingDraft || generating) return;
+
+    setState(() {
+      savingDraft = true;
+      error = null;
+    });
+
+    try {
+      final version = await ref.read(workspaceRepositoryProvider).save(
+        widget.workspace.projectId,
+        'blueprint',
+        widget.workspace.version,
+        nextBlueprint,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        draftBlueprint = null;
+        blueprintHistory = null;
+        selectedBlueprintComponentId = null;
+        inspectorRevision++;
+      });
+
+      ref.invalidate(workspaceProvider(widget.workspace.projectId));
+      ref.invalidate(projectValidationProvider(widget.workspace.projectId));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Blueprint draft saved - v$version (not approved)'),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          error = 'Blueprint draft was not saved: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => savingDraft = false);
+      }
+    }
   }
 
   void generatePreview() {
@@ -1851,8 +1899,21 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                     icon: const Icon(Icons.visibility_outlined),
                     label: const Text('Generate Local Preview'),
                   ),
+                  if (draftBlueprint != null)
+                    FilledButton.icon(
+                      key: const ValueKey('step07-save-draft-button'),
+                      onPressed: savingDraft || generating
+                          ? null
+                          : saveBlueprintDraft,
+                      icon: const Icon(Icons.save_outlined),
+                      label: Text(
+                        savingDraft ? 'Saving Draft...' : 'Save Blueprint Draft',
+                      ),
+                    ),
                   FilledButton.icon(
-                    onPressed: generating ? null : compileBlueprint,
+                    onPressed: generating || savingDraft
+                        ? null
+                        : compileBlueprint,
                     icon: const Icon(Icons.auto_awesome),
                     label: Text(
                       generating
