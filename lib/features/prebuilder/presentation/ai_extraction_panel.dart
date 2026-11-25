@@ -56,6 +56,21 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
     return failure.toString();
   }
 
+  @override
+  void initState() {
+    super.initState();
+    candidates = widget.workspace.items('aiCandidates');
+  }
+
+  Future<void> recoverReviews() async {
+    if (blocked || candidates.isEmpty) return;
+
+    for (final candidate in List.of(candidates)) {
+      if (!mounted) return;
+      await refreshReview(candidate['id'].toString());
+    }
+  }
+
   Future<void> extract() async {
     if (blocked || !consent || sources.isEmpty) {
       return;
@@ -107,12 +122,45 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
 
       if (!mounted) return;
 
+      final repository = ref.read(workspaceRepositoryProvider);
+      final latest = await repository.load(widget.workspace.projectId);
+
+      if (!mounted) return;
+
+      if (latest.version != widget.workspace.version) {
+        throw StateError('Workspace changed. Reload and retry.');
+      }
+
+      final merged = <String, Map<String, dynamic>>{
+        for (final item in latest.items('aiCandidates'))
+          item['id'].toString(): item,
+      };
+
+      for (final item in result) {
+        final id = item['id'];
+
+        if (id is! String || id.isEmpty) {
+          throw const FormatException('Invalid candidate ID');
+        }
+
+        merged.putIfAbsent(id, () => item);
+      }
+
+      await repository.save(
+        latest.projectId,
+        'aiCandidates',
+        latest.version,
+        merged.values.toList(),
+      );
+
+      if (!mounted) return;
+
       setState(() {
-        candidates = result;
-        serverReviews.clear();
+        candidates = merged.values.toList();
         message =
             '${result.length} AI suggestions received. Human review required.';
       });
+      ref.invalidate(workspaceProvider(widget.workspace.projectId));
     } catch (failure) {
       if (mounted) {
         setState(() => error = describeError(failure));
@@ -433,6 +481,11 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
             onPressed: blocked || !consent || sources.isEmpty ? null : extract,
             icon: const Icon(Icons.auto_awesome_outlined),
             label: const Text('Extract with AI'),
+          ),
+          OutlinedButton.icon(
+            onPressed: blocked || candidates.isEmpty ? null : recoverReviews,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Recover saved server reviews'),
           ),
           if (busy) ...[
             const SizedBox(height: 12),
