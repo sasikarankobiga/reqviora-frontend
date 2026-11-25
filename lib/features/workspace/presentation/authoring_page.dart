@@ -1949,6 +1949,10 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
       final preview = buildLocalPreviewBlueprint(widget.workspace);
       setState(() {
         localPreview = preview;
+        draftBlueprint = preview;
+        blueprintHistory = V4BlueprintHistory(preview);
+        selectedBlueprintComponentId = null;
+        inspectorRevision++;
         error = null;
       });
     } catch (e) {
@@ -1998,7 +2002,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   Widget build(BuildContext context) {
     final savedBlueprint = widget.workspace.fields('blueprint');
     final visibleBlueprint = draftBlueprint ?? savedBlueprint;
-    final hasCompiledBlueprint = savedBlueprint['screens'] is List;
+    final hasCompiledBlueprint = visibleBlueprint['screens'] is List;
     final interactionRules = widget.workspace.items('interactions');
 
     if (hasCompiledBlueprint) {
@@ -2054,22 +2058,20 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                       ),
                     ),
                   FilledButton.icon(
-                    onPressed: generating || savingDraft
-                        ? null
-                        : compileBlueprint,
+                    onPressed: null,
                     icon: const Icon(Icons.auto_awesome),
                     label: Text(
                       generating
                           ? 'Compiling...'
-                          : 'Compile & Save Template Blueprint',
+                          : 'Server Compilation Unavailable',
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
               const Text(
-                'Local previews are temporary and are based on the loaded workspace. '
-                'Backend compilation does not mean approval or remote AI generation.',
+                'Generate a local draft, edit it, then save using Save Blueprint Draft. '
+                'Server compilation is unavailable; a saved draft is not an approved revision.',
                 style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
               if (error != null) ...[
@@ -2090,7 +2092,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
           ),
         ],
         const SizedBox(height: 16),
-        const SectionTitle('Saved Blueprint'),
+        const SectionTitle('Blueprint Workspace'),
         const SizedBox(height: 8),
         if (hasCompiledBlueprint) ...[
           Wrap(
@@ -2152,7 +2154,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
         ] else
           const SurfaceCard(
             child: Text(
-              'No compiled Blueprint yet. Add features, screens and routes; then compile.',
+              'No Blueprint draft yet. Add screens and components, then generate a local preview.',
             ),
           ),
       ],
