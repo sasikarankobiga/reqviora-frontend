@@ -145,7 +145,7 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
                                     ? null
                                     : () => context.push('/administration'),
                             icon: const Icon(Icons.admin_panel_settings),
-                            label: const Text('Administration'),
+                            label: const LocalizedUiText('Administration'),
                           ),
                           const SizedBox(height: 12),
                         ],

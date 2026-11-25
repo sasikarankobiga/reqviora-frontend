@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:reqviora_frontend/l10n/language_settings.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -189,11 +190,14 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _label(field.key),
+                      localizedLabel(context, _label(field.key)),
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 3),
-                    SelectableText(field.value?.toString() ?? 'Not available'),
+                    SelectableText(
+                      field.value?.toString() ??
+                          localizedLabel(context, 'Not available'),
+                    ),
                   ],
                 ),
               ),
@@ -211,7 +215,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
         for (final section in AdminSection.values)
           ChoiceChip(
             key: ValueKey('admin-section-${section.name}'),
-            label: Text(section.label),
+            label: Text(localizedLabel(context, section.label)),
             selected: _section == section,
             onSelected: _busy ? null : (_) => _selectSection(section),
           ),
@@ -223,11 +227,11 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   Widget build(BuildContext context) {
     if (isLocalDemo || !authSession.authenticated) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Administration')),
+        appBar: AppBar(title: const LocalizedUiText('Administration')),
         body: Center(
           child: FilledButton(
             onPressed: () => context.go('/projects'),
-            child: const Text('Return to REQVIORA'),
+            child: const LocalizedUiText('Return to REQVIORA'),
           ),
         ),
       );
@@ -238,11 +242,11 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Administration'),
+        title: const LocalizedUiText('Administration'),
         actions: [
           TextButton(
             onPressed: () => context.go('/account'),
-            child: const Text('My account'),
+            child: const LocalizedUiText('My account'),
           ),
         ],
       ),
@@ -255,11 +259,11 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Operations dashboard',
+                  localizedLabel(context, 'Operations dashboard'),
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                const LocalizedUiText(
                   'Read-only administration. Access is verified '
                   'by the server for every request.',
                 ),
@@ -273,7 +277,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          _section.label,
+                          localizedLabel(context, _section.label),
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 16),
@@ -282,9 +286,9 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                             controller: _search,
                             enabled: !_busy,
                             maxLength: 120,
-                            decoration: const InputDecoration(
-                              labelText: 'Search',
-                              prefixIcon: Icon(Icons.search),
+                            decoration: InputDecoration(
+                              labelText: localizedLabel(context, 'Search'),
+                              prefixIcon: const Icon(Icons.search),
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -301,10 +305,16 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                             FilteringTextInputFormatter.digitsOnly,
                             LengthLimitingTextInputFormatter(6),
                           ],
-                          decoration: const InputDecoration(
-                            labelText: 'Authenticator code',
-                            helperText: 'Enter a current six-digit code.',
-                            prefixIcon: Icon(Icons.verified_user),
+                          decoration: InputDecoration(
+                            labelText: localizedLabel(
+                              context,
+                              'Authenticator code',
+                            ),
+                            helperText: localizedLabel(
+                              context,
+                              'Enter a current six-digit code.',
+                            ),
+                            prefixIcon: const Icon(Icons.verified_user),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -312,7 +322,12 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                           key: const ValueKey('admin-load'),
                           onPressed: _busy ? null : () => _load(),
                           icon: const Icon(Icons.refresh),
-                          label: Text(_busy ? 'Loading...' : 'Verify and load'),
+                          label: Text(
+                            localizedLabel(
+                              context,
+                              _busy ? 'Loading...' : 'Verify and load',
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -324,7 +339,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                   Semantics(
                     liveRegion: true,
                     child: Text(
-                      _error!,
+                      localizedLabel(context, _error!),
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.error,
                       ),
@@ -335,14 +350,16 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                     Card(
                       child: Padding(
                         padding: const EdgeInsets.all(16),
-                        child: Text('System status: ${result.healthStatus}'),
+                        child: Text(
+                          '${localizedLabel(context, "System status")}: ${result.healthStatus}',
+                        ),
                       ),
                     ),
                   if (result.rows.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(24),
+                    Padding(
+                      padding: const EdgeInsets.all(24),
                       child: Text(
-                        'No records found.',
+                        localizedLabel(context, 'No records found.'),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -358,15 +375,17 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                               _busy || _page <= 1
                                   ? null
                                   : () => _load(targetPage: _page - 1),
-                          child: const Text('Previous'),
+                          child: const LocalizedUiText('Previous'),
                         ),
-                        Text('Page $_page - $total records'),
+                        Text(
+                          '${localizedLabel(context, "Page")} $_page - $total ${localizedLabel(context, "records")}',
+                        ),
                         OutlinedButton(
                           onPressed:
                               _busy || _page * 20 >= total
                                   ? null
                                   : () => _load(targetPage: _page + 1),
-                          child: const Text('Next'),
+                          child: const LocalizedUiText('Next'),
                         ),
                       ],
                     ),
