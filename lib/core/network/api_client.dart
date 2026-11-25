@@ -38,6 +38,7 @@ class ApiClient {
 
   final http.Client _http;
   Future<bool>? _refreshInFlight;
+  int? _refreshGeneration;
   Uri _uri(String path) {
     final base = Uri.tryParse(apiBaseUrl);
     final target = Uri.tryParse(path);
@@ -81,21 +82,43 @@ class ApiClient {
       authSession.authenticated &&
       authSession.refreshToken != null;
 
-  Future<bool> _refreshOnce() async {
-    final current = authSession.refreshToken;
-    if (current == null) return false;
-    final pending = _refreshInFlight;
-    if (pending != null) return pending;
-    final result = _exchangeRefresh(current);
-    _refreshInFlight = result;
-    try {
-      return await result;
-    } finally {
-      _refreshInFlight = null;
+  void _ensureSession(int generation) {
+    if (authSession.generation != generation) {
+      throw const ApiException(
+        401,
+        'The authentication session changed. Please retry.',
+      );
     }
   }
 
-  Future<bool> _exchangeRefresh(String currentToken) async {
+  Future<bool> _refreshOnce() async {
+    final generation = authSession.generation;
+    final current = authSession.refreshToken;
+
+    if (current == null) return false;
+
+    final pending = _refreshInFlight;
+
+    if (pending != null && _refreshGeneration == generation) {
+      return pending;
+    }
+
+    final result = _exchangeRefresh(current, generation);
+
+    _refreshInFlight = result;
+    _refreshGeneration = generation;
+
+    try {
+      return await result;
+    } finally {
+      if (identical(_refreshInFlight, result)) {
+        _refreshInFlight = null;
+        _refreshGeneration = null;
+      }
+    }
+  }
+
+  Future<bool> _exchangeRefresh(String currentToken, int generation) async {
     try {
       final response = await _network(
         () => _http.post(
@@ -107,32 +130,75 @@ class ApiClient {
           body: jsonEncode({'refreshToken': currentToken}),
         ),
       );
-      if (response.statusCode == 401 || response.statusCode == 403) {
-        if (authSession.refreshToken == currentToken) authSession.signOut();
+
+      if (authSession.generation != generation ||
+          authSession.refreshToken != currentToken) {
         return false;
       }
-      if (response.statusCode < 200 || response.statusCode >= 300) return false;
-      final data = jsonDecode(response.body);
-      if (data is! Map) return false;
-      final access = data['accessToken']?.toString() ?? '';
-      final refresh = data['refreshToken']?.toString() ?? '';
-      final expires = DateTime.tryParse(
-        data['accessTokenExpiresAt']?.toString() ?? '',
-      );
-      if (access.isEmpty || refresh.isEmpty || expires == null) return false;
-      if (authSession.refreshToken != currentToken) {
-        return authSession.authenticated;
+
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        authSession.signOut();
+        return false;
       }
-      authSession.startSession(
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return false;
+      }
+
+      final data = jsonDecode(response.body);
+
+      if (data is! Map) return false;
+
+      final access = data['accessToken'];
+      final refresh = data['refreshToken'];
+      final expiresValue = data['accessTokenExpiresAt'];
+
+      if (access is! String ||
+          refresh is! String ||
+          expiresValue is! String ||
+          access.trim().isEmpty ||
+          refresh.trim().isEmpty) {
+        return false;
+      }
+
+      final expires = DateTime.tryParse(expiresValue);
+
+      if (expires == null || !expires.isAfter(DateTime.now().toUtc())) {
+        return false;
+      }
+
+      return authSession.replaceRefreshedSession(
+        expectedGeneration: generation,
+        expectedRefreshToken: currentToken,
         accessToken: access,
         refreshToken: refresh,
         accessExpiresAt: expires,
       );
-      return true;
     } on Exception {
-      // Temporary network errors do not discard a potentially valid session.
       return false;
     }
+  }
+
+  Future<bool> _retryUnauthorized(
+    String path,
+    int generation,
+    String? originalToken,
+  ) async {
+    _ensureSession(generation);
+
+    if (!_canRefresh(path)) return false;
+
+    if (authSession.token != originalToken) {
+      return authSession.authenticated;
+    }
+
+    final refreshed = await _refreshOnce();
+
+    if (authSession.generation != generation) {
+      return false;
+    }
+
+    return refreshed;
   }
 
   dynamic _parse(http.Response response) {
@@ -161,16 +227,21 @@ class ApiClient {
 
   Future<dynamic> get(String path) async {
     try {
+      final generation = authSession.generation;
+      final originalToken = authSession.token;
       var response = await _network(
         () => _http.get(_uri(path), headers: _headers),
       );
+      _ensureSession(generation);
+
       if (response.statusCode == 401 &&
-          _canRefresh(path) &&
-          await _refreshOnce()) {
+          await _retryUnauthorized(path, generation, originalToken)) {
+        _ensureSession(generation);
         response = await _network(
           () => _http.get(_uri(path), headers: _headers),
         );
       }
+      _ensureSession(generation);
       return _parse(response);
     } on http.ClientException {
       throw ApiException(
@@ -191,12 +262,17 @@ class ApiClient {
         headers: {..._headers, if (key != null) 'Idempotency-Key': key},
         body: jsonEncode(data),
       );
+      final generation = authSession.generation;
+      final originalToken = authSession.token;
       var response = await _network(send);
+      _ensureSession(generation);
+
       if (response.statusCode == 401 &&
-          _canRefresh(path) &&
-          await _refreshOnce()) {
+          await _retryUnauthorized(path, generation, originalToken)) {
+        _ensureSession(generation);
         response = await _network(send);
       }
+      _ensureSession(generation);
       return _parse(response);
     } on http.ClientException {
       throw ApiException(
@@ -210,12 +286,17 @@ class ApiClient {
     try {
       Future<http.Response> send() =>
           _http.put(_uri(path), headers: _headers, body: jsonEncode(data));
+      final generation = authSession.generation;
+      final originalToken = authSession.token;
       var response = await _network(send);
+      _ensureSession(generation);
+
       if (response.statusCode == 401 &&
-          _canRefresh(path) &&
-          await _refreshOnce()) {
+          await _retryUnauthorized(path, generation, originalToken)) {
+        _ensureSession(generation);
         response = await _network(send);
       }
+      _ensureSession(generation);
       return _parse(response);
     } on http.ClientException {
       throw ApiException(
@@ -230,14 +311,19 @@ class ApiClient {
       Future<http.Response> send() =>
           _http.delete(_uri(path), headers: _headers);
 
+      final generation = authSession.generation;
+      final originalToken = authSession.token;
       var response = await _network(send);
 
+      _ensureSession(generation);
+
       if (response.statusCode == 401 &&
-          _canRefresh(path) &&
-          await _refreshOnce()) {
+          await _retryUnauthorized(path, generation, originalToken)) {
+        _ensureSession(generation);
         response = await _network(send);
       }
 
+      _ensureSession(generation);
       _parse(response);
     } on http.ClientException {
       throw ApiException(
@@ -278,6 +364,7 @@ class ApiClient {
         ),
     };
 
+    final generation = authSession.generation;
     final expires = authSession.accessExpiresAt;
     if (expires != null &&
         expires.isBefore(
@@ -286,6 +373,8 @@ class ApiClient {
         _canRefresh('/api/projects/$projectId/documents')) {
       await _refreshOnce();
     }
+
+    _ensureSession(generation);
 
     final request = http.MultipartRequest(
       'POST',
@@ -313,6 +402,8 @@ class ApiClient {
       return http.Response.fromStream(response);
     });
 
+    _ensureSession(generation);
+
     final result = _parse(received);
 
     if (result is! Map) {
@@ -327,12 +418,16 @@ class ApiClient {
 
   Future<List<int>> getBytes(String path) async {
     try {
+      final generation = authSession.generation;
+      final originalToken = authSession.token;
       var response = await _network(
         () => _http.get(_uri(path), headers: _headers),
       );
+      _ensureSession(generation);
+
       if (response.statusCode == 401 &&
-          _canRefresh(path) &&
-          await _refreshOnce()) {
+          await _retryUnauthorized(path, generation, originalToken)) {
+        _ensureSession(generation);
         response = await _network(
           () => _http.get(_uri(path), headers: _headers),
         );
@@ -341,6 +436,7 @@ class ApiClient {
         _parse(response);
         throw ApiException(response.statusCode, 'Download failed');
       }
+      _ensureSession(generation);
       return response.bodyBytes;
     } on http.ClientException {
       throw ApiException(
@@ -413,14 +509,19 @@ class ApiClient {
     }
 
     try {
+      final generation = authSession.generation;
+      final originalToken = authSession.token;
       var response = await _network(send);
 
+      _ensureSession(generation);
+
       if (response.statusCode == 401 &&
-          _canRefresh(path) &&
-          await _refreshOnce()) {
+          await _retryUnauthorized(path, generation, originalToken)) {
+        _ensureSession(generation);
         response = await _network(send);
       }
 
+      _ensureSession(generation);
       final result = _parse(response);
 
       if (result is! Map) {
@@ -433,6 +534,34 @@ class ApiClient {
         0,
         'Cannot connect to backend. Please check your connection.',
       );
+    }
+  }
+
+  Future<void> requestRegistrationVerification(String accessToken) async {
+    if (accessToken.trim().isEmpty) {
+      throw const ApiException(401, 'Missing registration credential.');
+    }
+
+    final generation = authSession.generation;
+
+    final response = await _network(
+      () => _http.post(
+        _uri('/api/account-security/email-verification/request'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: jsonEncode(<String, dynamic>{}),
+      ),
+    );
+
+    _ensureSession(generation);
+
+    _parse(response);
+
+    if (response.statusCode != 202 && response.statusCode != 204) {
+      throw const ApiException(502, 'Unexpected email verification response.');
     }
   }
 

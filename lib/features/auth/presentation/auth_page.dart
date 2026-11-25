@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
 import '../application/auth_providers.dart';
+import '../data/auth_repository.dart';
 import '../domain/auth_validation.dart';
 import '../domain/auth_error_message.dart';
 
@@ -36,6 +37,8 @@ class _AuthPageState extends ConsumerState<AuthPage> {
   bool showPassword = false;
   bool showConfirmPassword = false;
 
+  RegistrationVerificationPending? pendingVerification;
+
   String? errorMessage;
   String? successMessage;
 
@@ -46,14 +49,14 @@ class _AuthPageState extends ConsumerState<AuthPage> {
 
     if (widget.showRegistrationSuccess) {
       successMessage =
-          'Registration request completed. '
-          'Your account may require email verification '
-          'before you can sign in.';
+          'Registration completed. Check your email for a '
+          'verification link before signing in.';
     }
   }
 
   @override
   void dispose() {
+    pendingVerification?.clear();
     displayNameController.dispose();
     emailController.dispose();
     passwordController.dispose();
@@ -67,7 +70,61 @@ class _AuthPageState extends ConsumerState<AuthPage> {
     context.go(isRegister ? '/login' : '/register');
   }
 
+  Future<void> retryVerification() async {
+    final pending = pendingVerification;
+
+    if (isLoading || pending == null) return;
+
+    if (!pending.canRetry) {
+      pending.clear();
+
+      setState(() {
+        errorMessage =
+            'Verification retry has expired. Check your inbox '
+            'or contact support. Do not register again.';
+      });
+
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      await ref
+          .read(authRepositoryProvider)
+          .retryRegistrationVerification(pending);
+
+      if (!mounted) return;
+
+      context.go('/login?registered=1');
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        errorMessage =
+            pending.canRetry
+                ? 'Verification request could not be completed. '
+                    'Check your inbox before trying again.'
+                : 'Verification retry is no longer available. '
+                    'Check your inbox or contact support.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
   Future<void> submitForm() async {
+    if (pendingVerification != null) {
+      await retryVerification();
+      return;
+    }
     if (isLoading) return;
 
     if (!(formKey.currentState?.validate() ?? false)) {
@@ -107,7 +164,17 @@ class _AuthPageState extends ConsumerState<AuthPage> {
     } catch (e) {
       if (!mounted) return;
 
+      if (e is RegistrationVerificationPending) {
+        passwordController.clear();
+        confirmPasswordController.clear();
+      }
+
       setState(() {
+        if (e is RegistrationVerificationPending) {
+          pendingVerification?.clear();
+          pendingVerification = e;
+        }
+
         errorMessage = authErrorMessage(e);
       });
     } finally {
@@ -191,7 +258,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
               TextFormField(
                 key: const ValueKey('auth-display-name'),
                 controller: displayNameController,
-                enabled: !isLoading,
+                enabled: !isLoading && pendingVerification == null,
                 textCapitalization: TextCapitalization.words,
                 textInputAction: TextInputAction.next,
                 autofillHints: const [AutofillHints.name],
@@ -225,7 +292,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
             TextFormField(
               key: const ValueKey('auth-email'),
               controller: emailController,
-              enabled: !isLoading,
+              enabled: !isLoading && pendingVerification == null,
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
               autofillHints: const [AutofillHints.email],
@@ -242,7 +309,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
             TextFormField(
               key: const ValueKey('auth-password'),
               controller: passwordController,
-              enabled: !isLoading,
+              enabled: !isLoading && pendingVerification == null,
               obscureText: !showPassword,
               textInputAction:
                   isRegister ? TextInputAction.next : TextInputAction.done,
@@ -281,7 +348,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
               TextFormField(
                 key: const ValueKey('auth-confirm-password'),
                 controller: confirmPasswordController,
-                enabled: !isLoading,
+                enabled: !isLoading && pendingVerification == null,
                 obscureText: !showConfirmPassword,
                 textInputAction: TextInputAction.done,
                 onFieldSubmitted: (_) => submitForm(),
@@ -329,7 +396,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
               TextFormField(
                 key: const ValueKey('auth-otp'),
                 controller: otpController,
-                enabled: !isLoading,
+                enabled: !isLoading && pendingVerification == null,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
                   labelText: 'Authenticator code (only when required)',
@@ -350,7 +417,12 @@ class _AuthPageState extends ConsumerState<AuthPage> {
             // Submit button.
             FilledButton(
               key: const ValueKey('auth-submit'),
-              onPressed: isLoading ? null : submitForm,
+              onPressed:
+                  isLoading ||
+                          (pendingVerification != null &&
+                              !pendingVerification!.canRetry)
+                      ? null
+                      : submitForm,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child:
@@ -360,7 +432,13 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                        : Text(isRegister ? 'Create Account' : 'Sign In'),
+                        : Text(
+                          pendingVerification != null
+                              ? 'Retry Email Verification'
+                              : isRegister
+                              ? 'Create Account'
+                              : 'Sign In',
+                        ),
               ),
             ),
 
@@ -379,7 +457,8 @@ class _AuthPageState extends ConsumerState<AuthPage> {
 
             if (!isRegister) ...[
               TextButton(
-                onPressed: isLoading ? null : () => context.go('/forgot-password'),
+                onPressed:
+                    isLoading ? null : () => context.go('/forgot-password'),
                 child: const Text('Forgot password?'),
               ),
               TextButton(

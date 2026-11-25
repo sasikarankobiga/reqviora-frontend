@@ -1,6 +1,34 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/auth/auth_session.dart';
 
+class RegistrationVerificationPending extends ApiException {
+  RegistrationVerificationPending({
+    required String accessToken,
+    required DateTime expiresAt,
+    required int generation,
+  }) : _accessToken = accessToken,
+       _expiresAt = expiresAt,
+       _generation = generation,
+       super(
+         424,
+         'Account created, but email verification could not be requested.',
+       );
+
+  String? _accessToken;
+  final DateTime _expiresAt;
+  final int _generation;
+  bool _retrying = false;
+
+  bool get canRetry =>
+      _accessToken != null &&
+      _generation == authSession.generation &&
+      _expiresAt.isAfter(DateTime.now().toUtc());
+
+  void clear() {
+    _accessToken = null;
+  }
+}
+
 class AuthRepository {
   const AuthRepository(this.api);
   final ApiClient api;
@@ -10,28 +38,124 @@ class AuthRepository {
     String password,
     String displayName,
   ) async {
-    await api.post('/api/auth/register', {
+    final generation = authSession.generation;
+
+    final result = await api.post('/api/auth/register', {
       'email': email.trim(),
       'password': password,
       'displayName': displayName.trim(),
     });
+
+    if (authSession.generation != generation) {
+      throw const ApiException(401, 'The session changed during registration.');
+    }
+
+    if (result is! Map) {
+      throw const ApiException(502, 'Invalid registration response.');
+    }
+
+    final accessToken = result['accessToken'];
+    final expiresValue = result['accessTokenExpiresAt'];
+
+    if (accessToken is! String ||
+        accessToken.trim().isEmpty ||
+        expiresValue is! String) {
+      throw const ApiException(502, 'Invalid registration credentials.');
+    }
+
+    final expiresAt = DateTime.tryParse(expiresValue);
+
+    if (expiresAt == null || !expiresAt.isAfter(DateTime.now().toUtc())) {
+      throw const ApiException(502, 'Registration credential has expired.');
+    }
+
+    try {
+      // Registration credentials must not unlock the workspace.
+      await api.requestRegistrationVerification(accessToken);
+    } on ApiException {
+      throw RegistrationVerificationPending(
+        accessToken: accessToken,
+        expiresAt: expiresAt,
+        generation: generation,
+      );
+    }
   }
 
+  Future<void> retryRegistrationVerification(
+    RegistrationVerificationPending pending,
+  ) async {
+    if (!pending.canRetry) {
+      pending.clear();
+
+      throw const ApiException(
+        410,
+        'Verification retry has expired. Contact support.',
+      );
+    }
+
+    if (pending._retrying) {
+      throw const ApiException(
+        429,
+        'A verification request is already running.',
+      );
+    }
+
+    pending._retrying = true;
+
+    try {
+      await api.requestRegistrationVerification(pending._accessToken!);
+
+      pending.clear();
+    } finally {
+      pending._retrying = false;
+
+      if (!pending.canRetry) {
+        pending.clear();
+      }
+    }
+  }
+
+  static int _loginAttempt = 0;
+
   Future<void> signIn(String email, String password, {String? otpCode}) async {
+    final attempt = ++_loginAttempt;
+    final generation = authSession.generation;
+
     final result = await api.post('/api/auth/login', {
       'email': email.trim(),
       'password': password,
       if (otpCode != null && otpCode.isNotEmpty) 'otpCode': otpCode,
     });
-    if (result is! Map) throw StateError('Invalid authentication response');
-    final token = result['accessToken']?.toString() ?? '';
-    final refreshToken = result['refreshToken']?.toString() ?? '';
-    final expiresAt = DateTime.tryParse(
-      result['accessTokenExpiresAt']?.toString() ?? '',
-    );
-    if (token.isEmpty || refreshToken.isEmpty || expiresAt == null) {
-      throw StateError('Incomplete authentication token response');
+
+    if (attempt != _loginAttempt || generation != authSession.generation) {
+      throw const ApiException(
+        401,
+        'The authentication session changed. Please sign in again.',
+      );
     }
+
+    if (result is! Map) {
+      throw const ApiException(502, 'Invalid authentication response.');
+    }
+
+    final token = result['accessToken'];
+    final refreshToken = result['refreshToken'];
+    final expiresValue = result['accessTokenExpiresAt'];
+
+    if (token is! String ||
+        refreshToken is! String ||
+        expiresValue is! String ||
+        token.trim().isEmpty ||
+        refreshToken.trim().isEmpty) {
+      throw const ApiException(502, 'Incomplete authentication credentials.');
+    }
+
+    final expiresAt = DateTime.tryParse(expiresValue);
+
+    if (expiresAt == null || !expiresAt.isAfter(DateTime.now().toUtc())) {
+      throw const ApiException(502, 'Invalid authentication token expiry.');
+    }
+
     authSession.startSession(
       accessToken: token,
       refreshToken: refreshToken,
@@ -89,15 +213,24 @@ class AuthRepository {
   }
 
   Future<void> logout() async {
+    final generation = authSession.generation;
     final refreshToken = authSession.refreshToken;
+
+    _loginAttempt++;
+
     try {
       if (refreshToken != null) {
         await api.post('/api/auth/logout', {'refreshToken': refreshToken});
       }
     } finally {
-      authSession.signOut();
+      if (authSession.generation == generation) {
+        authSession.signOut();
+      }
     }
   }
 
-  void signOut() => authSession.signOut();
+  void signOut() {
+    _loginAttempt++;
+    authSession.signOut();
+  }
 }
