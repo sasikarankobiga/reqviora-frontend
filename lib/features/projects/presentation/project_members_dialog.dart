@@ -8,6 +8,7 @@ import '../../../core/auth/auth_session.dart';
 import '../../../core/network/api_client.dart';
 import '../application/projects_providers.dart';
 import '../data/project_members_repository.dart';
+import 'project_invitation_widgets.dart';
 
 final projectMembersRepositoryProvider = Provider<ProjectMembersRepository>((
   ref,
@@ -219,6 +220,15 @@ class _ProjectMembersDialogState extends State<ProjectMembersDialog> {
         false;
   }
 
+  Future<void> openInvitation() async {
+    if (busy || !canManage) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => const ProjectInvitationDialog(),
+    );
+  }
+
   Future<void> addMember() async {
     if (busy || !canManage) return;
 
@@ -387,6 +397,19 @@ class _ProjectMembersDialogState extends State<ProjectMembersDialog> {
                     ),
                   ),
               if (canManage) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  key: const ValueKey('open-project-invitation'),
+                  onPressed: busy ? null : openInvitation,
+                  icon: const Icon(Icons.mail_outline),
+                  label: Text(
+                    uiText(
+                      context,
+                      'Invite by Email',
+                      '\u0bae\u0bbf\u0ba9\u0bcd\u0ba9\u0b9e\u0bcd\u0b9a\u0bb2\u0bcd \u0bae\u0bc2\u0bb2\u0bae\u0bcd \u0b85\u0bb4\u0bc8\u0b95\u0bcd\u0b95\u0bb5\u0bc1\u0bae\u0bcd',
+                    ),
+                  ),
+                ),
                 const Divider(height: 28),
                 const Text(
                   'Add Registered Member',

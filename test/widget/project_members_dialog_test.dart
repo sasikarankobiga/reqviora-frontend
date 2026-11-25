@@ -214,4 +214,33 @@ void main() {
     expect(find.text('Remove'), findsNothing);
     expect(writes, isEmpty);
   });
+
+  testWidgets('Owner can open email invitation dialog', (tester) async {
+    await open(tester, ownerId);
+
+    await tap(tester, find.byKey(const ValueKey('open-project-invitation')));
+
+    expect(find.text('Invite Project Member'), findsOneWidget);
+
+    final send = tester.widget<FilledButton>(
+      find.byKey(const ValueKey('send-project-invitation')),
+    );
+
+    expect(send.onPressed, isNull);
+    expect(writes, isEmpty);
+  });
+
+  testWidgets('Editor cannot open email invitation', (tester) async {
+    await open(tester, editorId);
+
+    expect(find.byKey(const ValueKey('open-project-invitation')), findsNothing);
+    expect(writes, isEmpty);
+  });
+
+  testWidgets('Viewer cannot open email invitation', (tester) async {
+    await open(tester, viewerId);
+
+    expect(find.byKey(const ValueKey('open-project-invitation')), findsNothing);
+    expect(writes, isEmpty);
+  });
 }
