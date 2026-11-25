@@ -17,6 +17,7 @@ class ApiException implements Exception {
 class ApiClient {
   ApiClient(this._http);
   final http.Client _http;
+  Future<bool>? _refreshInFlight;
   Uri _uri(String path) {
     final base = Uri.parse(apiBaseUrl);
     if (kReleaseMode && (isLocalDemo || base.scheme != 'https')) {
@@ -35,6 +36,56 @@ class ApiClient {
       'Authorization': 'Bearer ${authSession.token}',
     if (isLocalDemo && !kReleaseMode) 'X-Reqviora-Local-Demo': 'true',
   };
+  bool _canRefresh(String path) =>
+      !path.startsWith('/api/auth/') &&
+      authSession.authenticated &&
+      authSession.refreshToken != null;
+
+  Future<bool> _refreshOnce() async {
+    final current = authSession.refreshToken;
+    if (current == null) return false;
+    final pending = _refreshInFlight;
+    if (pending != null) return pending;
+    final result = _exchangeRefresh(current);
+    _refreshInFlight = result;
+    try {
+      return await result;
+    } finally {
+      _refreshInFlight = null;
+    }
+  }
+
+  Future<bool> _exchangeRefresh(String currentToken) async {
+    try {
+      final response = await _http.post(
+        _uri('/api/auth/refresh'),
+        headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
+        body: jsonEncode({'refreshToken': currentToken}),
+      );
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        if (authSession.refreshToken == currentToken) authSession.signOut();
+        return false;
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) return false;
+      final data = jsonDecode(response.body);
+      if (data is! Map) return false;
+      final access = data['accessToken']?.toString() ?? '';
+      final refresh = data['refreshToken']?.toString() ?? '';
+      final expires = DateTime.tryParse(data['accessTokenExpiresAt']?.toString() ?? '');
+      if (access.isEmpty || refresh.isEmpty || expires == null) return false;
+      if (authSession.refreshToken != currentToken) return authSession.authenticated;
+      authSession.startSession(
+        accessToken: access,
+        refreshToken: refresh,
+        accessExpiresAt: expires,
+      );
+      return true;
+    } on Exception {
+      // Temporary network errors do not discard a potentially valid session.
+      return false;
+    }
+  }
+
   dynamic _parse(http.Response response) {
     dynamic data;
     try {
@@ -57,7 +108,11 @@ class ApiClient {
 
   Future<dynamic> get(String path) async {
     try {
-      return _parse(await _http.get(_uri(path), headers: _headers));
+      var response = await _http.get(_uri(path), headers: _headers);
+      if (response.statusCode == 401 && _canRefresh(path) && await _refreshOnce()) {
+        response = await _http.get(_uri(path), headers: _headers);
+      }
+      return _parse(response);
     } on http.ClientException catch (e) {
       throw ApiException(0, 'Cannot connect to backend: $e');
     }
@@ -69,13 +124,16 @@ class ApiClient {
     String? key,
   }) async {
     try {
-      return _parse(
-        await _http.post(
-          _uri(path),
-          headers: {..._headers, if (key != null) 'Idempotency-Key': key},
-          body: jsonEncode(data),
-        ),
-      );
+      Future<http.Response> send() => _http.post(
+            _uri(path),
+            headers: {..._headers, if (key != null) 'Idempotency-Key': key},
+            body: jsonEncode(data),
+          );
+      var response = await send();
+      if (response.statusCode == 401 && _canRefresh(path) && await _refreshOnce()) {
+        response = await send();
+      }
+      return _parse(response);
     } on http.ClientException catch (e) {
       throw ApiException(0, 'Cannot connect to backend: $e');
     }
@@ -83,9 +141,13 @@ class ApiClient {
 
   Future<dynamic> put(String path, Map<String, dynamic> data) async {
     try {
-      return _parse(
-        await _http.put(_uri(path), headers: _headers, body: jsonEncode(data)),
-      );
+      Future<http.Response> send() => _http.put(
+            _uri(path), headers: _headers, body: jsonEncode(data));
+      var response = await send();
+      if (response.statusCode == 401 && _canRefresh(path) && await _refreshOnce()) {
+        response = await send();
+      }
+      return _parse(response);
     } on http.ClientException catch (e) {
       throw ApiException(0, 'Cannot connect to backend: $e');
     }
@@ -122,6 +184,13 @@ class ApiClient {
         ),
     };
 
+    final expires = authSession.accessExpiresAt;
+    if (expires != null &&
+        expires.isBefore(DateTime.now().toUtc().add(const Duration(seconds: 30))) &&
+        _canRefresh('/api/projects/$projectId/documents')) {
+      await _refreshOnce();
+    }
+
     final request = http.MultipartRequest(
       'POST',
       _uri('/api/projects/$projectId/documents'),
@@ -151,7 +220,10 @@ class ApiClient {
 
   Future<List<int>> getBytes(String path) async {
     try {
-      final response = await _http.get(_uri(path), headers: _headers);
+      var response = await _http.get(_uri(path), headers: _headers);
+      if (response.statusCode == 401 && _canRefresh(path) && await _refreshOnce()) {
+        response = await _http.get(_uri(path), headers: _headers);
+      }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         _parse(response);
         throw ApiException(response.statusCode, 'Download failed');

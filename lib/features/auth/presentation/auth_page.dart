@@ -29,6 +29,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
+  final otpController = TextEditingController();
 
   late bool isRegister;
   bool isLoading = false;
@@ -57,6 +58,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
     emailController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
+    otpController.dispose();
     super.dispose();
   }
 
@@ -95,6 +97,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
         await repository.signIn(
           emailController.text.trim(),
           passwordController.text,
+          otpCode: otpController.text.trim(),
         );
 
         if (!mounted) return;
@@ -321,6 +324,27 @@ class _AuthPageState extends ConsumerState<AuthPage> {
               ),
             ],
 
+            if (!isRegister) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const ValueKey('auth-otp'),
+                controller: otpController,
+                enabled: !isLoading,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Authenticator code (only when required)',
+                  helperText: 'For admin or additional login verification.',
+                  prefixIcon: Icon(Icons.security_outlined),
+                ),
+                validator: (value) {
+                  final code = (value ?? '').trim();
+                  return code.isEmpty || RegExp(r'^\d{6}$').hasMatch(code)
+                      ? null
+                      : 'Enter a 6-digit code or leave blank';
+                },
+              ),
+            ],
+
             const SizedBox(height: 24),
 
             // Submit button.
@@ -352,6 +376,17 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                     : 'New to REQVIORA? Register',
               ),
             ),
+
+            if (!isRegister) ...[
+              TextButton(
+                onPressed: isLoading ? null : () => context.go('/forgot-password'),
+                child: const Text('Forgot password?'),
+              ),
+              TextButton(
+                onPressed: isLoading ? null : () => context.go('/verify-email'),
+                child: const Text('Request email verification'),
+              ),
+            ],
 
             // API / validation errors.
             if (errorMessage != null) ...[

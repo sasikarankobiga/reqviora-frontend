@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../core/config/app_config.dart';
-import '../core/auth/auth_session.dart';
+import '../features/auth/application/auth_providers.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -117,7 +118,7 @@ class _Brand extends StatelessWidget {
   );
 }
 
-class _Sidebar extends StatelessWidget {
+class _Sidebar extends ConsumerWidget {
   const _Sidebar({required this.projectId});
   final String? projectId;
   Widget link(BuildContext context, IconData icon, String label, String path) {
@@ -160,7 +161,7 @@ class _Sidebar extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context, WidgetRef ref) => Container(
     decoration: const BoxDecoration(
       color: Color(0xFFFBFAFF),
       border: Border(right: BorderSide(color: AppColors.line)),
@@ -277,7 +278,17 @@ class _Sidebar extends StatelessWidget {
               type: MaterialType.transparency,
               child: ListTile(
                 dense: true,
-                onTap: isLocalDemo ? null : () => authSession.signOut(),
+                onTap: isLocalDemo ? null : () async {
+                  try {
+                    await ref.read(authRepositoryProvider).logout();
+                  } catch (error) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Sign-out request failed: $error')),
+                      );
+                    }
+                  }
+                },
                 leading: const CircleAvatar(
                   radius: 15,
                   backgroundColor: Color(0xFFE8DFFF),
@@ -287,6 +298,13 @@ class _Sidebar extends StatelessWidget {
                     color: AppColors.purple,
                   ),
                 ),
+                trailing: isLocalDemo
+                    ? null
+                    : IconButton(
+                        tooltip: 'Authenticator MFA setup',
+                        icon: const Icon(Icons.shield_outlined),
+                        onPressed: () => context.go('/security/mfa'),
+                      ),
                 title: Text(
                   isLocalDemo ? 'Local demo owner' : 'Account / Sign out',
                   style: const TextStyle(
