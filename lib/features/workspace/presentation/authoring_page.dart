@@ -14,6 +14,7 @@ import '../domain/workspace.dart';
 import '../domain/navigation_diagnostics.dart';
 import '../domain/draft_conflict.dart';
 import '../domain/feature_coverage.dart';
+import '../domain/screen_access_roles.dart';
 import '../domain/builder_quality_checks.dart';
 import '../domain/theme_accessibility.dart';
 import '../domain/theme_draft_tokens.dart';
@@ -803,6 +804,11 @@ class _ItemDialogState extends State<_ItemDialog> {
     screenId = item['screenId'] as String?;
     parentComponentId = item['parentComponentId']?.toString();
     featureIds = Set<String>.from(item['featureIds'] as List? ?? []);
+    fields['accessRoles'] = TextEditingController(
+      text: (item['accessRoles'] is List)
+          ? (item['accessRoles'] as List).map((role) => role.toString()).join(', ')
+          : '',
+    );
   }
 
   @override
@@ -873,6 +879,12 @@ class _ItemDialogState extends State<_ItemDialog> {
           input('name', 'Screen name', required: true),
           input('purpose', 'Screen purpose', lines: 2),
           const SizedBox(height: 8),
+          input('accessRoles', 'Access roles (comma-separated)'),
+          const Text(
+            'Leave empty for all roles. Example: Admin, Manager',
+            style: TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+          const SizedBox(height: 14),
           const Text('Map features to this screen',
               style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 9),
@@ -1311,7 +1323,8 @@ class _ItemDialogState extends State<_ItemDialog> {
                       'name': fields['name']!.text.trim(),
                       'purpose': fields['purpose']!.text.trim(),
                       'required': true,
-                      'featureIds': featureIds.toList()
+                      'featureIds': featureIds.toList(),
+                      'accessRoles': parseScreenAccessRoles(fields['accessRoles']!.text)
                     });
                     break;
                   case _ItemType.route:
