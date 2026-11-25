@@ -34,8 +34,43 @@ class ProjectPreviewPage extends ConsumerWidget {
                   ),
               data: (workspace) {
                 final blueprint = workspace.fields('blueprint');
-                return blueprint['screens'] is List
-                    ? SafePreview(blueprint: blueprint)
+                final visualDraft = workspace.fields('visualEditorDraft');
+
+                final hasCanonical = blueprint['screens'] is List;
+                final hasVisualDraft = visualDraft['screens'] is List;
+
+                return hasCanonical || hasVisualDraft
+                    ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (hasVisualDraft) ...[
+                          const SectionTitle(
+                            'Saved visual draft',
+                            subtitle:
+                                'Local simulation only. Not the approved Blueprint.',
+                          ),
+                          const SizedBox(height: 12),
+                          SafePreview(
+                            key: const ValueKey('saved-visual-preview'),
+                            blueprint: visualDraft,
+                            interactionRules: workspace.items('interactions'),
+                          ),
+                        ],
+                        if (hasCanonical) ...[
+                          const SizedBox(height: 20),
+                          const SectionTitle(
+                            'Canonical Blueprint',
+                            subtitle:
+                                'Server-generated design. Approval is a separate action.',
+                          ),
+                          const SizedBox(height: 12),
+                          SafePreview(
+                            key: const ValueKey('canonical-preview'),
+                            blueprint: blueprint,
+                          ),
+                        ],
+                      ],
+                    )
                     : SurfaceCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

@@ -31,12 +31,38 @@ class _SafePreviewState extends State<SafePreview> {
   final Map<String, String> inputs = {};
   Map<String, dynamic> obj(dynamic v) =>
       v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
-  List<Map<String, dynamic>> array(String key) =>
-      (widget.blueprint[key] as List? ?? []).map((e) => obj(e)).toList();
+  List<Map<String, dynamic>> array(String key) {
+    final value = widget.blueprint[key];
+
+    if (value is! List) return [];
+
+    return value.whereType<Map>().map(obj).toList();
+  }
+
+  List<Map<String, dynamic>> availableScreens() {
+    final seen = <String>{};
+
+    return array('screens').where((screen) {
+      final id = screen['screenId'];
+
+      return id is String && id.trim().isNotEmpty && seen.add(id);
+    }).toList();
+  }
+
+  int componentOrder(dynamic value) {
+    if (value is num && value.isFinite) {
+      return value.toInt();
+    }
+
+    return 0;
+  }
+
   Color primary() {
     final tokens = obj(widget.blueprint['designTokens']);
-    final hex =
-        (tokens['primaryColor'] ?? '#6654E8').toString().replaceAll('#', '');
+    final hex = (tokens['primaryColor'] ?? '#6654E8').toString().replaceAll(
+      '#',
+      '',
+    );
     return Color(int.tryParse('FF$hex', radix: 16) ?? 0xFF6654E8);
   }
 
@@ -50,34 +76,26 @@ class _SafePreviewState extends State<SafePreview> {
 
   double get projectSpacing {
     final raw = projectTokens['baseSpacing'];
-    final number = raw is num
-        ? raw.toDouble()
-        : double.tryParse(raw?.toString() ?? '');
+    final number =
+        raw is num ? raw.toDouble() : double.tryParse(raw?.toString() ?? '');
 
-    return number != null &&
-            number.isFinite &&
-            number >= 4 &&
-            number <= 32
+    return number != null && number.isFinite && number >= 4 && number <= 32
         ? number
         : 8;
   }
 
   double get projectRadius {
     final raw = projectTokens['borderRadius'];
-    final number = raw is num
-        ? raw.toDouble()
-        : double.tryParse(raw?.toString() ?? '');
+    final number =
+        raw is num ? raw.toDouble() : double.tryParse(raw?.toString() ?? '');
 
-    return number != null &&
-            number.isFinite &&
-            number >= 0 &&
-            number <= 48
+    return number != null && number.isFinite && number >= 0 && number <= 48
         ? number
         : 12;
   }
+
   Color secondary() {
-    final raw = (projectTokens['secondaryColor'] ?? '#2C8FCE')
-        .toString();
+    final raw = (projectTokens['secondaryColor'] ?? '#2C8FCE').toString();
     if (!RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(raw)) {
       return const Color(0xFF2C8FCE);
     }
@@ -92,14 +110,20 @@ class _SafePreviewState extends State<SafePreview> {
     }
     return false;
   }
-  void navigate(String id) => setState(() {
-        screenId = id;
-        inputs.clear();
-      });
-  bool executeInteraction(
-    Map<String, dynamic> component,
-    String trigger,
-  ) {
+
+  void navigate(String id) {
+    if (!availableScreens().any((screen) => screen['screenId'] == id)) {
+      return;
+    }
+
+    setState(() {
+      screenId = id;
+      inputs.clear();
+      runtimeState = null;
+    });
+  }
+
+  bool executeInteraction(Map<String, dynamic> component, String trigger) {
     final identifiers = <String>{
       for (final key in [
         'componentInstanceId',
@@ -113,9 +137,11 @@ class _SafePreviewState extends State<SafePreview> {
 
     final rules = widget.interactionRules ?? array('interactions');
 
-    final matching = rules.where((rule) =>
-        identifiers.contains((rule['componentId'] ?? '').toString()) &&
-        rule['trigger'] == trigger);
+    final matching = rules.where(
+      (rule) =>
+          identifiers.contains((rule['componentId'] ?? '').toString()) &&
+          rule['trigger'] == trigger,
+    );
 
     if (matching.isEmpty) return false;
 
@@ -123,9 +149,7 @@ class _SafePreviewState extends State<SafePreview> {
       switch (rule['action']) {
         case 'navigate':
           final target = (rule['targetScreenId'] ?? '').toString();
-          if (array('screens').any(
-            (screen) => screen['screenId'] == target,
-          )) {
+          if (array('screens').any((screen) => screen['screenId'] == target)) {
             navigate(target);
           }
           break;
@@ -133,9 +157,9 @@ class _SafePreviewState extends State<SafePreview> {
         case 'show-message':
           final message = (rule['message'] ?? '').toString();
           if (message.trim().isNotEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(message)),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(message)));
           }
           break;
 
@@ -178,9 +202,10 @@ class _SafePreviewState extends State<SafePreview> {
               style: TextStyle(
                 fontSize:
                     type == 'header' || props['variant'] == 'heading' ? 22 : 14,
-                fontWeight: type == 'header' || props['variant'] == 'heading'
-                    ? FontWeight.w900
-                    : FontWeight.w500,
+                fontWeight:
+                    type == 'header' || props['variant'] == 'heading'
+                        ? FontWeight.w900
+                        : FontWeight.w500,
                 fontFamily: projectFontFamily,
                 color: isProjectDark ? Colors.white : const Color(0xFF19213D),
               ),
@@ -200,7 +225,10 @@ class _SafePreviewState extends State<SafePreview> {
             width: double.infinity,
             padding: EdgeInsets.all(projectSpacing * 2),
             decoration: BoxDecoration(
-              color: isProjectDark ? const Color(0xFF2B3345) : const Color(0xFFF6F4FC),
+              color:
+                  isProjectDark
+                      ? const Color(0xFF2B3345)
+                      : const Color(0xFFF6F4FC),
               borderRadius: BorderRadius.circular(projectRadius),
             ),
             child: Column(
@@ -211,7 +239,10 @@ class _SafePreviewState extends State<SafePreview> {
                     text,
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: isProjectDark ? Colors.white : const Color(0xFF19213D),
+                      color:
+                          isProjectDark
+                              ? Colors.white
+                              : const Color(0xFF19213D),
                     ),
                   ),
                 ...children,
@@ -222,43 +253,57 @@ class _SafePreviewState extends State<SafePreview> {
 
       case 'button':
         return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 7),
-            child: SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: accent),
-                    onPressed: () {
-                      if (!executeInteraction(c, 'onClick')) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Preview-only action - No backend request was made',
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: accent),
+              onPressed:
+                  props['disabled'] == true ||
+                          (runtimeState ?? widget.simulationState) == 'disabled'
+                      ? null
+                      : () {
+                        if (!executeInteraction(c, 'onClick')) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Preview-only action - No backend request was made',
+                              ),
                             ),
-                          ),
-                        );
-                      }
-                    },
-                    child: Text(label.isEmpty ? 'Continue' : label))));
+                          );
+                        }
+                      },
+              child: Text(label.isEmpty ? 'Continue' : label),
+            ),
+          ),
+        );
       case 'input':
         return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 7),
-            child: TextField(
-                onChanged: (v) {
-                  setState(() {
-                    inputs[(c['componentInstanceId'] ?? c['id'] ?? '')
-                        .toString()] = v;
-                  });
-                  executeInteraction(c, 'onChange');
-                },
-                onSubmitted: (_) => executeInteraction(c, 'onSubmit'),
-                decoration: InputDecoration(
-                    labelText: label,
-                    hintText:
-                        (props['placeholder'] ?? 'Enter value').toString())));
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          child: TextField(
+            key: ValueKey('preview-input-${screenId ?? ''}-${instanceId(c)}'),
+            enabled:
+                props['disabled'] != true &&
+                (runtimeState ?? widget.simulationState) != 'disabled',
+            onChanged: (v) {
+              setState(() {
+                inputs[(c['componentInstanceId'] ?? c['id'] ?? '').toString()] =
+                    v;
+              });
+              executeInteraction(c, 'onChange');
+            },
+            onSubmitted: (_) => executeInteraction(c, 'onSubmit'),
+            decoration: InputDecoration(
+              labelText: label,
+              hintText: (props['placeholder'] ?? 'Enter value').toString(),
+            ),
+          ),
+        );
       case 'list':
       case 'tabs':
         final dense = type == 'list' && props['dense'] == true;
-        final values = props['items'] is List ? props['items'] as List : const [];
+        final values =
+            props['items'] is List ? props['items'] as List : const [];
         if (values.isEmpty) {
           return const Padding(
             padding: EdgeInsets.all(12),
@@ -283,7 +328,8 @@ class _SafePreviewState extends State<SafePreview> {
 
       case 'table':
         final striped = props['stripedRows'] == true;
-        final values = props['items'] is List ? props['items'] as List : const [];
+        final values =
+            props['items'] is List ? props['items'] as List : const [];
         if (values.isEmpty) {
           return const Padding(
             padding: EdgeInsets.all(12),
@@ -298,9 +344,10 @@ class _SafePreviewState extends State<SafePreview> {
               for (var index = 0; index < values.length; index++)
                 Container(
                   padding: const EdgeInsets.all(9),
-                  color: striped && index.isOdd
-                      ? const Color(0xFFF1EFFB)
-                      : Colors.transparent,
+                  color:
+                      striped && index.isOdd
+                          ? const Color(0xFFF1EFFB)
+                          : Colors.transparent,
                   child: Text(values[index].toString()),
                 ),
             ],
@@ -310,16 +357,20 @@ class _SafePreviewState extends State<SafePreview> {
       case 'chart':
         // Render saved Blueprint values only; never generate chart samples.
         final rawValues = props['values'] ?? props['items'];
-        final values = rawValues is List
-            ? rawValues.map<double?>((item) {
-                final raw = item is Map
-                    ? (item['value'] ?? item['y'])
-                    : item;
-                if (raw is! num) return null;
-                final number = raw.toDouble();
-                return number.isFinite && number >= 0 ? number : null;
-              }).whereType<double>().take(12).toList()
-            : <double>[];
+        final values =
+            rawValues is List
+                ? rawValues
+                    .map<double?>((item) {
+                      final raw =
+                          item is Map ? (item['value'] ?? item['y']) : item;
+                      if (raw is! num) return null;
+                      final number = raw.toDouble();
+                      return number.isFinite && number >= 0 ? number : null;
+                    })
+                    .whereType<double>()
+                    .take(12)
+                    .toList()
+                : <double>[];
         if (values.isEmpty) {
           return const Padding(
             padding: EdgeInsets.all(12),
@@ -336,15 +387,21 @@ class _SafePreviewState extends State<SafePreview> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               for (final value in values)
-                Container(
-                  width: 28,
-                  height: maxValue == 0
-                      ? 0.0
-                      : (value / maxValue * 90).clamp(0.0, 90.0).toDouble(),
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: .7),
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(7),
+                Flexible(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    width: 28,
+                    height:
+                        maxValue == 0
+                            ? 0.0
+                            : (value / maxValue * 90)
+                                .clamp(0.0, 90.0)
+                                .toDouble(),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: .7),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(7),
+                      ),
                     ),
                   ),
                 ),
@@ -353,56 +410,42 @@ class _SafePreviewState extends State<SafePreview> {
         );
       case 'dialog':
         return ListTile(
-            leading: Icon(Icons.info_outline, color: accent),
-            title: Text(label));
+          leading: Icon(Icons.info_outline, color: accent),
+          title: Text(label),
+        );
       case 'image':
-        final src = (props['src'] ?? '').toString().trim();
         final alt = (props['alt'] ?? '').toString();
-        final uri = Uri.tryParse(src);
-        final validUrl = uri != null &&
-            (uri.scheme == 'https' || uri.scheme == 'http') &&
-            uri.host.isNotEmpty;
 
-        Widget placeholder() => Container(
-              height: 130,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1EFFB),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.image_outlined,
-                  color: AppColors.muted,
-                  size: 44,
-                ),
-              ),
-            );
-
-        if (!validUrl) {
-          return placeholder();
-        }
-
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Image.network(
-            src,
+        // Preview must never contact external image hosts.
+        return Semantics(
+          image: true,
+          label: alt.isEmpty ? 'Image placeholder' : alt,
+          child: Container(
+            key: const ValueKey('safe-preview-image-placeholder'),
             height: 130,
             width: double.infinity,
-            fit: BoxFit.cover,
-            semanticLabel: alt.isEmpty ? null : alt,
-            errorBuilder: (context, error, stackTrace) => Semantics(
-              label: 'Preview image unavailable',
-              child: placeholder(),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1EFFB),
+              borderRadius: BorderRadius.circular(projectRadius),
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.image_outlined,
+                color: AppColors.muted,
+                size: 44,
+              ),
             ),
           ),
         );
 
       default:
         return Container(
-            padding: const EdgeInsets.all(12),
-            child: Text('Unsupported component: $type',
-                style: const TextStyle(color: Color(0xFFBA435A))));
+          padding: const EdgeInsets.all(12),
+          child: Text(
+            'Unsupported component: $type',
+            style: const TextStyle(color: Color(0xFFBA435A)),
+          ),
+        );
     }
   }
 
@@ -428,9 +471,10 @@ class _SafePreviewState extends State<SafePreview> {
     final props = obj(item['props'] ?? item['properties']);
     final rawVisibility = props['visibility'];
 
-    final visibility = rawVisibility is Map
-        ? Map<String, dynamic>.from(rawVisibility)
-        : rawVisibility == null
+    final visibility =
+        rawVisibility is Map
+            ? Map<String, dynamic>.from(rawVisibility)
+            : rawVisibility == null
             ? null
             : <String, dynamic>{};
 
@@ -451,138 +495,192 @@ class _SafePreviewState extends State<SafePreview> {
 
     final path = {...ancestors, id};
 
-    final children = components
-        .where(
-          (candidate) =>
-              parentId(candidate) == id && instanceId(candidate) != id,
-        )
-        .map(
-          (candidate) => nestedComponent(candidate, accent, components, path),
-        )
-        .toList();
+    final children =
+        components
+            .where(
+              (candidate) =>
+                  parentId(candidate) == id && instanceId(candidate) != id,
+            )
+            .map(
+              (candidate) =>
+                  nestedComponent(candidate, accent, components, path),
+            )
+            .toList();
 
     return component(item, accent, children: children);
   }
 
   @override
   Widget build(BuildContext context) {
-    final screens = array('screens');
+    final screens = availableScreens();
     if (screens.isEmpty) {
-      return const SurfaceCard(
-        child: Text('No screens in blueprint'),
-      );
+      return const SurfaceCard(child: Text('No screens in blueprint'));
     }
-    final selected = screens.any((e) => e['screenId'] == screenId)
-        ? screenId!
-        : screens.first['screenId'].toString();
+    final selected =
+        screens.any((e) => e['screenId'] == screenId)
+            ? screenId!
+            : screens.first['screenId'].toString();
     final screen = screens.firstWhere((e) => e['screenId'] == selected);
-    final components = array('componentInstances')
-        .where((c) => c['screenId'] == selected)
-        .toList()
-      ..sort((a, b) => ((a['order'] as num?)?.toInt() ?? 0)
-          .compareTo((b['order'] as num?)?.toInt() ?? 0));
+    final components =
+        array(
+            'componentInstances',
+          ).where((c) => c['screenId'] == selected).toList()
+          ..sort(
+            (a, b) => componentOrder(
+              a['order'],
+            ).compareTo(componentOrder(b['order'])),
+          );
     final ids = components.map(instanceId).toSet();
 
-    final roots = components.where((item) {
-      final parent = parentId(item);
-      if (parent.isEmpty || !ids.contains(parent)) {
-        return true;
-      }
+    final roots =
+        components.where((item) {
+          final parent = parentId(item);
+          if (parent.isEmpty || !ids.contains(parent)) {
+            return true;
+          }
 
-      final matches = components.where(
-        (candidate) => instanceId(candidate) == parent,
-      );
+          final matches = components.where(
+            (candidate) => instanceId(candidate) == parent,
+          );
 
-      return matches.isEmpty || !isContainer(matches.first);
-    }).toList();
+          return matches.isEmpty || !isContainer(matches.first);
+        }).toList();
 
-    final routes = array('routes')
-        .where((r) => r['sourceScreenId'] == selected && r['enabled'] != false)
-        .toList();
+    final routes =
+        array('routes')
+            .where(
+              (r) =>
+                  r['sourceScreenId'] == selected &&
+                  r['enabled'] != false &&
+                  screens.any((s) => s['screenId'] == r['targetScreenId']),
+            )
+            .toList();
     final accent = primary();
     final dark = isProjectDark;
     final foreground = dark ? Colors.white : const Color(0xFF19213D);
     return SurfaceCard(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            const SmallLabel('SIMULATED · NO LIVE TRANSACTIONS',
-                color: AppColors.purple),
-            for (final value in ['mobile', 'web', 'desktop'])
-              ChoiceChip(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const SmallLabel(
+                'SIMULATED · NO LIVE TRANSACTIONS',
+                color: AppColors.purple,
+              ),
+              for (final value in ['mobile', 'web', 'desktop'])
+                ChoiceChip(
                   label: Text(value.toUpperCase()),
                   selected: mode == value,
-                  onSelected: (_) => setState(() => mode = value))
-          ]),
-      const SizedBox(height: 18),
-      Align(
-          alignment: Alignment.center,
-          child: ConstrainedBox(
+                  onSelected: (_) => setState(() => mode = value),
+                ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Align(
+            alignment: Alignment.center,
+            child: ConstrainedBox(
               constraints: BoxConstraints(
-                  maxWidth: mode == 'mobile'
-                      ? 390
-                      : mode == 'web'
-                          ? 1000
-                          : 790),
+                maxWidth:
+                    mode == 'mobile'
+                        ? 390
+                        : mode == 'web'
+                        ? 1000
+                        : 790,
+              ),
               child: Container(
-                  width: double.infinity,
-                  key: const ValueKey('preview-canvas'),
-                  constraints: const BoxConstraints(minHeight: 320),
-                  padding: EdgeInsets.all(projectSpacing * 2),
-                  decoration: BoxDecoration(
-                      color: dark ? const Color(0xFF1B2130) : Colors.white,
-                      borderRadius: BorderRadius.circular(projectRadius),
-                      border: Border.all(color: AppColors.line),
-                      boxShadow: [
-                        BoxShadow(
-                            color: accent.withValues(alpha: .08),
-                            blurRadius: 18)
-                      ]),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                width: double.infinity,
+                key: const ValueKey('preview-canvas'),
+                constraints: const BoxConstraints(minHeight: 320),
+                padding: EdgeInsets.all(projectSpacing * 2),
+                decoration: BoxDecoration(
+                  color: dark ? const Color(0xFF1B2130) : Colors.white,
+                  borderRadius: BorderRadius.circular(projectRadius),
+                  border: Border.all(color: AppColors.line),
+                  boxShadow: [
+                    BoxShadow(
+                      color: accent.withValues(alpha: .08),
+                      blurRadius: 18,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(children: [
-                          Icon(Icons.auto_awesome, color: accent),
-                          const SizedBox(width: 10),
-                          Text((screen['name'] ?? 'Screen').toString(),
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w900, fontSize: 17,
-                                  color: foreground))
-                        ]),
-                        const Divider(height: 27),
-                        for (final c in roots.isEmpty ? components : roots)
-                          nestedComponent(c, accent, components, <String>{}),
-                        const SizedBox(height: 18),
-                        if (routes.isNotEmpty)
-                          Text('Preview navigation',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: foreground)),
-                        if (routes.isNotEmpty) const SizedBox(height: 9),
-                        Wrap(spacing: 8, runSpacing: 8, children: [
-                          for (final route in routes)
-                            OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                    foregroundColor: secondary()),
-                                onPressed: () => navigate(
-                                    route['targetScreenId'].toString()),
-                                icon: const Icon(Icons.arrow_forward, size: 15),
-                                label: Text(screens
-                                        .where((s) =>
+                        Icon(Icons.auto_awesome, color: accent),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            (screen['name'] ?? 'Screen').toString(),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 17,
+                              color: foreground,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 27),
+                    for (final c in roots.isEmpty ? components : roots)
+                      nestedComponent(c, accent, components, <String>{}),
+                    const SizedBox(height: 18),
+                    if (routes.isNotEmpty)
+                      Text(
+                        'Preview navigation',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: foreground,
+                        ),
+                      ),
+                    if (routes.isNotEmpty) const SizedBox(height: 9),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final route in routes)
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: secondary(),
+                            ),
+                            onPressed:
+                                () => navigate(
+                                  route['targetScreenId'].toString(),
+                                ),
+                            icon: const Icon(Icons.arrow_forward, size: 15),
+                            label: Text(
+                              screens
+                                      .where(
+                                        (s) =>
                                             s['screenId'] ==
-                                            route['targetScreenId'])
-                                        .map((s) => s['name'].toString())
-                                        .firstOrNull ??
-                                    'Next screen')),
-                        ]),
-                      ])))),
-      const SizedBox(height: 16),
-      const Text(
-          'Preview-only UI. Actions are simulated locally; no payments, bookings, account changes or network requests are made.',
-          style: TextStyle(fontSize: 11, color: AppColors.muted)),
-    ]));
+                                            route['targetScreenId'],
+                                      )
+                                      .map((s) => s['name'].toString())
+                                      .firstOrNull ??
+                                  'Next screen',
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Preview-only UI. Actions are simulated locally; no payments, bookings, account changes or network requests are made.',
+            style: TextStyle(fontSize: 11, color: AppColors.muted),
+          ),
+        ],
+      ),
+    );
   }
 }
