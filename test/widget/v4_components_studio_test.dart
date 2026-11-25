@@ -63,10 +63,7 @@ void main() {
     await tester.tap(find.text('Add'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'Submit',
-    );
+    await tester.enterText(find.byType(TextFormField).first, 'Submit');
 
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
@@ -82,26 +79,22 @@ void main() {
 
     await openStudio(tester, (section, data) async {
       savedSection = section;
-      savedItems = (data as List)
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .toList();
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
     });
 
     await tester.tap(find.text('Add'));
     await tester.pumpAndSettle();
 
-    await tester.tap(
-      find.byType(DropdownButtonFormField<String>).first,
-    );
+    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Dashboard').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'Submit',
-    );
+    await tester.enterText(find.byType(TextFormField).first, 'Submit');
 
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
@@ -142,9 +135,10 @@ void main() {
 
     await openStudio(tester, (section, data) async {
       expect(section, 'components');
-      savedItems = (data as List)
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .toList();
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
     }, workspace: workspace);
 
     await tester.tap(find.byTooltip('Edit'));
@@ -152,10 +146,7 @@ void main() {
 
     expect(find.text('Edit component'), findsOneWidget);
 
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'Updated Submit',
-    );
+    await tester.enterText(find.byType(TextFormField).first, 'Updated Submit');
 
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
@@ -168,8 +159,9 @@ void main() {
     expect(savedItems!.first['type'], 'button');
   });
 
-  testWidgets('keeps original component when save is not persisted',
-      (tester) async {
+  testWidgets('keeps original component when save is not persisted', (
+    tester,
+  ) async {
     final workspace = Workspace(
       projectId: 'project-1',
       draftId: 'draft-1',
@@ -207,10 +199,7 @@ void main() {
     await tester.tap(find.byTooltip('Edit'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'Updated Submit',
-    );
+    await tester.enterText(find.byType(TextFormField).first, 'Updated Submit');
 
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
@@ -251,9 +240,10 @@ void main() {
     await openStudio(tester, (section, data) async {
       expect(section, 'components');
       saveCalls++;
-      savedItems = (data as List)
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .toList();
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
     }, workspace: workspace);
 
     await tester.tap(find.byTooltip('Remove'));
@@ -317,8 +307,9 @@ void main() {
     expect(saveCalls, 0);
   });
 
-  testWidgets('keeps original component when edit is cancelled',
-      (tester) async {
+  testWidgets('keeps original component when edit is cancelled', (
+    tester,
+  ) async {
     final workspace = Workspace(
       projectId: 'project-1',
       draftId: 'draft-1',
@@ -366,8 +357,9 @@ void main() {
     expect(saveCalls, 0);
   });
 
-  testWidgets('does not save when adding a component is cancelled',
-      (tester) async {
+  testWidgets('does not save when adding a component is cancelled', (
+    tester,
+  ) async {
     var saveCalls = 0;
 
     await openStudio(tester, (section, data) async {
@@ -408,10 +400,7 @@ void main() {
     await tester.tap(find.text('Dashboard').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      '   ',
-    );
+    await tester.enterText(find.byType(TextFormField).first, '   ');
 
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
@@ -421,8 +410,9 @@ void main() {
     expect(find.text('Add component'), findsOneWidget);
   });
 
-  testWidgets('shows screen validation when no screen is selected',
-      (tester) async {
+  testWidgets('shows screen validation when no screen is selected', (
+    tester,
+  ) async {
     var saveCalls = 0;
 
     await openStudio(tester, (section, data) async {
@@ -432,10 +422,7 @@ void main() {
     await tester.tap(find.text('Add'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'Submit Button',
-    );
+    await tester.enterText(find.byType(TextFormField).first, 'Submit Button');
 
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
@@ -450,9 +437,10 @@ void main() {
 
     await openStudio(tester, (section, data) async {
       expect(section, 'components');
-      savedItems = (data as List)
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .toList();
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
     });
 
     await tester.tap(find.text('Add'));
@@ -465,15 +453,18 @@ void main() {
     await tester.pumpAndSettle();
 
     // Select component type.
-    await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DropdownButtonFormField<String> &&
+            widget.decoration.labelText == "Component type",
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('button').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'Submit Button',
-    );
+    await tester.enterText(find.byType(TextFormField).first, 'Submit Button');
 
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
@@ -490,9 +481,10 @@ void main() {
 
     await openStudio(tester, (section, data) async {
       expect(section, 'components');
-      savedItems = (data as List)
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .toList();
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
     });
 
     await tester.tap(find.text('Add'));
@@ -546,9 +538,10 @@ void main() {
 
     await openStudio(tester, (section, data) async {
       expect(section, 'components');
-      savedItems = (data as List)
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .toList();
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
     }, workspace: workspace);
 
     await tester.tap(find.byTooltip('Edit'));
@@ -558,7 +551,11 @@ void main() {
 
     // Change existing button component to input.
     await tester.tap(
-      find.byType(DropdownButtonFormField<String>).last,
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DropdownButtonFormField<String> &&
+            widget.decoration.labelText == "Component type",
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -579,8 +576,9 @@ void main() {
     expect(savedItems!.first['text'], 'Submit Form');
   });
 
-  testWidgets('updates component display text while preserving ID',
-      (tester) async {
+  testWidgets('updates component display text while preserving ID', (
+    tester,
+  ) async {
     final workspace = Workspace(
       projectId: 'project-1',
       draftId: 'draft-1',
@@ -607,9 +605,10 @@ void main() {
 
     await openStudio(tester, (section, data) async {
       expect(section, 'components');
-      savedItems = (data as List)
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .toList();
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
     }, workspace: workspace);
 
     await tester.tap(find.byTooltip('Edit'));
@@ -662,18 +661,17 @@ void main() {
 
     await openStudio(tester, (section, data) async {
       expect(section, 'components');
-      savedItems = (data as List)
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .toList();
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
     }, workspace: workspace);
 
     await tester.tap(find.byTooltip('Edit'));
     await tester.pumpAndSettle();
 
     // Change the component's assigned screen.
-    await tester.tap(
-      find.byType(DropdownButtonFormField<String>).first,
-    );
+    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Settings').last);
@@ -711,10 +709,7 @@ void main() {
               'type': 'button',
               'label': 'Submit',
               'text': 'Submit Form',
-              'properties': {
-                'enabled': true,
-                'variant': 'primary',
-              },
+              'properties': {'enabled': true, 'variant': 'primary'},
             },
           ],
         },
@@ -724,9 +719,10 @@ void main() {
 
       await openStudio(tester, (section, data) async {
         expect(section, 'components');
-        savedItems = (data as List)
-            .map((item) => Map<String, dynamic>.from(item as Map))
-            .toList();
+        savedItems =
+            (data as List)
+                .map((item) => Map<String, dynamic>.from(item as Map))
+                .toList();
       }, workspace: workspace);
 
       await tester.tap(find.byTooltip('Edit'));
@@ -735,19 +731,13 @@ void main() {
       final enabledSwitch = find.byType(SwitchListTile);
 
       expect(enabledSwitch, findsOneWidget);
-      expect(
-        tester.widget<SwitchListTile>(enabledSwitch).value,
-        isTrue,
-      );
+      expect(tester.widget<SwitchListTile>(enabledSwitch).value, isTrue);
 
       await tester.ensureVisible(enabledSwitch);
       await tester.tap(enabledSwitch);
       await tester.pumpAndSettle();
 
-      expect(
-        tester.widget<SwitchListTile>(enabledSwitch).value,
-        isFalse,
-      );
+      expect(tester.widget<SwitchListTile>(enabledSwitch).value, isFalse);
 
       await tester.tap(find.text('Save').last);
       await tester.pumpAndSettle();
@@ -772,9 +762,10 @@ void main() {
 
     await openStudio(tester, (section, data) async {
       expect(section, 'components');
-      savedItems = (data as List)
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .toList();
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
     });
 
     await tester.tap(find.text('Add'));
@@ -785,7 +776,13 @@ void main() {
     await tester.tap(find.text('Dashboard').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DropdownButtonFormField<String> &&
+            widget.decoration.labelText == "Component type",
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('button').last);
     await tester.pumpAndSettle();
@@ -795,15 +792,9 @@ void main() {
     expect(enabledSwitch, findsOneWidget);
     expect(tester.widget<SwitchListTile>(enabledSwitch).value, isTrue);
 
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'Submit Button',
-    );
+    await tester.enterText(find.byType(TextFormField).first, 'Submit Button');
 
-    await tester.enterText(
-      find.byType(TextFormField).last,
-      'Submit',
-    );
+    await tester.enterText(find.byType(TextFormField).last, 'Submit');
 
     await tester.tap(find.text('Save').last);
     await tester.pumpAndSettle();
@@ -822,170 +813,153 @@ void main() {
     expect(properties['enabled'], isTrue);
   });
 
-  testWidgets(
-    'updates text font size while preserving existing properties',
-    (tester) async {
-      final workspace = Workspace(
-        projectId: 'project-1',
-        draftId: 'draft-1',
-        version: 1,
-        projectName: 'Test Project',
-        designTargets: const ['web'],
-        sections: {
-          'screens': [
-            {'id': 'screen-1', 'name': 'Dashboard'},
-          ],
-          'components': [
-            {
-              'id': 'component-text-123',
-              'screenId': 'screen-1',
-              'type': 'text',
-              'label': 'Welcome Message',
-              'text': 'Welcome to REQVIORA',
-              'properties': {
-                'fontSize': 24,
-                'color': '#663399',
-              },
-            },
-          ],
-        },
-      );
+  testWidgets('updates text font size while preserving existing properties', (
+    tester,
+  ) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'component-text-123',
+            'screenId': 'screen-1',
+            'type': 'text',
+            'label': 'Welcome Message',
+            'text': 'Welcome to REQVIORA',
+            'properties': {'fontSize': 24, 'color': '#663399'},
+          },
+        ],
+      },
+    );
 
-      List<Map<String, dynamic>>? savedItems;
+    List<Map<String, dynamic>>? savedItems;
 
-      await openStudio(tester, (section, data) async {
-        expect(section, 'components');
-        savedItems = (data as List)
-            .map((item) => Map<String, dynamic>.from(item as Map))
-            .toList();
-      }, workspace: workspace);
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+    }, workspace: workspace);
 
-      await tester.tap(find.byTooltip('Edit'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Edit'));
+    await tester.pumpAndSettle();
 
-      final fontSlider = find.byType(Slider);
+    final fontSlider = find.byType(Slider);
 
-      expect(fontSlider, findsOneWidget);
-      expect(
-        tester.widget<Slider>(fontSlider).value,
-        24,
-      );
+    expect(fontSlider, findsOneWidget);
+    expect(tester.widget<Slider>(fontSlider).value, 24);
 
-      // Update the font-size slider.
-      tester.widget<Slider>(fontSlider).onChanged!(32);
-      await tester.pumpAndSettle();
+    // Update the font-size slider.
+    tester.widget<Slider>(fontSlider).onChanged!(32);
+    await tester.pumpAndSettle();
 
-      expect(
-        tester.widget<Slider>(fontSlider).value,
-        32,
-      );
+    expect(tester.widget<Slider>(fontSlider).value, 32);
 
-      await tester.tap(find.text('Save').last);
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
 
-      expect(savedItems, isNotNull);
-      expect(savedItems, hasLength(1));
+    expect(savedItems, isNotNull);
+    expect(savedItems, hasLength(1));
 
-      final saved = savedItems!.single;
-      final properties = Map<String, dynamic>.from(saved['properties'] as Map);
+    final saved = savedItems!.single;
+    final properties = Map<String, dynamic>.from(saved['properties'] as Map);
 
-      expect(saved['id'], 'component-text-123');
-      expect(saved['screenId'], 'screen-1');
-      expect(saved['type'], 'text');
-      expect(saved['label'], 'Welcome Message');
-      expect(saved['text'], 'Welcome to REQVIORA');
-      expect(properties['fontSize'], 32);
-      expect(properties['color'], '#663399');
-    },
-  );
+    expect(saved['id'], 'component-text-123');
+    expect(saved['screenId'], 'screen-1');
+    expect(saved['type'], 'text');
+    expect(saved['label'], 'Welcome Message');
+    expect(saved['text'], 'Welcome to REQVIORA');
+    expect(properties['fontSize'], 32);
+    expect(properties['color'], '#663399');
+  });
 
-  testWidgets(
-    'updates input placeholder while preserving properties',
-    (tester) async {
-      final workspace = Workspace(
-        projectId: 'project-1',
-        draftId: 'draft-1',
-        version: 1,
-        projectName: 'Test Project',
-        designTargets: const ['web'],
-        sections: {
-          'screens': [
-            {'id': 'screen-1', 'name': 'Dashboard'},
-          ],
-          'components': [
-            {
-              'id': 'component-input-123',
-              'screenId': 'screen-1',
-              'type': 'input',
-              'label': 'Email Address',
-              'text': 'Email',
-              'properties': {
-                'placeholder': 'Enter your email',
-                'required': true,
-              },
-            },
-          ],
-        },
-      );
+  testWidgets('updates input placeholder while preserving properties', (
+    tester,
+  ) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'component-input-123',
+            'screenId': 'screen-1',
+            'type': 'input',
+            'label': 'Email Address',
+            'text': 'Email',
+            'properties': {'placeholder': 'Enter your email', 'required': true},
+          },
+        ],
+      },
+    );
 
-      List<Map<String, dynamic>>? savedItems;
+    List<Map<String, dynamic>>? savedItems;
 
-      await openStudio(tester, (section, data) async {
-        expect(section, 'components');
-        savedItems = (data as List)
-            .map((item) => Map<String, dynamic>.from(item as Map))
-            .toList();
-      }, workspace: workspace);
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+    }, workspace: workspace);
 
-      await tester.tap(find.byTooltip('Edit'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Edit'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('Edit component'), findsOneWidget);
-      expect(find.byType(TextFormField), findsNWidgets(3));
+    expect(find.text('Edit component'), findsOneWidget);
+    expect(find.byType(TextFormField), findsNWidgets(3));
 
-      final placeholderField = find.byType(TextFormField).last;
+    final placeholderField = find.byType(TextFormField).last;
 
-      expect(
-        tester.widget<TextFormField>(placeholderField).controller!.text,
-        'Enter your email',
-      );
+    expect(
+      tester.widget<TextFormField>(placeholderField).controller!.text,
+      'Enter your email',
+    );
 
-      await tester.enterText(
-        placeholderField,
-        'Enter your new email address',
-      );
+    await tester.enterText(placeholderField, 'Enter your new email address');
 
-      await tester.tap(find.text('Save').last);
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
 
-      expect(savedItems, isNotNull);
-      expect(savedItems, hasLength(1));
+    expect(savedItems, isNotNull);
+    expect(savedItems, hasLength(1));
 
-      final saved = savedItems!.single;
-      final properties = Map<String, dynamic>.from(saved['properties'] as Map);
+    final saved = savedItems!.single;
+    final properties = Map<String, dynamic>.from(saved['properties'] as Map);
 
-      expect(saved['id'], 'component-input-123');
-      expect(saved['screenId'], 'screen-1');
-      expect(saved['type'], 'input');
-      expect(saved['label'], 'Email Address');
-      expect(saved['text'], 'Email');
+    expect(saved['id'], 'component-input-123');
+    expect(saved['screenId'], 'screen-1');
+    expect(saved['type'], 'input');
+    expect(saved['label'], 'Email Address');
+    expect(saved['text'], 'Email');
 
-      expect(
-        properties['placeholder'],
-        'Enter your new email address',
-      );
-      expect(properties['required'], isTrue);
-    },
-  );
+    expect(properties['placeholder'], 'Enter your new email address');
+    expect(properties['required'], isTrue);
+  });
 
   testWidgets('new input saves default placeholder', (tester) async {
     List<Map<String, dynamic>>? savedItems;
 
     await openStudio(tester, (section, data) async {
       expect(section, 'components');
-      savedItems = (data as List)
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .toList();
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
     });
 
     await tester.tap(find.text('Add'));
@@ -994,9 +968,7 @@ void main() {
     expect(find.text('Add component'), findsOneWidget);
 
     // Select the existing Dashboard screen.
-    await tester.tap(
-      find.byType(DropdownButtonFormField<String>).first,
-    );
+    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Dashboard').last);
@@ -1004,7 +976,11 @@ void main() {
 
     // Select the Input component type.
     await tester.tap(
-      find.byType(DropdownButtonFormField<String>).last,
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DropdownButtonFormField<String> &&
+            widget.decoration.labelText == "Component type",
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -1020,15 +996,9 @@ void main() {
     );
 
     // Provide the required component label and display text.
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'Email Address',
-    );
+    await tester.enterText(find.byType(TextFormField).first, 'Email Address');
 
-    await tester.enterText(
-      find.byType(TextFormField).at(1),
-      'Email',
-    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'Email');
 
     await tester.tap(find.text('Save').last);
     await tester.pumpAndSettle();
@@ -1048,140 +1018,122 @@ void main() {
     expect(properties['placeholder'], 'Enter text');
   });
 
-  testWidgets(
-    'updates input required property while preserving placeholder',
-    (tester) async {
-      final workspace = Workspace(
-        projectId: 'project-1',
-        draftId: 'draft-1',
-        version: 1,
-        projectName: 'Test Project',
-        designTargets: const ['web'],
-        sections: {
-          'screens': [
-            {'id': 'screen-1', 'name': 'Dashboard'},
-          ],
-          'components': [
-            {
-              'id': 'component-input-required-1',
-              'screenId': 'screen-1',
-              'type': 'input',
-              'label': 'Email',
-              'text': 'Email address',
-              'properties': {
-                'placeholder': 'Enter your email',
-                'required': true,
-                'variant': 'outlined',
-              },
+  testWidgets('updates input required property while preserving placeholder', (
+    tester,
+  ) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'component-input-required-1',
+            'screenId': 'screen-1',
+            'type': 'input',
+            'label': 'Email',
+            'text': 'Email address',
+            'properties': {
+              'placeholder': 'Enter your email',
+              'required': true,
+              'variant': 'outlined',
             },
-          ],
-        },
-      );
+          },
+        ],
+      },
+    );
 
-      List<Map<String, dynamic>>? savedItems;
+    List<Map<String, dynamic>>? savedItems;
 
-      await openStudio(tester, (section, data) async {
-        expect(section, 'components');
-        savedItems = (data as List)
-            .map((item) => Map<String, dynamic>.from(item as Map))
-            .toList();
-      }, workspace: workspace);
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+    }, workspace: workspace);
 
-      await tester.tap(find.byTooltip('Edit'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Edit'));
+    await tester.pumpAndSettle();
 
-      final requiredSwitch = find.widgetWithText(
-        SwitchListTile,
-        'Required',
-      );
+    final requiredSwitch = find.widgetWithText(SwitchListTile, 'Required');
 
-      expect(requiredSwitch, findsOneWidget);
-      expect(
-        tester.widget<SwitchListTile>(requiredSwitch).value,
-        isTrue,
-      );
+    expect(requiredSwitch, findsOneWidget);
+    expect(tester.widget<SwitchListTile>(requiredSwitch).value, isTrue);
 
-      await tester.ensureVisible(requiredSwitch);
-      await tester.pumpAndSettle();
+    await tester.ensureVisible(requiredSwitch);
+    await tester.pumpAndSettle();
 
-      await tester.tap(requiredSwitch);
-      await tester.pumpAndSettle();
+    await tester.tap(requiredSwitch);
+    await tester.pumpAndSettle();
 
-      expect(
-        tester.widget<SwitchListTile>(requiredSwitch).value,
-        isFalse,
-      );
+    expect(tester.widget<SwitchListTile>(requiredSwitch).value, isFalse);
 
-      await tester.tap(find.text('Save').last);
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
 
-      expect(savedItems, isNotNull);
-      expect(savedItems, hasLength(1));
+    expect(savedItems, isNotNull);
+    expect(savedItems, hasLength(1));
 
-      final saved = savedItems!.single;
-      final properties = Map<String, dynamic>.from(saved['properties'] as Map);
+    final saved = savedItems!.single;
+    final properties = Map<String, dynamic>.from(saved['properties'] as Map);
 
-      expect(saved['id'], 'component-input-required-1');
-      expect(saved['screenId'], 'screen-1');
-      expect(saved['type'], 'input');
-      expect(saved['label'], 'Email');
-      expect(saved['text'], 'Email address');
+    expect(saved['id'], 'component-input-required-1');
+    expect(saved['screenId'], 'screen-1');
+    expect(saved['type'], 'input');
+    expect(saved['label'], 'Email');
+    expect(saved['text'], 'Email address');
 
-      expect(properties['required'], isFalse);
-      expect(properties['placeholder'], 'Enter your email');
-      expect(properties['variant'], 'outlined');
-    },
-  );
+    expect(properties['required'], isFalse);
+    expect(properties['placeholder'], 'Enter your email');
+    expect(properties['variant'], 'outlined');
+  });
 
   testWidgets('new input defaults to optional', (tester) async {
     List<Map<String, dynamic>>? savedItems;
 
     await openStudio(tester, (section, data) async {
       expect(section, 'components');
-      savedItems = (data as List)
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .toList();
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
     });
 
     await tester.tap(find.text('Add'));
     await tester.pumpAndSettle();
 
-    await tester.tap(
-      find.byType(DropdownButtonFormField<String>).first,
-    );
+    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Dashboard').last);
     await tester.pumpAndSettle();
 
     await tester.tap(
-      find.byType(DropdownButtonFormField<String>).last,
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DropdownButtonFormField<String> &&
+            widget.decoration.labelText == "Component type",
+      ),
     );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('input').last);
     await tester.pumpAndSettle();
 
-    final requiredSwitch = find.widgetWithText(
-      SwitchListTile,
-      'Required',
-    );
+    final requiredSwitch = find.widgetWithText(SwitchListTile, 'Required');
 
     expect(requiredSwitch, findsOneWidget);
-    expect(
-      tester.widget<SwitchListTile>(requiredSwitch).value,
-      isFalse,
-    );
+    expect(tester.widget<SwitchListTile>(requiredSwitch).value, isFalse);
 
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'Phone Number',
-    );
+    await tester.enterText(find.byType(TextFormField).first, 'Phone Number');
 
-    await tester.enterText(
-      find.byType(TextFormField).at(1),
-      'Phone',
-    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'Phone');
 
     await tester.tap(find.text('Save').last);
     await tester.pumpAndSettle();
@@ -1199,87 +1151,83 @@ void main() {
     expect(properties['placeholder'], 'Enter text');
   });
 
-  testWidgets(
-    'updates card elevation while preserving properties',
-    (tester) async {
-      final workspace = Workspace(
-        projectId: 'project-1',
-        draftId: 'draft-1',
-        version: 1,
-        projectName: 'Test Project',
-        designTargets: const ['web'],
-        sections: {
-          'screens': [
-            {'id': 'screen-1', 'name': 'Dashboard'},
-          ],
-          'components': [
-            {
-              'id': 'component-card-123',
-              'screenId': 'screen-1',
-              'type': 'card',
-              'label': 'Profile Card',
-              'text': 'User Profile',
-              'properties': {
-                'elevation': 4,
-                'variant': 'outlined',
-                'borderRadius': 12,
-              },
+  testWidgets('updates card elevation while preserving properties', (
+    tester,
+  ) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'component-card-123',
+            'screenId': 'screen-1',
+            'type': 'card',
+            'label': 'Profile Card',
+            'text': 'User Profile',
+            'properties': {
+              'elevation': 4,
+              'variant': 'outlined',
+              'borderRadius': 12,
             },
-          ],
-        },
-      );
+          },
+        ],
+      },
+    );
 
-      List<Map<String, dynamic>>? savedItems;
+    List<Map<String, dynamic>>? savedItems;
 
-      await openStudio(tester, (section, data) async {
-        expect(section, 'components');
-        savedItems = (data as List)
-            .map((item) => Map<String, dynamic>.from(item as Map))
-            .toList();
-      }, workspace: workspace);
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      savedItems =
+          (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+    }, workspace: workspace);
 
-      await tester.tap(find.byTooltip('Edit'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Edit'));
+    await tester.pumpAndSettle();
 
-      final elevationSlider = find.byType(Slider);
+    final elevationSlider = find.byWidgetPredicate(
+      (widget) => widget is Slider && widget.max == 24.0,
+    );
 
-      expect(elevationSlider, findsOneWidget);
+    expect(elevationSlider, findsOneWidget);
 
-      expect(
-        tester.widget<Slider>(elevationSlider).value,
-        4,
-      );
+    expect(tester.widget<Slider>(elevationSlider).value, 4);
 
-      // Change elevation through the slider callback.
-      tester.widget<Slider>(elevationSlider).onChanged!(12);
-      await tester.pumpAndSettle();
+    // Change elevation through the slider callback.
+    tester.widget<Slider>(elevationSlider).onChanged!(12);
+    await tester.pumpAndSettle();
 
-      expect(
-        tester.widget<Slider>(elevationSlider).value,
-        12,
-      );
+    expect(tester.widget<Slider>(elevationSlider).value, 12);
 
-      await tester.ensureVisible(find.text('Save').last);
-      await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Save').last);
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Save').last);
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
 
-      expect(savedItems, isNotNull);
-      expect(savedItems, hasLength(1));
+    expect(savedItems, isNotNull);
+    expect(savedItems, hasLength(1));
 
-      final saved = savedItems!.single;
-      final properties = Map<String, dynamic>.from(saved['properties'] as Map);
+    final saved = savedItems!.single;
+    final properties = Map<String, dynamic>.from(saved['properties'] as Map);
 
-      expect(saved['id'], 'component-card-123');
-      expect(saved['screenId'], 'screen-1');
-      expect(saved['type'], 'card');
-      expect(saved['label'], 'Profile Card');
-      expect(saved['text'], 'User Profile');
+    expect(saved['id'], 'component-card-123');
+    expect(saved['screenId'], 'screen-1');
+    expect(saved['type'], 'card');
+    expect(saved['label'], 'Profile Card');
+    expect(saved['text'], 'User Profile');
 
-      expect(properties['elevation'], 12);
-      expect(properties['variant'], 'outlined');
-      expect(properties['borderRadius'], 12);
-    },
-  );
+    expect(properties['elevation'], 12);
+    expect(properties['variant'], 'outlined');
+    expect(properties['borderRadius'], 12);
+  });
 }

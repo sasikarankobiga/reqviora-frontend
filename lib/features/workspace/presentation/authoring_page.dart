@@ -1,3 +1,11 @@
+import 'v4_blueprint_property_inspector.dart';
+import 'v4_blueprint_selection_panel.dart';
+import '../domain/v4_blueprint_history.dart';
+import 'dart:async';
+import '../domain/screen_access_roles.dart';
+import '../../builder/domain/registry/v4_visibility_rules.dart';
+import '../../builder/domain/registry/v4_interaction_rule_validator.dart';
+import '../../builder/domain/registry/v4_component_layout.dart';
 import 'navigation_graph_editor.dart';
 import '../../../core/network/api_client.dart';
 import '../domain/blueprint_proposal.dart';
@@ -177,6 +185,27 @@ class _ContentState extends ConsumerState<_Content> {
 }
 
 /// Testable entry point for the original V4 Components Studio.
+class V4ScreensStudio extends StatelessWidget {
+  const V4ScreensStudio({
+    super.key,
+    required this.workspace,
+    required this.onSave,
+  });
+
+  final Workspace workspace;
+  final Future<void> Function(String section, dynamic data) onSave;
+
+  @override
+  Widget build(BuildContext context) => _ItemEditor(
+        workspace: workspace,
+        section: 'screens',
+        title: 'Screens & feature mapping',
+        icon: Icons.grid_view_rounded,
+        type: _ItemType.screen,
+        onSave: onSave,
+      );
+}
+/// Testable entry point for the original V4 Components Studio.
 class V4ComponentsStudio extends StatelessWidget {
   const V4ComponentsStudio({
     super.key,
@@ -195,6 +224,30 @@ class V4ComponentsStudio extends StatelessWidget {
       title: 'Components Studio',
       icon: Icons.widgets_outlined,
       type: _ItemType.component,
+      onSave: onSave,
+    );
+  }
+}
+
+/// Testable entry point for V4 Step 06.
+class V4InteractionsStudio extends StatelessWidget {
+  const V4InteractionsStudio({
+    super.key,
+    required this.workspace,
+    required this.onSave,
+  });
+
+  final Workspace workspace;
+  final Future<void> Function(String section, dynamic data) onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ItemEditor(
+      workspace: workspace,
+      section: 'interactions',
+      title: 'Interaction & state rules',
+      icon: Icons.tune_rounded,
+      type: _ItemType.interaction,
       onSave: onSave,
     );
   }
@@ -239,7 +292,7 @@ class _ItemEditorState extends State<_ItemEditor> {
       final lookup = {
         for (final s in widget.workspace.items('screens')) s['id']: s['name']
       };
-      return '${lookup[row['fromScreenId']] ?? 'Missing source'} → ${lookup[row['toScreenId']] ?? 'Missing target'}';
+      return '${lookup[row['fromScreenId']] ?? 'Missing source'} ΓåÆ ${lookup[row['toScreenId']] ?? 'Missing target'}';
     }
     return (row['description'] ??
             row['purpose'] ??
@@ -277,7 +330,114 @@ class _ItemEditorState extends State<_ItemEditor> {
         if (existing != null && item['id'] == existing['id']) updated else item,
       if (existing == null) updated,
     ];
+    if (widget.type == _ItemType.component) {
+      final error = V4ComponentLayout.validate(nextItems);
+
+      if (error != null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error)),
+        );
+        return;
+      }
+    }
     await widget.onSave(widget.section, nextItems);
+  }
+
+  Future<void> reuseComponent(Map<String, dynamic> source) async {
+    final screens = widget.workspace.items('screens');
+
+    if (screens.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add a screen first')),
+      );
+      return;
+    }
+
+    String? targetScreenId = source['screenId']?.toString();
+
+    final selectedScreen = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, updateDialog) => AlertDialog(
+          title: const Text('Reuse component on screen'),
+          content: DropdownButtonFormField<String>(
+            initialValue: screens.any(
+              (screen) => screen['id'] == targetScreenId,
+            )
+                ? targetScreenId
+                : null,
+            decoration: const InputDecoration(
+              labelText: 'Target screen',
+            ),
+            isExpanded: true,
+            items: [
+              for (final screen in screens)
+                DropdownMenuItem<String>(
+                  value: screen['id'].toString(),
+                  child: Text(
+                    (screen['name'] ?? screen['id']).toString(),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            onChanged: (value) => updateDialog(() => targetScreenId = value),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: targetScreenId == null
+                  ? null
+                  : () => Navigator.pop(dialogContext, targetScreenId),
+              child: const Text('Reuse'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || selectedScreen == null) return;
+
+    final clone = V4ComponentLayout.cloneForReuse(
+      source: source,
+      newId: const Uuid().v4(),
+      targetScreenId: selectedScreen,
+    );
+
+    final updatedItems = <Map<String, dynamic>>[
+      ...items,
+      clone,
+    ];
+
+    final error = V4ComponentLayout.validate(updatedItems);
+
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error)),
+      );
+      return;
+    }
+
+    await widget.onSave(widget.section, updatedItems);
+  }
+
+  Future<void> reorderComponents(int oldIndex, int newIndex) async {
+    if (widget.type != _ItemType.component) return;
+
+    if (oldIndex < 0 || oldIndex >= items.length) return;
+
+    if (newIndex < 0 || newIndex >= items.length) return;
+    if (oldIndex == newIndex) return;
+
+    final reordered = List<Map<String, dynamic>>.from(items);
+    final moved = reordered.removeAt(oldIndex);
+    reordered.insert(newIndex, moved);
+
+    // Persist first; keep the existing order if saving fails.
+    await widget.onSave(widget.section, reordered);
   }
 
   Future<void> remove(Map<String, dynamic> item) async {
@@ -296,6 +456,21 @@ class _ItemEditorState extends State<_ItemEditor> {
                       child: const Text('Remove'))
                 ]));
     if (yes != true) return;
+    if (widget.type == _ItemType.component) {
+      final hasChildren = items.any(
+        (child) => child['parentComponentId'] == item['id'],
+      );
+
+      if (hasChildren) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Remove or reassign child components first'),
+          ),
+        );
+        return;
+      }
+    }
     final nextItems = <Map<String, dynamic>>[
       for (final existing in items)
         if (existing['id'] != item['id']) existing,
@@ -436,7 +611,58 @@ class _ItemEditorState extends State<_ItemEditor> {
                     textAlign: TextAlign.center,
                     style: TextStyle(color: AppColors.muted))
               ]))
-        else ...[
+        else if (widget.type == _ItemType.component) ...[
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: items.length,
+            onReorderItem: reorderComponents,
+            itemBuilder: (context, index) {
+              final row = items[index];
+              return Padding(
+                key: ValueKey(row['id']),
+                padding: const EdgeInsets.only(bottom: 9),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.line),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ListTile(
+                    title: Text(
+                      itemTitle(row),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(
+                      itemDescription(row),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Wrap(
+                      spacing: 2,
+                      children: [
+                        IconButton(
+                          tooltip: 'Reuse',
+                          icon: const Icon(Icons.copy_outlined),
+                          onPressed: () => reuseComponent(row),
+                        ),
+                        IconButton(
+                          tooltip: 'Edit',
+                          icon: const Icon(Icons.edit_outlined),
+                          onPressed: () => edit(row),
+                        ),
+                        IconButton(
+                          tooltip: 'Remove',
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => remove(row),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ] else ...[
           for (final row in items)
             Padding(
               padding: const EdgeInsets.only(bottom: 9),
@@ -479,11 +705,23 @@ class _ItemDialogState extends State<_ItemDialog> {
   final fields = <String, TextEditingController>{};
   late String priority;
   late String componentType;
+  String visibilityMode = 'always';
+  String visibilityState = 'default';
   late bool componentEnabled;
   late bool componentRequired;
   late int componentFontSize;
   late int componentElevation;
+  late int componentPadding;
+  late String componentHeaderAlignment;
+  late bool componentListDense;
+  late bool componentTableStriped;
+  String? parentComponentId;
   late String state;
+  String? interactionComponentId;
+  String? interactionTrigger;
+  String interactionAction = 'navigate';
+  String? interactionTargetScreenId;
+  String interactionTargetState = 'default';
   String? fromId;
   String? toId;
   String? screenId;
@@ -498,13 +736,36 @@ class _ItemDialogState extends State<_ItemDialog> {
       'purpose',
       'label',
       'text',
-      'trigger'
+      'trigger',
+      'message',
+      'visibilityRole',
+      'visibilityFieldId',
+      'visibilityEquals'
     ]) {
       fields[key] = TextEditingController(text: (item[key] ?? '').toString());
     }
     priority = (item['priority'] ?? 'Must').toString();
     componentType = (item['type'] ?? 'text').toString();
     final componentProperties = item['properties'];
+    final existingVisibility =
+        componentProperties is Map ? componentProperties['visibility'] : null;
+    final visibility = existingVisibility is Map
+        ? Map<String, dynamic>.from(existingVisibility)
+        : <String, dynamic>{};
+    visibilityMode = V4VisibilityRules.modes.contains(
+      visibility['mode'],
+    )
+        ? visibility['mode'].toString()
+        : 'always';
+    visibilityState = V4VisibilityRules.states.contains(
+      visibility['state'],
+    )
+        ? visibility['state'].toString()
+        : 'default';
+    fields['visibilityRole']!.text = (visibility['role'] ?? '').toString();
+    fields['visibilityFieldId']!.text =
+        (visibility['fieldId'] ?? '').toString();
+    fields['visibilityEquals']!.text = (visibility['equals'] ?? '').toString();
     componentRequired =
         componentProperties is Map && componentProperties['required'] == true;
     final storedPlaceholder =
@@ -526,11 +787,51 @@ class _ItemDialogState extends State<_ItemDialog> {
     componentElevation = storedElevation is num
         ? storedElevation.round().clamp(0, 24).toInt()
         : 2;
+    final storedPadding =
+        componentProperties is Map ? componentProperties['padding'] : null;
+    componentPadding =
+        storedPadding is num ? storedPadding.round().clamp(0, 64).toInt() : 16;
+    final storedImageSource =
+        componentProperties is Map ? componentProperties['src'] : null;
+    final storedImageAlt =
+        componentProperties is Map ? componentProperties['alt'] : null;
+
+    fields['imageSource'] = TextEditingController(
+      text: storedImageSource is String ? storedImageSource : '',
+    );
+    fields['imageAlt'] = TextEditingController(
+      text: storedImageAlt is String ? storedImageAlt : '',
+    );
+
+    final storedAlignment =
+        componentProperties is Map ? componentProperties['alignment'] : null;
+    componentHeaderAlignment =
+        ['left', 'center', 'right'].contains(storedAlignment)
+            ? storedAlignment as String
+            : 'left';
+
+    componentListDense =
+        componentProperties is Map && componentProperties['dense'] == true;
+
+    componentTableStriped = componentProperties is Map &&
+        componentProperties['stripedRows'] == true;
+
     state = (item['state'] ?? 'default').toString();
+    interactionComponentId = item['componentId']?.toString();
+    interactionTrigger = item['trigger']?.toString();
+    interactionAction = item['action']?.toString() ?? 'navigate';
+    interactionTargetScreenId = item['targetScreenId']?.toString();
+    interactionTargetState = item['targetState']?.toString() ?? 'default';
     fromId = item['fromScreenId'] as String?;
     toId = item['toScreenId'] as String?;
     screenId = item['screenId'] as String?;
+    parentComponentId = item['parentComponentId']?.toString();
     featureIds = Set<String>.from(item['featureIds'] as List? ?? []);
+    fields['accessRoles'] = TextEditingController(
+      text: (item['accessRoles'] is List)
+          ? (item['accessRoles'] as List).map((role) => role.toString()).join(', ')
+          : '',
+    );
   }
 
   @override
@@ -576,6 +877,11 @@ class _ItemDialogState extends State<_ItemDialog> {
   Widget build(BuildContext context) {
     final screens = widget.workspace.items('screens');
     final features = widget.workspace.items('features');
+    final interactionComponents = widget.workspace
+        .items('components')
+        .where((component) => V4InteractionRuleValidator.componentTriggers
+            .containsKey(component['type']))
+        .toList();
     final resultFields = <Widget>[];
     switch (widget.type) {
       case _ItemType.feature:
@@ -596,6 +902,12 @@ class _ItemDialogState extends State<_ItemDialog> {
           input('name', 'Screen name', required: true),
           input('purpose', 'Screen purpose', lines: 2),
           const SizedBox(height: 8),
+          input('accessRoles', 'Access roles (comma-separated)'),
+          const Text(
+            'Leave empty for all roles. Example: Admin, Manager',
+            style: TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+          const SizedBox(height: 14),
           const Text('Map features to this screen',
               style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 9),
@@ -624,7 +936,13 @@ class _ItemDialogState extends State<_ItemDialog> {
       case _ItemType.component:
         resultFields.addAll([
           selector(
-              'Screen', screenId, screens, (v) => setState(() => screenId = v)),
+              'Screen',
+              screenId,
+              screens,
+              (v) => setState(() {
+                    screenId = v;
+                    parentComponentId = null;
+                  })),
           DropdownButtonFormField<String>(
               initialValue: componentType,
               decoration: const InputDecoration(labelText: 'Component type'),
@@ -634,6 +952,53 @@ class _ItemDialogState extends State<_ItemDialog> {
               onChanged: (v) => setState(() => componentType = v ?? 'text')),
           const SizedBox(height: 14),
           input('label', 'Component label', required: true),
+          Builder(
+            builder: (context) {
+              final parents = widget.workspace
+                  .items('components')
+                  .where((item) =>
+                      V4ComponentLayout.parentTypes.contains(item['type']) &&
+                      item['screenId'] == screenId &&
+                      item['id'] != widget.original?['id'])
+                  .toList();
+
+              final validParent = parents.any(
+                (item) => item['id'] == parentComponentId,
+              )
+                  ? parentComponentId
+                  : null;
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('parent-$screenId-$validParent'),
+                  initialValue: validParent ?? '',
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Parent component',
+                  ),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: '',
+                      child: Text('None (top level)'),
+                    ),
+                    for (final parent in parents)
+                      DropdownMenuItem<String>(
+                        value: parent['id'].toString(),
+                        child: Text(
+                          (parent['label'] ?? parent['id']).toString(),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() {
+                    parentComponentId =
+                        value == null || value.isEmpty ? null : value;
+                  }),
+                ),
+              );
+            },
+          ),
           input('text', 'Display text', lines: 2),
           if (componentType == 'input') ...[
             input('placeholder', 'Placeholder'),
@@ -661,6 +1026,24 @@ class _ItemDialogState extends State<_ItemDialog> {
                 ),
               ],
             ),
+          if (componentType == 'card' ||
+              componentType == 'container' ||
+              componentType == 'section')
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Padding: $componentPadding'),
+                Slider(
+                  value: componentPadding.toDouble(),
+                  min: 0,
+                  max: 64,
+                  divisions: 64,
+                  label: '$componentPadding',
+                  onChanged: (value) =>
+                      setState(() => componentPadding = value.round()),
+                ),
+              ],
+            ),
           if (componentType == 'card')
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -677,6 +1060,41 @@ class _ItemDialogState extends State<_ItemDialog> {
                 ),
               ],
             ),
+          if (componentType == 'image') ...[
+            input('imageSource', 'Image URL'),
+            input('imageAlt', 'Alt text'),
+          ],
+          if (componentType == 'header')
+            DropdownButtonFormField<String>(
+              key: ValueKey('header-alignment-$componentHeaderAlignment'),
+              initialValue: componentHeaderAlignment,
+              decoration: const InputDecoration(
+                labelText: 'Header alignment',
+              ),
+              items: const [
+                DropdownMenuItem(value: 'left', child: Text('Left')),
+                DropdownMenuItem(value: 'center', child: Text('Center')),
+                DropdownMenuItem(value: 'right', child: Text('Right')),
+              ],
+              onChanged: (value) => setState(
+                () => componentHeaderAlignment = value ?? 'left',
+              ),
+            ),
+          if (componentType == 'list')
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Dense layout'),
+              value: componentListDense,
+              onChanged: (value) => setState(() => componentListDense = value),
+            ),
+          if (componentType == 'table')
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Striped rows'),
+              value: componentTableStriped,
+              onChanged: (value) =>
+                  setState(() => componentTableStriped = value),
+            ),
           if (componentType == 'button')
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -684,27 +1102,209 @@ class _ItemDialogState extends State<_ItemDialog> {
               subtitle: const Text('Allow button interaction'),
               value: componentEnabled,
               onChanged: (value) => setState(() => componentEnabled = value),
-            )
+            ),
+          const Divider(height: 30),
+          const Text(
+            'Conditional Visibility',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            key: const ValueKey('visibility-mode-selector'),
+            initialValue: visibilityMode,
+            decoration: const InputDecoration(
+              labelText: 'Visibility Condition',
+            ),
+            items: const [
+              DropdownMenuItem(value: 'always', child: Text('Always visible')),
+              DropdownMenuItem(value: 'role', child: Text('User role')),
+              DropdownMenuItem(value: 'state', child: Text('UI state')),
+              DropdownMenuItem(
+                value: 'fieldEquals',
+                child: Text('Form field equals value'),
+              ),
+            ],
+            onChanged: (value) => setState(
+              () => visibilityMode = value ?? 'always',
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (visibilityMode == 'role')
+            input('visibilityRole', 'Required User Role', required: true),
+          if (visibilityMode == 'state')
+            DropdownButtonFormField<String>(
+              key: const ValueKey('visibility-state-selector'),
+              initialValue: visibilityState,
+              decoration: const InputDecoration(
+                labelText: 'Required UI State',
+              ),
+              items: [
+                for (final value in V4VisibilityRules.states)
+                  DropdownMenuItem(
+                    value: value,
+                    child: Text(value),
+                  ),
+              ],
+              onChanged: (value) => setState(
+                () => visibilityState = value ?? 'default',
+              ),
+            ),
+          if (visibilityMode == 'fieldEquals') ...[
+            input('visibilityFieldId', 'Form Field ID', required: true),
+            input('visibilityEquals', 'Expected Value', required: true),
+          ],
         ]);
         break;
       case _ItemType.interaction:
+        final selectedComponent = interactionComponents.where(
+          (component) => component['id'] == interactionComponentId,
+        );
+
+        final selectedType = selectedComponent.isEmpty
+            ? ''
+            : selectedComponent.first['type'].toString();
+
+        final availableTriggers =
+            V4InteractionRuleValidator.componentTriggers[selectedType] ??
+                <String>{};
+
         resultFields.addAll([
           input('name', 'Rule name', required: true),
-          DropdownButtonFormField<String>(
-              initialValue: state,
-              decoration: const InputDecoration(labelText: 'UI State'),
+          if (interactionComponents.isNotEmpty) ...[
+            DropdownButtonFormField<String>(
+              key: const ValueKey('interaction-source-component'),
+              initialValue: interactionComponents.any(
+                (component) => component['id'] == interactionComponentId,
+              )
+                  ? interactionComponentId
+                  : null,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Source Component',
+              ),
               items: [
-                'default',
-                'loading',
-                'empty',
-                'error',
-                'success',
-                'disabled',
-                'permission-denied'
-              ].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
-              onChanged: (v) => setState(() => state = v ?? 'default')),
+                const DropdownMenuItem<String>(
+                  value: '',
+                  child: Text('None - state-only rule'),
+                ),
+                for (final component in interactionComponents)
+                  DropdownMenuItem<String>(
+                    value: component['id'].toString(),
+                    child: Text(
+                      (component['label'] ??
+                              component['name'] ??
+                              component['id'])
+                          .toString(),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: (value) => setState(() {
+                interactionComponentId =
+                    value == null || value.isEmpty ? null : value;
+                interactionTrigger = null;
+              }),
+            ),
+            const SizedBox(height: 14),
+            if (interactionComponentId != null) ...[
+              DropdownButtonFormField<String>(
+                key: ValueKey(
+                  'interaction-trigger-$interactionComponentId',
+                ),
+                initialValue: availableTriggers.contains(interactionTrigger)
+                    ? interactionTrigger
+                    : null,
+                decoration: const InputDecoration(labelText: 'Trigger'),
+                items: [
+                  for (final trigger in availableTriggers)
+                    DropdownMenuItem(
+                      value: trigger,
+                      child: Text(trigger),
+                    ),
+                ],
+                onChanged: (value) =>
+                    setState(() => interactionTrigger = value),
+                validator: (value) => value == null ? 'Select Trigger' : null,
+              ),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<String>(
+                initialValue: V4InteractionRuleValidator.actions.contains(
+                  interactionAction,
+                )
+                    ? interactionAction
+                    : 'navigate',
+                decoration: const InputDecoration(labelText: 'Action'),
+                items: [
+                  for (final action in [
+                    'navigate',
+                    'show-message',
+                    'set-state',
+                  ])
+                    DropdownMenuItem(
+                      value: action,
+                      child: Text(action),
+                    ),
+                ],
+                onChanged: (value) => setState(
+                  () => interactionAction = value ?? 'navigate',
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (interactionAction == 'navigate')
+                selector(
+                  'Destination Screen',
+                  interactionTargetScreenId,
+                  screens,
+                  (value) => setState(
+                    () => interactionTargetScreenId = value,
+                  ),
+                ),
+              if (interactionAction == 'show-message')
+                input('message', 'Message text', required: true),
+              if (interactionAction == 'set-state')
+                DropdownButtonFormField<String>(
+                  initialValue: interactionTargetState,
+                  decoration: const InputDecoration(
+                    labelText: 'Target UI State',
+                  ),
+                  items: [
+                    for (final target in [
+                      'default',
+                      'loading',
+                      'empty',
+                      'error',
+                      'success',
+                      'disabled',
+                      'permission-denied',
+                    ])
+                      DropdownMenuItem(
+                        value: target,
+                        child: Text(target),
+                      ),
+                  ],
+                  onChanged: (value) => setState(
+                    () => interactionTargetState = value ?? 'default',
+                  ),
+                ),
+              const SizedBox(height: 14),
+            ],
+          ],
+          DropdownButtonFormField<String>(
+            initialValue: state,
+            decoration: const InputDecoration(labelText: 'UI State'),
+            items: [
+              'default',
+              'loading',
+              'empty',
+              'error',
+              'success',
+              'disabled',
+              'permission-denied',
+            ].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+            onChanged: (v) => setState(() => state = v ?? 'default'),
+          ),
           const SizedBox(height: 14),
-          input('description', 'Behavior / validation / recovery', lines: 3)
+          input('description', 'Behavior / validation / recovery', lines: 3),
         ]);
         break;
     }
@@ -746,7 +1346,8 @@ class _ItemDialogState extends State<_ItemDialog> {
                       'name': fields['name']!.text.trim(),
                       'purpose': fields['purpose']!.text.trim(),
                       'required': true,
-                      'featureIds': featureIds.toList()
+                      'featureIds': featureIds.toList(),
+                      'accessRoles': parseScreenAccessRoles(fields['accessRoles']!.text)
                     });
                     break;
                   case _ItemType.route:
@@ -758,8 +1359,11 @@ class _ItemDialogState extends State<_ItemDialog> {
                     });
                     break;
                   case _ItemType.component:
+                    result.remove('parentComponentId');
                     result.addAll({
                       'screenId': screenId,
+                      if (parentComponentId != null)
+                        'parentComponentId': parentComponentId,
                       'type': componentType,
                       'label': fields['label']!.text.trim(),
                       'text': fields['text']!.text.trim(),
@@ -787,6 +1391,49 @@ class _ItemDialogState extends State<_ItemDialog> {
                                   widget.original!['properties'] as Map)
                               : null),
                           'elevation': componentElevation,
+                          'padding': componentPadding,
+                        },
+                      if (componentType == 'container' ||
+                          componentType == 'section')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'padding': componentPadding,
+                        },
+                      if (componentType == 'image')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'src': fields['imageSource']!.text.trim(),
+                          'alt': fields['imageAlt']!.text.trim(),
+                        },
+                      if (componentType == 'header')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'alignment': componentHeaderAlignment,
+                        },
+                      if (componentType == 'list')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'dense': componentListDense,
+                        },
+                      if (componentType == 'table')
+                        'properties': {
+                          ...?((widget.original?['properties'] is Map)
+                              ? Map<String, dynamic>.from(
+                                  widget.original!['properties'] as Map)
+                              : null),
+                          'stripedRows': componentTableStriped,
                         },
                       if (componentType == 'button')
                         'properties': {
@@ -802,11 +1449,85 @@ class _ItemDialogState extends State<_ItemDialog> {
                     result.addAll({
                       'name': fields['name']!.text.trim(),
                       'state': state,
-                      'description': fields['description']!.text.trim()
+                      'description': fields['description']!.text.trim(),
                     });
+
+                    if (interactionComponentId != null) {
+                      result.addAll({
+                        'componentId': interactionComponentId,
+                        'trigger': interactionTrigger,
+                        'action': interactionAction,
+                      });
+
+                      result.remove('targetScreenId');
+                      result.remove('message');
+                      result.remove('targetState');
+
+                      if (interactionAction == 'navigate') {
+                        result['targetScreenId'] = interactionTargetScreenId;
+                      } else if (interactionAction == 'show-message') {
+                        result['message'] = fields['message']!.text.trim();
+                      } else if (interactionAction == 'set-state') {
+                        result['targetState'] = interactionTargetState;
+                      }
+
+                      final error = V4InteractionRuleValidator.validate(
+                        rule: result,
+                        components: widget.workspace.items('components'),
+                        screens: widget.workspace.items('screens'),
+                      );
+
+                      if (error != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(error)),
+                        );
+                        return;
+                      }
+                    } else {
+                      // Existing state-only rules remain supported.
+                      result.remove('componentId');
+                      result.remove('trigger');
+                      result.remove('action');
+                      result.remove('targetScreenId');
+                      result.remove('message');
+                      result.remove('targetState');
+                    }
                     break;
                 }
                 if (widget.type == _ItemType.component) {
+                  final visibility = <String, dynamic>{
+                    'mode': visibilityMode,
+                    if (visibilityMode == 'role')
+                      'role': fields['visibilityRole']!.text.trim(),
+                    if (visibilityMode == 'state') 'state': visibilityState,
+                    if (visibilityMode == 'fieldEquals') ...{
+                      'fieldId': fields['visibilityFieldId']!.text.trim(),
+                      'equals': fields['visibilityEquals']!.text.trim(),
+                    },
+                  };
+
+                  final visibilityError =
+                      V4VisibilityRules.validate(visibility);
+
+                  if (visibilityError != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(visibilityError)),
+                    );
+                    return;
+                  }
+
+                  final currentProperties = result['properties'];
+                  final mergedProperties = currentProperties is Map
+                      ? Map<String, dynamic>.from(currentProperties)
+                      : <String, dynamic>{};
+
+                  if (visibilityMode == 'always') {
+                    mergedProperties.remove('visibility');
+                  } else {
+                    mergedProperties['visibility'] = visibility;
+                  }
+
+                  result['properties'] = mergedProperties;
                   final error = ComponentRegistry.validateV4Component(
                     type: componentType,
                     label: fields['label']!.text,
@@ -977,6 +1698,20 @@ final projectValidationProvider =
     FutureProvider.family<Map<String, dynamic>, String>(
         (ref, id) => ref.watch(workspaceRepositoryProvider).validate(id));
 
+class V4BlueprintStudio extends StatelessWidget {
+  const V4BlueprintStudio({
+    super.key,
+    required this.workspace,
+  });
+
+  final Workspace workspace;
+
+  @override
+  Widget build(BuildContext context) {
+    return _BlueprintEditor(workspace: workspace);
+  }
+}
+
 class _BlueprintEditor extends ConsumerStatefulWidget {
   const _BlueprintEditor({required this.workspace});
 
@@ -988,16 +1723,174 @@ class _BlueprintEditor extends ConsumerStatefulWidget {
 
 class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   bool generating = false;
+  bool savingDraft = false;
+  bool autosaveEnabled = false;
+  Timer? _autosaveTimer;
+
+  void scheduleAutosave() {
+    _autosaveTimer?.cancel();
+    if (!autosaveEnabled || draftBlueprint == null) return;
+
+    _autosaveTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted && !savingDraft && !generating) {
+        saveBlueprintDraft();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _autosaveTimer?.cancel();
+    super.dispose();
+  }
   String? error;
+  String? selectedBlueprintComponentId;
+  Map<String, dynamic>? draftBlueprint;
   Map<String, dynamic>? localPreview;
+  V4BlueprintHistory? blueprintHistory;
+  int inspectorRevision = 0;
+
+  void undoBlueprint() {
+    if (savingDraft || generating) return;
+    final restored = blueprintHistory?.undo();
+    if (restored == null) return;
+
+    setState(() {
+      draftBlueprint = restored;
+      inspectorRevision++;
+    });
+    scheduleAutosave();
+  }
+
+  void redoBlueprint() {
+    if (savingDraft || generating) return;
+    final restored = blueprintHistory?.redo();
+    if (restored == null) return;
+
+    setState(() {
+      draftBlueprint = restored;
+      inspectorRevision++;
+    });
+    scheduleAutosave();
+  }
+
+  Map<String, dynamic>? selectedComponent(Map<String, dynamic> blueprint) {
+    final selectedId = selectedBlueprintComponentId;
+    if (selectedId == null) return null;
+
+    final components = blueprint['componentInstances'];
+    if (components is! List) return null;
+
+    for (final raw in components) {
+      if (raw is! Map) continue;
+      final component = Map<String, dynamic>.from(raw);
+      final id = (component['componentInstanceId'] ?? component['id'] ?? '')
+          .toString();
+      if (id == selectedId) return component;
+    }
+    return null;
+  }
+
+  // Edits are local preview-only. Never represent them as saved or approved.
+  void updateDraftComponent(Map<String, dynamic> blueprint, Map<String, dynamic> updated) {
+    if (savingDraft || generating) return;
+    final id =
+        (updated['componentInstanceId'] ?? updated['id'] ?? '').toString();
+    if (id.isEmpty || id != selectedBlueprintComponentId) return;
+
+    final rawComponents = blueprint['componentInstances'];
+    if (rawComponents is! List) return;
+
+    var found = false;
+    final components = rawComponents.map((raw) {
+      if (raw is! Map) return raw;
+      final component = Map<String, dynamic>.from(raw);
+      final currentId =
+          (component['componentInstanceId'] ?? component['id'] ?? '')
+              .toString();
+      if (currentId != id) return raw;
+      found = true;
+      return Map<String, dynamic>.from(updated);
+    }).toList();
+    if (!found) return;
+
+    final nextBlueprint = Map<String, dynamic>.from(blueprint);
+    nextBlueprint['componentInstances'] = components;
+    final history = blueprintHistory ??=
+        V4BlueprintHistory(widget.workspace.fields('visualEditorDraft'));
+
+    if (!history.record(nextBlueprint)) return;
+
+    setState(() {
+      draftBlueprint = history.current;
+    });
+    scheduleAutosave();
+  }
+
+  Future<void> saveBlueprintDraft() async {
+    final nextBlueprint = draftBlueprint;
+    if (nextBlueprint == null || savingDraft || generating) return;
+
+    _autosaveTimer?.cancel();
+
+    setState(() {
+      savingDraft = true;
+      error = null;
+    });
+
+    try {
+      final version = await ref.read(workspaceRepositoryProvider).save(
+        widget.workspace.projectId,
+        'visualEditorDraft',
+        widget.workspace.version,
+        nextBlueprint,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        draftBlueprint = null;
+        localPreview = null;
+        blueprintHistory = null;
+        selectedBlueprintComponentId = null;
+        inspectorRevision++;
+      });
+
+      ref.invalidate(workspaceProvider(widget.workspace.projectId));
+      ref.invalidate(projectValidationProvider(widget.workspace.projectId));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Visual editor draft saved - v$version (not approved)'),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          error = 'Visual editor draft was not saved: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => savingDraft = false);
+      }
+    }
+  }
 
   void generatePreview() {
+    if (savingDraft || generating || draftBlueprint != null) return;
     try {
+      // Derived from server-loaded Workspace content, not hardcoded DB records.
       final preview = buildLocalPreviewBlueprint(widget.workspace);
       setState(() {
         localPreview = preview;
+        draftBlueprint = preview;
+        blueprintHistory = V4BlueprintHistory(preview);
+        selectedBlueprintComponentId = null;
+        inspectorRevision++;
         error = null;
       });
+      scheduleAutosave();
     } catch (e) {
       setState(() {
         localPreview = null;
@@ -1007,7 +1900,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   }
 
   Future<void> regenerateBlueprint() async {
-    if (generating) return;
+    if (generating || savingDraft || draftBlueprint != null) return;
 
     final projectId = widget.workspace.projectId;
     final workspaceRepository =
@@ -1035,16 +1928,19 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
 
       final token = current['concurrencyToken'];
 
-      final draft = Map<String, dynamic>.from(
-        current['draft'] as Map? ?? {},
+      final saved = Map<String, dynamic>.from(
+        await workspaceRepository.api.get(
+          '/api/projects/$projectId/blueprints/current',
+        ) as Map,
       );
 
-      final sections = Map<String, dynamic>.from(
-        draft['sections'] as Map? ?? draft,
-      );
+      if (!mounted) return;
 
-      final blueprint =
-          sections['blueprint'] ?? draft['blueprint'];
+      if (saved['version'] != current['version']) {
+        throw StateError('Blueprint version changed. Reload and retry.');
+      }
+
+      final blueprint = saved['blueprint'];
 
       if (blueprint is! Map || blueprint.isEmpty) {
         throw StateError('Generate a saved Blueprint first.');
@@ -1238,7 +2134,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   }
 
   Future<void> compileBlueprint() async {
-    if (generating) return;
+    if (generating || savingDraft || draftBlueprint != null) return;
 
     setState(() {
       generating = true;
@@ -1565,7 +2461,15 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final blueprint = widget.workspace.fields('blueprint');
+    final savedBlueprint = widget.workspace.fields('visualEditorDraft');
+    final visibleBlueprint = draftBlueprint ?? savedBlueprint;
+    final hasCompiledBlueprint = visibleBlueprint['screens'] is List;
+    final interactionRules = widget.workspace.items('interactions');
+
+    if (hasCompiledBlueprint) {
+      blueprintHistory ??= V4BlueprintHistory(visibleBlueprint);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1575,36 +2479,65 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
             children: [
               const SectionTitle(
                 'Blueprint & UI Studio',
-                subtitle: 'Preview saved Builder data or compile a Blueprint through the backend.',
+                subtitle:
+                    'Preview server-loaded Builder data or compile a Blueprint through the backend.',
               ),
               const SizedBox(height: 16),
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: generating ? null : regenerateBlueprint,
-                    icon: const Icon(Icons.auto_awesome),
-                    label: const Text('Safe AI Regeneration'),
+                  FilterChip(
+                    key: const ValueKey('step07-autosave-toggle'),
+                    label: const Text('Autosave (2s)'),
+                    selected: autosaveEnabled,
+                    onSelected: savingDraft || generating
+                        ? null
+                        : (enabled) {
+                            setState(() => autosaveEnabled = enabled);
+                            if (enabled) {
+                              scheduleAutosave();
+                            } else {
+                              _autosaveTimer?.cancel();
+                            }
+                          },
                   ),
                   OutlinedButton.icon(
-                    onPressed: generating ? null : generatePreview,
+                    onPressed: generating || savingDraft || draftBlueprint != null ? null : generatePreview,
                     icon: const Icon(Icons.visibility_outlined),
                     label: const Text('Generate Local Preview'),
                   ),
+                  if (draftBlueprint != null)
+                    FilledButton.icon(
+                      key: const ValueKey('step07-save-draft-button'),
+                      onPressed: savingDraft || generating
+                          ? null
+                          : saveBlueprintDraft,
+                      icon: const Icon(Icons.save_outlined),
+                      label: Text(
+                        savingDraft ? 'Saving Draft...' : 'Save Visual Draft',
+                      ),
+                    ),
                   FilledButton.icon(
-                    onPressed: generating ? null : compileBlueprint,
+                    onPressed: generating || savingDraft || draftBlueprint != null
+                        ? null
+                        : compileBlueprint,
                     icon: const Icon(Icons.auto_awesome),
-                    label: Text(generating
-                        ? 'Generating...'
-                        : 'Generate & Save Blueprint'),
+                    label: const Text('Generate & Save Blueprint'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: generating || savingDraft || draftBlueprint != null
+                        ? null
+                        : regenerateBlueprint,
+                    icon: const Icon(Icons.auto_awesome),
+                    label: const Text('Safe AI Regeneration'),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
               const Text(
-                'Local preview is temporary and does not overwrite the saved Blueprint. '
-                'Backend generation uses confirmed requirements and explicit mappings. It is not approval.',
+                'Generate and edit a visual draft separately from the backend Blueprint. '
+                'Visual draft changes do not modify or approve the canonical Blueprint.',
                 style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
               if (error != null) ...[
@@ -1614,20 +2547,81 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
             ],
           ),
         ),
-        if (localPreview != null) ...[
+        if (localPreview != null && draftBlueprint == null) ...[
           const SizedBox(height: 16),
           const SectionTitle('Local simulation - not validated'),
           const SizedBox(height: 8),
-          SafePreview(key: ObjectKey(localPreview), blueprint: localPreview!),
+          SafePreview(
+            key: ObjectKey(localPreview),
+            blueprint: localPreview!,
+            interactionRules: interactionRules,
+          ),
         ],
         const SizedBox(height: 16),
-        const SectionTitle('Saved Blueprint'),
+        const SectionTitle('Visual Design Workspace'),
         const SizedBox(height: 8),
-        if (blueprint['screens'] is List)
-          SafePreview(blueprint: blueprint)
-        else
+        if (hasCompiledBlueprint) ...[
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                key: const ValueKey('step07-undo-button'),
+                onPressed:
+                    !savingDraft && !generating && blueprintHistory?.canUndo == true ? undoBlueprint : null,
+                icon: const Icon(Icons.undo),
+                label: const Text('Undo'),
+              ),
+              OutlinedButton.icon(
+                key: const ValueKey('step07-redo-button'),
+                onPressed:
+                    !savingDraft && !generating && blueprintHistory?.canRedo == true ? redoBlueprint : null,
+                icon: const Icon(Icons.redo),
+                label: const Text('Redo'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SurfaceCard(
+            child: V4BlueprintSelectionPanel(
+              blueprint: visibleBlueprint,
+              selectedComponentId: selectedBlueprintComponentId,
+              onSelected: (id) {
+                setState(() => selectedBlueprintComponentId = id);
+              },
+            ),
+          ),
+          if (selectedBlueprintComponentId != null) ...[
+            const SizedBox(height: 12),
+            SurfaceCard(
+              child: V4BlueprintPropertyInspector(
+                key: ValueKey(
+                  'step07-inspector-$inspectorRevision-$selectedBlueprintComponentId',
+                ),
+                component: selectedComponent(visibleBlueprint),
+                onChanged: (updated) {
+                  updateDraftComponent(visibleBlueprint, updated);
+                },
+              ),
+            ),
+          ],
+          if (draftBlueprint != null) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'Unsaved local preview changes - Backend not updated',
+              key: ValueKey('step07-unsaved-notice'),
+            ),
+          ],
+          const SizedBox(height: 12),
+          SafePreview(
+            blueprint: visibleBlueprint,
+            interactionRules: interactionRules,
+          ),
+        ] else
           const SurfaceCard(
-            child: Text('No compiled Blueprint yet. Add features, screens and routes; then compile.'),
+            child: Text(
+              'No Blueprint draft yet. Add screens and components, then generate a local preview.',
+            ),
           ),
       ],
     );
