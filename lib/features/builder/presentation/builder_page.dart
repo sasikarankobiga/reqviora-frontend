@@ -9,6 +9,7 @@ import '../../projects/application/projects_providers.dart';
 import '../../projects/domain/project.dart';
 import '../domain/identity_validation.dart';
 import '../../workspace/presentation/authoring_page.dart';
+import '../../workspace/presentation/project_write_gate.dart';
 
 class BuilderPage extends ConsumerWidget {
   const BuilderPage({super.key, required this.projectId, required this.step});
@@ -45,9 +46,12 @@ class BuilderPage extends ConsumerWidget {
                                 ref.invalidate(projectDraftProvider(projectId)),
                       ),
                   data:
-                      (draft) => IdentityEditor(
-                        key: ValueKey('$projectId-${draft.version}'),
-                        draft: draft,
+                      (draft) => ProjectWriteGate(
+                        projectId: projectId,
+                        child: IdentityEditor(
+                          key: ValueKey('$projectId-${draft.version}'),
+                          draft: draft,
+                        ),
                       ),
                 )
           else
@@ -190,7 +194,7 @@ class _IdentityEditorState extends ConsumerState<IdentityEditor> {
   }
 
   Future<void> save({bool proceed = false}) async {
-    if (!(keyForm.currentState?.validate() ?? false)) return;
+    if (saving || !(keyForm.currentState?.validate() ?? false)) return;
     setState(() {
       saving = true;
       error = null;

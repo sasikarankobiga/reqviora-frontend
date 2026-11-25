@@ -1,9 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+import 'package:reqviora_frontend/core/network/api_client.dart';
+import 'package:reqviora_frontend/features/workspace/application/workspace_providers.dart';
+import 'package:reqviora_frontend/features/workspace/data/workspace_repository.dart';
 
 import 'package:reqviora_frontend/features/workspace/domain/workspace.dart';
 import 'package:reqviora_frontend/features/workspace/presentation/authoring_page.dart';
+
+class RecordingWorkspaceRepository extends WorkspaceRepository {
+  RecordingWorkspaceRepository(super.api);
+
+  int saves = 0;
+  int? savedFromVersion;
+  String? savedSection;
+  dynamic savedData;
+
+  @override
+  Future<int> save(
+    String projectId,
+    String section,
+    int version,
+    dynamic data,
+  ) async {
+    saves++;
+    savedFromVersion = version;
+    savedSection = section;
+    savedData = data;
+    return version + 1;
+  }
+}
 
 void main() {
   Workspace workspace() => Workspace(
@@ -59,6 +88,84 @@ void main() {
     await tester.enterText(field, 'Updated button');
     await tester.pumpAndSettle();
   }
+
+  testWidgets('Autosave persists the visual draft and retains undo history', (
+    tester,
+  ) async {
+    final api = ApiClient(
+      MockClient((request) async {
+        return http.Response('Unexpected network request', 500);
+      }),
+    );
+
+    addTearDown(api.dispose);
+
+    final repository = RecordingWorkspaceRepository(api);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [workspaceRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: V4BlueprintStudio(workspace: workspace()),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await generate(tester);
+    await selectComponent(tester);
+    await editLabel(tester);
+
+    final toggle = find.byKey(const ValueKey('step07-autosave-toggle'));
+
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
+    await tester.pump();
+
+    expect(repository.saves, 0);
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+
+    expect(repository.saves, 1);
+    expect(repository.savedFromVersion, 1);
+    expect(repository.savedSection, 'visualEditorDraft');
+    expect(repository.savedData, isA<Map>());
+    expect(find.byKey(const ValueKey('step07-unsaved-notice')), findsNothing);
+
+    final undo = find.byKey(const ValueKey('step07-undo-button'));
+
+    await tester.ensureVisible(undo);
+    await tester.tap(undo);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('step07-unsaved-notice')), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Discard restores the saved visual draft state', (tester) async {
+    await openStudio(tester);
+    await generate(tester);
+
+    final discard = find.byKey(const ValueKey('step07-discard-button'));
+
+    await tester.ensureVisible(discard);
+    await tester.tap(discard);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Discard changes'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('step07-unsaved-notice')), findsNothing);
+
+    expect(find.text('Save Visual Draft'), findsNothing);
+  });
 
   testWidgets('Preserves backend workflow controls', (tester) async {
     await openStudio(tester);

@@ -2,6 +2,11 @@ import 'v4_blueprint_property_inspector.dart';
 import 'v4_blueprint_selection_panel.dart';
 import '../domain/v4_blueprint_history.dart';
 import 'dart:async';
+import '../../../core/auth/auth_session.dart';
+import '../../../core/config/app_config.dart';
+import '../../projects/data/project_members_repository.dart';
+import '../../projects/presentation/project_members_dialog.dart';
+import '../domain/project_edit_policy.dart';
 import '../domain/screen_access_roles.dart';
 import '../../builder/domain/registry/v4_visibility_rules.dart';
 import '../../builder/domain/registry/v4_interaction_rule_validator.dart';
@@ -28,41 +33,173 @@ import '../domain/local_preview_blueprint.dart';
 
 /// Service-backed authoring for Builder steps 02-08. All writes are owner-scoped
 /// and carry a draft version. No fake AI/approval states are produced here.
+final builderMemberRoleProvider = FutureProvider.autoDispose
+    .family<ProjectMemberRole?, String>((ref, projectId) async {
+      final actorId = projectMemberActorId(authSession.token);
+
+      if (actorId == null) return null;
+
+      final members = await ref
+          .watch(projectMembersRepositoryProvider)
+          .getMembers(projectId);
+
+      for (final member in members) {
+        if (member.userId.toLowerCase() == actorId.toLowerCase()) {
+          return member.role;
+        }
+      }
+
+      return null;
+    });
+
+class _ReadOnlyBuilder extends StatelessWidget {
+  const _ReadOnlyBuilder({
+    required this.workspace,
+    required this.step,
+    required this.reason,
+  });
+
+  final Workspace workspace;
+  final int step;
+  final String reason;
+
+  @override
+  Widget build(BuildContext context) {
+    final visual = workspace.fields('visualEditorDraft');
+    final canonical = workspace.fields('blueprint');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SurfaceCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SectionTitle('Read-only workspace'),
+              const SizedBox(height: 12),
+              Text(reason),
+              const SizedBox(height: 12),
+              Text('Project: ${workspace.projectName}'),
+              Text('Draft version: ${workspace.version}'),
+              Text('Features: ${workspace.items('features').length}'),
+              Text('Screens: ${workspace.items('screens').length}'),
+              Text('Components: ${workspace.items('components').length}'),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed:
+                    () =>
+                        context.go('/projects/${workspace.projectId}/overview'),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Project overview'),
+              ),
+              if (step < 8)
+                OutlinedButton(
+                  onPressed:
+                      () => context.go(
+                        '/projects/${workspace.projectId}/builder/${step + 1}',
+                      ),
+                  child: const Text('Next step'),
+                ),
+            ],
+          ),
+        ),
+        if (visual['screens'] is List) ...[
+          const SizedBox(height: 16),
+          const SectionTitle('Saved visual draft'),
+          SafePreview(
+            blueprint: visual,
+            interactionRules: workspace.items('interactions'),
+          ),
+        ] else if (canonical['screens'] is List) ...[
+          const SizedBox(height: 16),
+          const SectionTitle('Canonical Blueprint'),
+          SafePreview(blueprint: canonical),
+        ],
+      ],
+    );
+  }
+}
+
 class BuilderAuthoringPage extends ConsumerWidget {
   const BuilderAuthoringPage({
     super.key,
     required this.projectId,
     required this.step,
   });
+
   final String projectId;
   final int step;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ref
-      .watch(workspaceProvider(projectId))
-      .when(
-        loading:
-            () => const Center(
-              child: Padding(
-                padding: EdgeInsets.all(50),
-                child: CircularProgressIndicator(),
-              ),
-            ),
-        error:
-            (e, _) => InlineError(
-              '$e',
-              onRetry: () => ref.invalidate(workspaceProvider(projectId)),
-            ),
-        data:
-            (workspace) => _Content(
-              key: ValueKey(
-                step == 7
-                    ? '$projectId-$step'
-                    : '$projectId-$step-${workspace.version}',
-              ),
-              workspace: workspace,
-              step: step,
-            ),
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (step < 2 || step > 8) {
+      return const InlineError('Unsupported Builder step.');
+    }
+
+    final role =
+        isLocalDemo
+            ? const AsyncData<ProjectMemberRole?>(ProjectMemberRole.owner)
+            : ref.watch(builderMemberRoleProvider(projectId));
+
+    return role.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error:
+          (error, stack) => InlineError(
+            'Unable to verify project permissions.',
+            onRetry: () => ref.invalidate(builderMemberRoleProvider(projectId)),
+          ),
+      data: (memberRole) {
+        if (memberRole == null) {
+          return const InlineError('Project membership could not be verified.');
+        }
+
+        return ref
+            .watch(workspaceProvider(projectId))
+            .when(
+              loading:
+                  () => const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(50),
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+              error:
+                  (error, stack) => InlineError(
+                    '$error',
+                    onRetry: () => ref.invalidate(workspaceProvider(projectId)),
+                  ),
+              data: (workspace) {
+                final policy = ProjectEditPolicy(
+                  role: memberRole,
+                  approved: workspace.isApproved,
+                );
+
+                if (!policy.canEditStep(step) &&
+                    !(step == 8 && policy.canAccessReviewHistory)) {
+                  return _ReadOnlyBuilder(
+                    workspace: workspace,
+                    step: step,
+                    reason:
+                        workspace.isApproved
+                            ? 'This draft is approved and cannot be edited.'
+                            : 'Your project role does not allow editing this step.',
+                  );
+                }
+
+                return _Content(
+                  key: ValueKey(
+                    step == 7
+                        ? '$projectId-$step'
+                        : '$projectId-$step-${workspace.version}',
+                  ),
+                  workspace: workspace,
+                  step: step,
+                );
+              },
+            );
+      },
+    );
+  }
 }
 
 class _Content extends ConsumerStatefulWidget {
@@ -3040,6 +3177,9 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
   Future<void> loadHistory() => execute(refreshHistory);
 
   Future<void> runValidation() => execute(() async {
+    if (widget.workspace.isApproved) {
+      throw StateError('This draft is already approved.');
+    }
     setState(() {
       result = null;
       validationToken = null;
@@ -3089,6 +3229,9 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
   });
 
   Future<void> approveDraft() => execute(() async {
+    if (widget.workspace.isApproved) {
+      throw StateError('This draft is already approved.');
+    }
     final validation = result;
     final token = validationToken;
 
@@ -3267,13 +3410,17 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
             runSpacing: 10,
             children: [
               FilledButton.icon(
-                onPressed: busy ? null : runValidation,
+                onPressed:
+                    busy || widget.workspace.isApproved ? null : runValidation,
                 icon: const Icon(Icons.fact_check_outlined),
                 label: const Text('Run Backend Validation'),
               ),
               FilledButton.icon(
                 onPressed:
-                    busy || !passed || validationToken == null
+                    busy ||
+                            widget.workspace.isApproved ||
+                            !passed ||
+                            validationToken == null
                         ? null
                         : approveDraft,
                 icon: const Icon(Icons.verified_outlined),

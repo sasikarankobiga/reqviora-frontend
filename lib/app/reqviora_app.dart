@@ -12,6 +12,7 @@ import '../features/auth/presentation/auth_page.dart';
 import '../features/auth/presentation/account_security_pages.dart';
 import '../features/auth/presentation/account_profile_page.dart';
 import '../features/workspace/presentation/preview_page.dart';
+import '../features/workspace/presentation/project_write_gate.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/projects',
@@ -45,13 +46,31 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/projects/:id/sources',
-      builder:
-          (_, state) => InputStudioPage(projectId: state.pathParameters['id']!),
+      builder: (_, state) {
+        final id = state.pathParameters['id']!;
+
+        return Scaffold(
+          body: ProjectWriteGate(
+            projectId: id,
+            ownerOnly: true,
+            child: InputStudioPage(projectId: id),
+          ),
+        );
+      },
     ),
     GoRoute(
       path: '/projects/:id/review-input',
-      builder:
-          (_, state) => InputReviewPage(projectId: state.pathParameters['id']!),
+      builder: (_, state) {
+        final id = state.pathParameters['id']!;
+
+        return Scaffold(
+          body: ProjectWriteGate(
+            projectId: id,
+            ownerOnly: true,
+            child: InputReviewPage(projectId: id),
+          ),
+        );
+      },
     ),
     GoRoute(
       path: '/projects/:id/builder/:step',

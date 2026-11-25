@@ -16,6 +16,10 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
   final form = GlobalKey<FormState>();
   final name = TextEditingController();
   final description = TextEditingController();
+  final nameFocusNode = FocusNode(debugLabel: 'Create project name');
+  final descriptionFocusNode = FocusNode(
+    debugLabel: 'Create project description',
+  );
   String category = 'Software / SaaS';
   final selectedTargets = <String>{'web'};
   String? error;
@@ -24,6 +28,8 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
   void dispose() {
     name.dispose();
     description.dispose();
+    nameFocusNode.dispose();
+    descriptionFocusNode.dispose();
     super.dispose();
   }
 
@@ -82,8 +88,12 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                     TextFormField(
                       key: const ValueKey('create-project-name'),
                       controller: name,
+                      focusNode: nameFocusNode,
                       maxLength: 160,
                       textInputAction: TextInputAction.next,
+                      onEditingComplete: () {
+                        descriptionFocusNode.requestFocus();
+                      },
                       decoration: const InputDecoration(
                         labelText: 'Project name (required)',
                         hintText: 'e.g. Coffee Shop App',
@@ -100,6 +110,7 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                     TextFormField(
                       key: const ValueKey('create-project-description'),
                       controller: description,
+                      focusNode: descriptionFocusNode,
                       maxLines: 3,
                       maxLength: 10000,
                       decoration: const InputDecoration(

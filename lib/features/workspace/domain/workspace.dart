@@ -6,6 +6,7 @@ class Workspace {
     required this.projectName,
     required this.designTargets,
     required this.sections,
+    this.approvedRevisionId,
   });
   final String projectId;
   final String draftId;
@@ -13,7 +14,11 @@ class Workspace {
   final String projectName;
   final List<String> designTargets;
   final Map<String, dynamic> sections;
+  final String? approvedRevisionId;
+
+  bool get isApproved => approvedRevisionId != null;
   factory Workspace.fromJson(Map<String, dynamic> json) => Workspace(
+    approvedRevisionId: json['approvedRevisionId']?.toString(),
     projectId: json['projectId'] as String,
     draftId: json['draftId'] as String,
     version: json['draftVersion'] as int,

@@ -169,8 +169,7 @@ class _Sidebar extends ConsumerWidget {
     child: SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 23, 16, 15),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: ListView(
           children: [
             const Padding(padding: EdgeInsets.only(left: 12), child: _Brand()),
             const SizedBox(height: 35),
@@ -250,7 +249,7 @@ class _Sidebar extends ConsumerWidget {
                 'My Account',
                 '/account',
               ),
-            const Spacer(),
+            const SizedBox(height: 24),
             SurfaceCard(
               color: const Color(0xFFF3F0FF),
               padding: const EdgeInsets.all(13),
@@ -264,7 +263,7 @@ class _Sidebar extends ConsumerWidget {
                   ),
                   const SizedBox(height: 7),
                   const Text(
-                    'Local product milestone',
+                    'Workspace status',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 5),
