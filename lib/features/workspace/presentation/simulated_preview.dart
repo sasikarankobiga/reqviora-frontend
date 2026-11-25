@@ -175,7 +175,7 @@ class _SafePreviewState extends State<SafePreview> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
-                              'Preview-only action · No backend request was made',
+                              'Preview-only action - No backend request was made',
                             ),
                           ),
                         );
