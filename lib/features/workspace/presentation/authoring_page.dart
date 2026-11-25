@@ -2,6 +2,7 @@ import '../../builder/domain/registry/component_registry.dart';
 import '../../builder/domain/registry/v4_component_layout.dart';
 import '../../builder/domain/registry/v4_interaction_rule_validator.dart';
 import '../../builder/domain/registry/v4_visibility_rules.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -69,7 +70,7 @@ class _ContentState extends ConsumerState<_Content> {
       ref.invalidate(projectValidationProvider(widget.workspace.projectId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$section saved · next version created')));
+            SnackBar(content: Text('$section saved ┬╖ next version created')));
       }
     } catch (e) {
       if (mounted) {
@@ -96,7 +97,7 @@ class _ContentState extends ConsumerState<_Content> {
             SizedBox(width: 12),
             Expanded(
                 child: Text(
-                    'Real server-backed draft editor · Owner-controlled · Saved content stays after refresh.',
+                    'Real server-backed draft editor ┬╖ Owner-controlled ┬╖ Saved content stays after refresh.',
                     style: TextStyle(fontSize: 12, height: 1.45)))
           ])),
       const SizedBox(height: 16),
@@ -266,7 +267,7 @@ class _ItemEditorState extends State<_ItemEditor> {
       final lookup = {
         for (final s in widget.workspace.items('screens')) s['id']: s['name']
       };
-      return '${lookup[row['fromScreenId']] ?? 'Missing source'} → ${lookup[row['toScreenId']] ?? 'Missing target'}';
+      return '${lookup[row['fromScreenId']] ?? 'Missing source'} ΓåÆ ${lookup[row['toScreenId']] ?? 'Missing target'}';
     }
     return (row['description'] ??
             row['purpose'] ??
@@ -1606,7 +1607,7 @@ class _ThemeEditorState extends State<_ThemeEditor> {
             final passes = meetsNormalTextContrast(color, '#FFFFFF');
 
             return Text(
-              'Primary color on white: ${ratio.toStringAsFixed(2)}:1 — '
+              'Primary color on white: ${ratio.toStringAsFixed(2)}:1 ΓÇö '
               '${passes ? 'WCAG AA normal-text contrast passed' : 'Low contrast: use a darker primary color'}',
               style: TextStyle(
                 color:
@@ -1629,7 +1630,7 @@ class _ThemeEditorState extends State<_ThemeEditor> {
             final passes = meetsNormalTextContrast(color, '#FFFFFF');
 
             return Text(
-              'Secondary color on white: ${ratio.toStringAsFixed(2)}:1 — '
+              'Secondary color on white: ${ratio.toStringAsFixed(2)}:1 ΓÇö '
               '${passes ? 'WCAG AA normal-text contrast passed' : 'Low contrast: use a darker secondary color'}',
             );
           },
@@ -1688,6 +1689,25 @@ class _BlueprintEditor extends ConsumerStatefulWidget {
 class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   bool generating = false;
   bool savingDraft = false;
+  bool autosaveEnabled = false;
+  Timer? _autosaveTimer;
+
+  void scheduleAutosave() {
+    _autosaveTimer?.cancel();
+    if (!autosaveEnabled || draftBlueprint == null) return;
+
+    _autosaveTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted && !savingDraft && !generating) {
+        saveBlueprintDraft();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _autosaveTimer?.cancel();
+    super.dispose();
+  }
   String? error;
   String? selectedBlueprintComponentId;
   Map<String, dynamic>? draftBlueprint;
@@ -1704,6 +1724,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
       draftBlueprint = restored;
       inspectorRevision++;
     });
+    scheduleAutosave();
   }
 
   void redoBlueprint() {
@@ -1715,6 +1736,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
       draftBlueprint = restored;
       inspectorRevision++;
     });
+    scheduleAutosave();
   }
 
   Map<String, dynamic>? selectedComponent(Map<String, dynamic> blueprint) {
@@ -1767,11 +1789,14 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     setState(() {
       draftBlueprint = history.current;
     });
+    scheduleAutosave();
   }
 
   Future<void> saveBlueprintDraft() async {
     final nextBlueprint = draftBlueprint;
     if (nextBlueprint == null || savingDraft || generating) return;
+
+    _autosaveTimer?.cancel();
 
     setState(() {
       savingDraft = true;
@@ -1833,6 +1858,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   }
 
   Future<void> compileBlueprint() async {
+    _autosaveTimer?.cancel();
     setState(() {
       generating = true;
       error = null;
@@ -1894,6 +1920,21 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                 spacing: 10,
                 runSpacing: 10,
                 children: [
+                  FilterChip(
+                    key: const ValueKey('step07-autosave-toggle'),
+                    label: const Text('Autosave (2s)'),
+                    selected: autosaveEnabled,
+                    onSelected: savingDraft || generating
+                        ? null
+                        : (enabled) {
+                            setState(() => autosaveEnabled = enabled);
+                            if (enabled) {
+                              scheduleAutosave();
+                            } else {
+                              _autosaveTimer?.cancel();
+                            }
+                          },
+                  ),
                   OutlinedButton.icon(
                     onPressed: generating ? null : generatePreview,
                     icon: const Icon(Icons.visibility_outlined),

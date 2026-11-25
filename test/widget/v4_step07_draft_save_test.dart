@@ -138,6 +138,69 @@ void main() {
     client.close();
   });
 
+  testWidgets('Autosave waits 2 seconds and saves the edited Blueprint', (
+    tester,
+  ) async {
+    var putCount = 0;
+
+    final client = MockClient((request) async {
+      if (request.method == 'GET' &&
+          request.url.path == '/api/projects/$projectId/drafts/current') {
+        return response({
+          'version': 1,
+          'concurrencyToken': token,
+          'draft': {
+            'sections': {
+              'blueprint': blueprint('Welcome'),
+              'theme': {'mode': 'dark'},
+            },
+          },
+        }, 200);
+      }
+
+      if (request.method == 'PUT' &&
+          request.url.path == '/api/projects/$projectId/drafts/current') {
+        putCount++;
+
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['expectedConcurrencyToken'], token);
+
+        final draft = body['draft'] as Map<String, dynamic>;
+        final sections = draft['sections'] as Map<String, dynamic>;
+        final saved = sections['blueprint'] as Map<String, dynamic>;
+        final components = saved['componentInstances'] as List;
+        final component = components.first as Map<String, dynamic>;
+        final props = component['props'] as Map<String, dynamic>;
+
+        expect(props['text'], 'Updated REQVIORA');
+        expect(sections['theme'], {'mode': 'dark'});
+
+        return response({'version': 2, 'draft': draft}, 200);
+      }
+
+      return response({'error': 'Unexpected request'}, 500);
+    });
+
+    await openEditor(tester, client);
+
+    final toggle = find.byKey(const ValueKey('step07-autosave-toggle'));
+
+    expect(toggle, findsOneWidget);
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
+    await tester.pump();
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(putCount, 0);
+
+    await tester.pump(const Duration(milliseconds: 1100));
+    await tester.pumpAndSettle();
+
+    expect(putCount, 1);
+    expect(find.textContaining('Blueprint draft saved - v2'), findsOneWidget);
+
+    client.close();
+  });
   testWidgets('Stale draft version retains unsaved changes', (tester) async {
     var putCount = 0;
 
