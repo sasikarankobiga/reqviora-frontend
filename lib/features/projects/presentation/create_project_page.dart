@@ -80,9 +80,12 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                     const SizedBox(height: 22),
                     const _FieldName('Project name *'),
                     TextFormField(
+                      key: const ValueKey('create-project-name'),
                       controller: name,
                       maxLength: 160,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
+                        labelText: 'Project name (required)',
                         hintText: 'e.g. Coffee Shop App',
                         counterText: '',
                       ),
@@ -95,10 +98,12 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                     const SizedBox(height: 17),
                     const _FieldName('Description'),
                     TextFormField(
+                      key: const ValueKey('create-project-description'),
                       controller: description,
                       maxLines: 3,
                       maxLength: 10000,
                       decoration: const InputDecoration(
+                        labelText: 'Description',
                         hintText: 'What problem will your software solve?',
                         counterText: '',
                       ),
@@ -190,9 +195,12 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                     ),
                     if (error != null) ...[
                       const SizedBox(height: 15),
-                      Text(
-                        error!,
-                        style: const TextStyle(color: Color(0xFFCE4455)),
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          error!,
+                          style: const TextStyle(color: Color(0xFFCE4455)),
+                        ),
                       ),
                     ],
                     const SizedBox(height: 28),
@@ -206,6 +214,7 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: FilledButton.icon(
+                            key: const ValueKey('create-project-submit'),
                             onPressed: saving ? null : submit,
                             icon: Icon(
                               saving

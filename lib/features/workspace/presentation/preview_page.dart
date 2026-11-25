@@ -41,7 +41,7 @@ class ProjectPreviewPage extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Compile your Blueprint in Builder Step 07 first.',
+                            'No local preview is saved yet. Open Builder Step 07 to generate one.',
                           ),
                           const SizedBox(height: 15),
                           FilledButton(

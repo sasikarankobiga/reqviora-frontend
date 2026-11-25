@@ -6,8 +6,10 @@ import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
 import '../../workspace/application/workspace_providers.dart';
 import '../../workspace/domain/workspace.dart';
+import '../domain/review_summary.dart';
+import '../../workspace/domain/draft_conflict.dart';
 
-/// PB-05 — persisted text/manual source intake; file and voice services are
+/// PB-05 Ã¢â‚¬â€ persisted text/manual source intake; file and voice services are
 /// intentionally labeled unavailable, not falsely presented as functional.
 class InputStudioPage extends ConsumerStatefulWidget {
   const InputStudioPage({super.key, required this.projectId});
@@ -21,6 +23,16 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
   final input = TextEditingController();
   bool busy = false;
   String? error;
+  bool conflict = false;
+
+  void reportFailure(Object failure) {
+    if (!mounted) return;
+    setState(() {
+      conflict = isDraftConflict(failure);
+      error = draftConflictMessage(failure);
+    });
+  }
+
   @override
   void dispose() {
     label.dispose();
@@ -36,6 +48,7 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
     setState(() {
       busy = true;
       error = null;
+      conflict = false;
     });
     try {
       await ref
@@ -51,7 +64,7 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
         );
       }
     } catch (e) {
-      if (mounted) setState(() => error = '$e');
+      reportFailure(e);
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -61,6 +74,7 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
     setState(() {
       busy = true;
       error = null;
+      conflict = false;
     });
     try {
       final picked = await ref.read(sourcePickerProvider).pick();
@@ -72,12 +86,14 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Uploaded ${picked.name} · ${result['parseStatus']}'),
+            content: Text(
+              'Uploaded ${result['fileName'] ?? picked.name} successfully',
+            ),
           ),
         );
       }
     } catch (e) {
-      if (mounted) setState(() => error = '$e');
+      reportFailure(e);
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -87,6 +103,7 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
     setState(() {
       busy = true;
       error = null;
+      conflict = false;
     });
     try {
       final result = await ref
@@ -97,13 +114,13 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${result['newSuggestions']} local-rule suggestions created · user review required',
+              '${result['newSuggestions']} local-rule suggestions created Ã‚Â· user review required',
             ),
           ),
         );
       }
     } catch (e) {
-      if (mounted) setState(() => error = '$e');
+      reportFailure(e);
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -117,7 +134,7 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const PageIntro(
-          eyebrow: 'PB-05 · Multi-input studio',
+          eyebrow: 'PB-05 Ã‚Â· Multi-input studio',
           title: 'Turn ideas into clear requirements',
           subtitle:
               'Capture evidence, then review every suggested requirement before confirmation.',
@@ -145,13 +162,13 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                     (
                       Icons.file_upload_outlined,
                       'Documents',
-                      'PDF, DOCX, TXT · private upload',
+                      'PDF, DOCX, TXT Ã‚Â· private upload',
                       true,
                     ),
                     (
                       Icons.mic_none_rounded,
                       'Voice',
-                      'Tamil / English STT · pending provider',
+                      'Tamil / English STT Ã‚Â· pending provider',
                       false,
                     ),
                   ])
@@ -206,17 +223,21 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                             ),
                             const SizedBox(height: 17),
                             TextField(
+                              key: const ValueKey('source-title'),
                               controller: label,
+                              textInputAction: TextInputAction.next,
                               decoration: const InputDecoration(
                                 labelText: 'Source title',
                               ),
                             ),
                             const SizedBox(height: 14),
                             TextField(
+                              key: const ValueKey('source-content'),
                               controller: input,
                               minLines: 5,
                               maxLines: 9,
                               decoration: const InputDecoration(
+                                labelText: 'Requirement source content',
                                 hintText:
                                     'Example: Our coffee shop needs menu browsing, mock ordering and table booking.',
                               ),
@@ -263,7 +284,26 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                             ),
                             if (error != null) ...[
                               const SizedBox(height: 12),
-                              InlineError(error!),
+                              Semantics(
+                                liveRegion: true,
+                                child: InlineError(
+                                  error!,
+                                  onRetry:
+                                      conflict
+                                          ? () {
+                                            setState(() {
+                                              conflict = false;
+                                              error = null;
+                                            });
+                                            ref.invalidate(
+                                              workspaceProvider(
+                                                widget.projectId,
+                                              ),
+                                            );
+                                          }
+                                          : null,
+                                ),
+                              ),
                             ],
                             if (busy) const LinearProgressIndicator(),
                           ],
@@ -324,7 +364,17 @@ class InputReviewPage extends ConsumerStatefulWidget {
 
 class _InputReviewPageState extends ConsumerState<InputReviewPage> {
   String? error;
+  bool conflict = false;
   String? pendingId;
+
+  void reportFailure(Object failure) {
+    if (!mounted) return;
+    setState(() {
+      conflict = isDraftConflict(failure);
+      error = draftConflictMessage(failure);
+    });
+  }
+
   Future<void> decide(Workspace w, String id, String decision) async {
     setState(() {
       pendingId = id;
@@ -337,11 +387,13 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
       ref.invalidate(workspaceProvider(w.projectId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Suggestion $decision · decision recorded')),
+          SnackBar(
+            content: Text('Suggestion $decision Ã‚Â· decision recorded'),
+          ),
         );
       }
     } catch (e) {
-      if (mounted) setState(() => error = '$e');
+      reportFailure(e);
     } finally {
       if (mounted) setState(() => pendingId = null);
     }
@@ -412,7 +464,7 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
             );
         ref.invalidate(workspaceProvider(w.projectId));
       } catch (e) {
-        if (mounted) setState(() => error = '$e');
+        reportFailure(e);
       } finally {
         if (mounted) setState(() => pendingId = null);
       }
@@ -429,7 +481,7 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const PageIntro(
-          eyebrow: 'PB-06 · Human confirmation',
+          eyebrow: 'PB-06 Ã‚Â· Human confirmation',
           title: 'You are in control',
           subtitle:
               'Explicitly accept, reject or defer each proposed requirement.',
@@ -472,6 +524,42 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
                           ),
                         ],
                       ),
+                    ),
+                    const SizedBox(height: 16),
+                    Builder(
+                      builder: (context) {
+                        final summary = ReviewSummary.fromCandidates(
+                          candidates,
+                        );
+
+                        return SurfaceCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Local requirement review summary',
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: [
+                                  SmallLabel('Suggested: ${summary.suggested}'),
+                                  SmallLabel('Accepted: ${summary.accepted}'),
+                                  SmallLabel('Rejected: ${summary.rejected}'),
+                                  SmallLabel('Deferred: ${summary.deferred}'),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'These are local draft decisions, not Backend approval.',
+                                style: TextStyle(fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                     if (candidates.isEmpty)
@@ -584,7 +672,25 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
                             ),
                           ),
                         ),
-                    if (error != null) InlineError(error!),
+                    if (error != null)
+                      Semantics(
+                        liveRegion: true,
+                        child: InlineError(
+                          error!,
+                          onRetry:
+                              conflict
+                                  ? () {
+                                    setState(() {
+                                      conflict = false;
+                                      error = null;
+                                    });
+                                    ref.invalidate(
+                                      workspaceProvider(widget.projectId),
+                                    );
+                                  }
+                                  : null,
+                        ),
+                      ),
                     const SizedBox(height: 13),
                     FilledButton.icon(
                       onPressed:
@@ -631,7 +737,7 @@ class PendingPage extends StatelessWidget {
             children: [
               Icon(icon, size: 40, color: AppColors.purple),
               const SizedBox(height: 15),
-              const Text('Not implemented · No fake completed actions'),
+              const Text('Not implemented Ã‚Â· No fake completed actions'),
               const SizedBox(height: 15),
               OutlinedButton(
                 onPressed:

@@ -5,18 +5,29 @@ class ProjectSummary {
     required this.status,
     required this.updatedAt,
   });
+
   final String id;
   final String name;
   final String status;
   final DateTime updatedAt;
-  factory ProjectSummary.fromJson(Map<String, dynamic> data) => ProjectSummary(
-    id: data['projectId'] as String,
-    name: data['name'] as String,
-    status: data['status'] as String? ?? 'active',
-    updatedAt:
-        DateTime.tryParse(data['updatedAt']?.toString() ?? '') ??
-        DateTime.now(),
-  );
+
+  factory ProjectSummary.fromJson(Map<String, dynamic> data) {
+    final rawId = data['id'] ?? data['projectId'];
+
+    if (rawId == null || rawId.toString().isEmpty) {
+      throw const FormatException('Project ID is missing');
+    }
+
+    final rawDate =
+        data['lastModifiedAt'] ?? data['createdAt'] ?? data['updatedAt'];
+
+    return ProjectSummary(
+      id: rawId.toString(),
+      name: (data['name'] ?? '').toString(),
+      status: (data['status'] ?? 'active').toString(),
+      updatedAt: DateTime.tryParse(rawDate?.toString() ?? '') ?? DateTime.now(),
+    );
+  }
 }
 
 class ProjectDraft {
@@ -28,7 +39,10 @@ class ProjectDraft {
     required this.category,
     required this.targets,
     required this.identity,
+    this.concurrencyToken,
+    this.rawDraft = const {},
   });
+
   final String projectId;
   final int version;
   final String name;
@@ -36,17 +50,51 @@ class ProjectDraft {
   final String category;
   final List<String> targets;
   final Map<String, dynamic> identity;
+
+  final String? concurrencyToken;
+  final Map<String, dynamic> rawDraft;
+
   factory ProjectDraft.fromJson(Map<String, dynamic> json) {
-    final project = Map<String, dynamic>.from(json['project'] as Map);
+    if (json.containsKey('draftVersion')) {
+      final project = Map<String, dynamic>.from(json['project'] as Map);
+
+      return ProjectDraft(
+        projectId: json['projectId'].toString(),
+        version: (json['draftVersion'] as num).toInt(),
+        name: (project['name'] ?? '').toString(),
+        description: (project['description'] ?? '').toString(),
+        category: (project['category'] ?? '').toString(),
+        targets: List<String>.from(project['designTargets'] as List? ?? []),
+        identity: Map<String, dynamic>.from(project['identity'] as Map? ?? {}),
+      );
+    }
+
+    final raw = Map<String, dynamic>.from(json['draft'] as Map? ?? {});
+
+    final identity = Map<String, dynamic>.from(raw['identity'] as Map? ?? {});
+
+    final project = Map<String, dynamic>.from(json['project'] as Map? ?? {});
+
+    final primaryPlatform = (project['primaryPlatform'] ?? 'web').toString();
+
+    final savedTargets = identity['designTargets'] ?? raw['designTargets'];
+
     return ProjectDraft(
-      projectId: json['projectId'] as String,
-      version: json['draftVersion'] as int,
-      name: project['name'] as String? ?? '',
-      description: project['description'] as String? ?? '',
-      category: project['category'] as String? ?? '',
-      targets: List<String>.from(project['designTargets'] as List? ?? []),
-      identity: Map<String, dynamic>.from(project['identity'] as Map? ?? {}),
+      projectId: json['projectId'].toString(),
+      version: (json['version'] as num?)?.toInt() ?? 0,
+      name: (identity['name'] ?? project['name'] ?? '').toString(),
+      description:
+          (identity['description'] ?? project['description'] ?? '').toString(),
+      category: (identity['category'] ?? project['industry'] ?? '').toString(),
+      targets:
+          savedTargets is List
+              ? savedTargets.map((value) => value.toString()).toList()
+              : [primaryPlatform],
+      identity: identity,
+      concurrencyToken: json['concurrencyToken']?.toString(),
+      rawDraft: raw,
     );
   }
-  String field(String key) => identity[key] as String? ?? '';
+
+  String field(String key) => identity[key]?.toString() ?? '';
 }

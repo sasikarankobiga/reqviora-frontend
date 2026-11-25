@@ -7,6 +7,7 @@ import '../../../app/widgets.dart';
 import '../../../core/constants/builder_stages.dart';
 import '../../projects/application/projects_providers.dart';
 import '../../projects/domain/project.dart';
+import '../domain/identity_validation.dart';
 import '../../workspace/presentation/authoring_page.dart';
 
 class BuilderPage extends ConsumerWidget {
@@ -245,10 +246,9 @@ class _IdentityEditorState extends ConsumerState<IdentityEditor> {
           ),
           validator:
               key == 'name'
-                  ? (s) =>
-                      s == null || s.trim().isEmpty
-                          ? 'Project name is required'
-                          : null
+                  ? validateIdentityName
+                  : key == 'description'
+                  ? validateIdentityDescription
                   : null,
         ),
       ],
