@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 
@@ -15,11 +16,50 @@ class ApiException implements Exception {
 }
 
 class ApiClient {
-  ApiClient(this._http);
+  ApiClient(this._http, {this.requestTimeout = const Duration(seconds: 60)});
+
+  final Duration requestTimeout;
+
+  Future<T> _network<T>(Future<T> Function() send) async {
+    try {
+      return await send().timeout(requestTimeout);
+    } on TimeoutException {
+      throw const ApiException(
+        0,
+        'The request timed out. Check the current status before retrying.',
+      );
+    } on http.ClientException {
+      throw const ApiException(
+        0,
+        'Cannot connect to backend. Please check your connection.',
+      );
+    }
+  }
+
   final http.Client _http;
   Future<bool>? _refreshInFlight;
   Uri _uri(String path) {
-    final base = Uri.parse(apiBaseUrl);
+    final base = Uri.tryParse(apiBaseUrl);
+    final target = Uri.tryParse(path);
+
+    if (base == null ||
+        !['http', 'https'].contains(base.scheme) ||
+        base.host.isEmpty ||
+        base.userInfo.isNotEmpty ||
+        base.hasFragment ||
+        base.hasQuery) {
+      throw const ApiException(0, 'Invalid backend configuration.');
+    }
+
+    if (target == null ||
+        target.hasScheme ||
+        target.hasAuthority ||
+        target.hasFragment ||
+        !path.startsWith('/api/') ||
+        path.contains('\\') ||
+        !target.path.startsWith('/api/')) {
+      throw const ApiException(0, 'Invalid API request path.');
+    }
     if (kReleaseMode && (isLocalDemo || base.scheme != 'https')) {
       throw const ApiException(
         0,
@@ -57,13 +97,15 @@ class ApiClient {
 
   Future<bool> _exchangeRefresh(String currentToken) async {
     try {
-      final response = await _http.post(
-        _uri('/api/auth/refresh'),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'refreshToken': currentToken}),
+      final response = await _network(
+        () => _http.post(
+          _uri('/api/auth/refresh'),
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({'refreshToken': currentToken}),
+        ),
       );
       if (response.statusCode == 401 || response.statusCode == 403) {
         if (authSession.refreshToken == currentToken) authSession.signOut();
@@ -98,7 +140,11 @@ class ApiClient {
     try {
       data = response.body.isEmpty ? null : jsonDecode(response.body);
     } on FormatException {
-      throw ApiException(response.statusCode, 'Invalid response from server');
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        throw ApiException(response.statusCode, 'Invalid response from server');
+      }
+
+      data = null;
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final message =
@@ -115,15 +161,22 @@ class ApiClient {
 
   Future<dynamic> get(String path) async {
     try {
-      var response = await _http.get(_uri(path), headers: _headers);
+      var response = await _network(
+        () => _http.get(_uri(path), headers: _headers),
+      );
       if (response.statusCode == 401 &&
           _canRefresh(path) &&
           await _refreshOnce()) {
-        response = await _http.get(_uri(path), headers: _headers);
+        response = await _network(
+          () => _http.get(_uri(path), headers: _headers),
+        );
       }
       return _parse(response);
-    } on http.ClientException catch (e) {
-      throw ApiException(0, 'Cannot connect to backend: $e');
+    } on http.ClientException {
+      throw ApiException(
+        0,
+        'Cannot connect to backend. Please check your connection.',
+      );
     }
   }
 
@@ -138,15 +191,18 @@ class ApiClient {
         headers: {..._headers, if (key != null) 'Idempotency-Key': key},
         body: jsonEncode(data),
       );
-      var response = await send();
+      var response = await _network(send);
       if (response.statusCode == 401 &&
           _canRefresh(path) &&
           await _refreshOnce()) {
-        response = await send();
+        response = await _network(send);
       }
       return _parse(response);
-    } on http.ClientException catch (e) {
-      throw ApiException(0, 'Cannot connect to backend: $e');
+    } on http.ClientException {
+      throw ApiException(
+        0,
+        'Cannot connect to backend. Please check your connection.',
+      );
     }
   }
 
@@ -154,15 +210,18 @@ class ApiClient {
     try {
       Future<http.Response> send() =>
           _http.put(_uri(path), headers: _headers, body: jsonEncode(data));
-      var response = await send();
+      var response = await _network(send);
       if (response.statusCode == 401 &&
           _canRefresh(path) &&
           await _refreshOnce()) {
-        response = await send();
+        response = await _network(send);
       }
       return _parse(response);
-    } on http.ClientException catch (e) {
-      throw ApiException(0, 'Cannot connect to backend: $e');
+    } on http.ClientException {
+      throw ApiException(
+        0,
+        'Cannot connect to backend. Please check your connection.',
+      );
     }
   }
 
@@ -171,17 +230,20 @@ class ApiClient {
       Future<http.Response> send() =>
           _http.delete(_uri(path), headers: _headers);
 
-      var response = await send();
+      var response = await _network(send);
 
       if (response.statusCode == 401 &&
           _canRefresh(path) &&
           await _refreshOnce()) {
-        response = await send();
+        response = await _network(send);
       }
 
       _parse(response);
-    } on http.ClientException catch (error) {
-      throw ApiException(0, 'Cannot connect to backend: $error');
+    } on http.ClientException {
+      throw ApiException(
+        0,
+        'Cannot connect to backend. Please check your connection.',
+      );
     }
   }
 
@@ -246,27 +308,45 @@ class ApiClient {
       ),
     );
 
-    final response = await _http.send(request);
-    final received = await http.Response.fromStream(response);
+    final received = await _network(() async {
+      final response = await _http.send(request);
+      return http.Response.fromStream(response);
+    });
 
-    return Map<String, dynamic>.from(_parse(received) as Map);
+    final result = _parse(received);
+
+    if (result is! Map) {
+      throw ApiException(
+        received.statusCode,
+        'Invalid document upload response.',
+      );
+    }
+
+    return Map<String, dynamic>.from(result);
   }
 
   Future<List<int>> getBytes(String path) async {
     try {
-      var response = await _http.get(_uri(path), headers: _headers);
+      var response = await _network(
+        () => _http.get(_uri(path), headers: _headers),
+      );
       if (response.statusCode == 401 &&
           _canRefresh(path) &&
           await _refreshOnce()) {
-        response = await _http.get(_uri(path), headers: _headers);
+        response = await _network(
+          () => _http.get(_uri(path), headers: _headers),
+        );
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         _parse(response);
         throw ApiException(response.statusCode, 'Download failed');
       }
       return response.bodyBytes;
-    } on http.ClientException catch (e) {
-      throw ApiException(0, 'Cannot connect to backend: $e');
+    } on http.ClientException {
+      throw ApiException(
+        0,
+        'Cannot connect to backend. Please check your connection.',
+      );
     }
   }
 
@@ -333,12 +413,12 @@ class ApiClient {
     }
 
     try {
-      var response = await send();
+      var response = await _network(send);
 
       if (response.statusCode == 401 &&
           _canRefresh(path) &&
           await _refreshOnce()) {
-        response = await send();
+        response = await _network(send);
       }
 
       final result = _parse(response);
@@ -348,8 +428,11 @@ class ApiClient {
       }
 
       return Map<String, dynamic>.from(result);
-    } on http.ClientException catch (error) {
-      throw ApiException(0, 'Cannot connect to backend: $error');
+    } on http.ClientException {
+      throw ApiException(
+        0,
+        'Cannot connect to backend. Please check your connection.',
+      );
     }
   }
 
