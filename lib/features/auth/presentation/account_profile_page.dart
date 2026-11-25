@@ -138,6 +138,17 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
                       ),
                       const SizedBox(height: 16),
                       if (!widget.confirmChange) ...[
+                        if (authSession.authenticated) ...[
+                          OutlinedButton.icon(
+                            onPressed:
+                                _busy
+                                    ? null
+                                    : () => context.push('/administration'),
+                            icon: const Icon(Icons.admin_panel_settings),
+                            label: const Text('Administration'),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         OutlinedButton.icon(
                           onPressed: _busy ? null : _loadProfile,
                           icon: const Icon(Icons.refresh),

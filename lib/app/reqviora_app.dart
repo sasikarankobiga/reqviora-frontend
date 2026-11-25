@@ -13,6 +13,7 @@ import '../core/config/app_config.dart';
 import '../features/auth/presentation/auth_page.dart';
 import '../features/auth/presentation/account_security_pages.dart';
 import '../features/auth/presentation/account_profile_page.dart';
+import '../features/administration/presentation/pages/admin_dashboard_page.dart';
 import '../features/workspace/presentation/preview_page.dart';
 import '../features/workspace/presentation/project_write_gate.dart';
 
@@ -123,6 +124,11 @@ final appRouter = GoRouter(
           ),
     ),
     GoRoute(path: '/account', builder: (_, _) => const AccountProfilePage()),
+    GoRoute(
+      path: '/administration',
+      redirect: (_, _) => isLocalDemo ? '/projects' : null,
+      builder: (_, _) => const AdminDashboardPage(),
+    ),
     GoRoute(
       path: '/confirm-email-change',
       builder:
