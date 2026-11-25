@@ -43,7 +43,7 @@ void main() {
   }
 
   testWidgets('opens Step 06 interaction editor', (tester) async {
-    await openStudio(tester, workspace(), (_, __) async {});
+    await openStudio(tester, workspace(), (_, _) async {});
 
     expect(find.text('Interaction & state rules'), findsOneWidget);
 
@@ -62,7 +62,7 @@ void main() {
   testWidgets('requires a rule name before save', (tester) async {
     var saveCalls = 0;
 
-    await openStudio(tester, workspace(), (_, __) async {
+    await openStudio(tester, workspace(), (_, _) async {
       saveCalls++;
     });
 

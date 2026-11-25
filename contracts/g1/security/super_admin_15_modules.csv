@@ -1,0 +1,16 @@
+﻿ID,Feature,Delivery
+SA-FR-01,Admin authentication and protected access,V1
+SA-FR-02,Operations dashboard,V1
+SA-FR-03,User directory/search/filter,V1
+SA-FR-04,Suspend/reactivate accounts and revoke sessions,V1
+SA-FR-05,Project metadata-only oversight,V1
+SA-FR-06,MCP grant metadata directory,V1
+SA-FR-07,MCP emergency revocation,V1
+SA-FR-08,Export job diagnostics (no ZIP bodies),V1
+SA-FR-09,Validation health monitoring (no private findings),V1
+SA-FR-10,Security audit events/alerts (redacted),V1
+SA-FR-11,System health and queue monitoring,V1
+SA-FR-12,Versioned allowlisted platform settings with safe rollback,V1 guarded
+SA-FR-13,Minimal support / incident queue (metadata only),V1 minimal
+SA-FR-14,Admin profile and session management,V1
+SA-FR-15,Accessible loading/error/empty states,V1

@@ -6,7 +6,15 @@ class AuthSession extends ChangeNotifier {
   String? _token;
   String? get token => _token;
   bool get authenticated => _token != null && _token!.isNotEmpty;
-  void signIn(String token) { _token = token; notifyListeners(); }
-  void signOut() { _token = null; notifyListeners(); }
+  void signIn(String token) {
+    _token = token;
+    notifyListeners();
+  }
+
+  void signOut() {
+    _token = null;
+    notifyListeners();
+  }
 }
+
 final authSession = AuthSession();

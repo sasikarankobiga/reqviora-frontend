@@ -12,7 +12,9 @@ class BrowserSourcePicker implements SourcePicker {
     await input.onChange.first;
     final file = input.files?.firstOrNull;
     if (file == null) return null;
-    if (file.size > 5000000) throw StateError('File exceeds the 5 MB local development limit');
+    if (file.size > 5000000) {
+      throw StateError('File exceeds the 5 MB local development limit');
+    }
     final reader = html.FileReader();
     reader.readAsArrayBuffer(file);
     await reader.onLoad.first;

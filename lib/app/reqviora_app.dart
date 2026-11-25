@@ -11,33 +11,76 @@ import '../core/config/app_config.dart';
 import '../features/auth/presentation/auth_page.dart';
 import '../features/workspace/presentation/preview_page.dart';
 
-final appRouter = GoRouter(initialLocation: '/projects',
+final appRouter = GoRouter(
+  initialLocation: '/projects',
   refreshListenable: authSession,
   redirect: (_, state) {
     if (isLocalDemo) return null;
-    final login = state.matchedLocation == '/login';
-    if (!authSession.authenticated && !login) return '/login';
-    if (authSession.authenticated && login) return '/projects';
+    final publicAuth =
+        state.matchedLocation == '/login' ||
+        state.matchedLocation == '/register';
+    if (!authSession.authenticated && !publicAuth) return '/login';
+    if (authSession.authenticated && publicAuth) return '/projects';
     return null;
-  }, routes: [
-  GoRoute(path: '/projects', builder: (_, __) => const ProjectsPage()),
-  GoRoute(path: '/projects/new', builder: (_, __) => const CreateProjectPage()),
-  GoRoute(path: '/projects/:id/overview', builder: (_, state) => ProjectOverviewPage(
-    projectId: state.pathParameters['id']!)),
-  GoRoute(path: '/projects/:id/sources', builder: (_, state) => InputStudioPage(
-    projectId: state.pathParameters['id']!)),
-  GoRoute(path: '/projects/:id/review-input', builder: (_, state) => InputReviewPage(
-    projectId: state.pathParameters['id']!)),
-  GoRoute(path: '/projects/:id/builder/:step', builder: (_, state) => BuilderPage(
-    projectId: state.pathParameters['id']!, step: int.tryParse(state.pathParameters['step'] ?? '1') ?? 1)),
-  GoRoute(path: '/projects/:id/preview', builder: (_, state) => ProjectPreviewPage(
-    projectId: state.pathParameters['id']!)),
-  GoRoute(path: '/login', builder: (_, __) => const AuthPage()),
-]);
+  },
+  routes: [
+    GoRoute(path: '/projects', builder: (_, _) => const ProjectsPage()),
+    GoRoute(
+      path: '/projects/new',
+      builder: (_, _) => const CreateProjectPage(),
+    ),
+    GoRoute(
+      path: '/projects/:id/overview',
+      builder:
+          (_, state) =>
+              ProjectOverviewPage(projectId: state.pathParameters['id']!),
+    ),
+    GoRoute(
+      path: '/projects/:id/sources',
+      builder:
+          (_, state) => InputStudioPage(projectId: state.pathParameters['id']!),
+    ),
+    GoRoute(
+      path: '/projects/:id/review-input',
+      builder:
+          (_, state) => InputReviewPage(projectId: state.pathParameters['id']!),
+    ),
+    GoRoute(
+      path: '/projects/:id/builder/:step',
+      builder:
+          (_, state) => BuilderPage(
+            projectId: state.pathParameters['id']!,
+            step: int.tryParse(state.pathParameters['step'] ?? '1') ?? 1,
+          ),
+    ),
+    GoRoute(
+      path: '/projects/:id/preview',
+      builder:
+          (_, state) =>
+              ProjectPreviewPage(projectId: state.pathParameters['id']!),
+    ),
+    GoRoute(
+      path: '/login',
+      builder:
+          (_, state) => AuthPage(
+            showRegistrationSuccess:
+                state.uri.queryParameters['registered'] == '1',
+          ),
+    ),
+    GoRoute(
+      path: '/register',
+      builder: (_, _) => const AuthPage(register: true),
+    ),
+  ],
+);
 
 class ReqvioraApp extends StatelessWidget {
   const ReqvioraApp({super.key});
-  @override Widget build(BuildContext context) => MaterialApp.router(
-    title: 'REQVIORA · Design Workspace', debugShowCheckedModeBanner: false,
-    theme: appTheme(), routerConfig: appRouter);
+  @override
+  Widget build(BuildContext context) => MaterialApp.router(
+    title: 'REQVIORA · Design Workspace',
+    debugShowCheckedModeBanner: false,
+    theme: appTheme(),
+    routerConfig: appRouter,
+  );
 }
