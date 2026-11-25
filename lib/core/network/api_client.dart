@@ -234,5 +234,90 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> transcribeAudio({
+    required String projectId,
+    required String filename,
+    required Uint8List bytes,
+    required String languageCode,
+    required int durationSeconds,
+    required bool consentGranted,
+  }) async {
+    if (!consentGranted) {
+      throw ArgumentError('Voice processing consent is required');
+    }
+
+    if (!['en', 'ta', 'en-LK', 'ta-LK'].contains(languageCode)) {
+      throw ArgumentError('Unsupported language');
+    }
+
+    if (bytes.isEmpty || bytes.length > 25000000) {
+      throw ArgumentError('Audio must be between 1 byte and 25 MB');
+    }
+
+    if (durationSeconds < 1 || durationSeconds > 1800) {
+      throw ArgumentError('Audio duration must be 1 to 1800 seconds');
+    }
+
+    final mediaType = switch (filename.split('.').last.toLowerCase()) {
+      'wav' => MediaType('audio', 'wav'),
+      'mp3' => MediaType('audio', 'mpeg'),
+      'm4a' || 'mp4' => MediaType('audio', 'mp4'),
+      'webm' => MediaType('audio', 'webm'),
+      _ => throw ArgumentError('Unsupported audio format'),
+    };
+
+    final path =
+        '/api/projects/$projectId/input-intelligence/voice/transcribe';
+
+    Future<http.Response> send() async {
+      final request = http.MultipartRequest('POST', _uri(path));
+
+      request.headers.addAll({
+        'Accept': 'application/json',
+        if (authSession.token != null)
+          'Authorization': 'Bearer ${authSession.token}',
+        if (isLocalDemo && !kReleaseMode)
+          'X-Reqviora-Local-Demo': 'true',
+      });
+
+      request.fields.addAll({
+        'LanguageCode': languageCode,
+        'DurationSeconds': durationSeconds.toString(),
+        'ConsentGranted': consentGranted.toString(),
+      });
+
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'Audio',
+          bytes,
+          filename: filename,
+          contentType: mediaType,
+        ),
+      );
+
+      return http.Response.fromStream(await _http.send(request));
+    }
+
+    try {
+      var response = await send();
+
+      if (response.statusCode == 401 &&
+          _canRefresh(path) &&
+          await _refreshOnce()) {
+        response = await send();
+      }
+
+      final result = _parse(response);
+
+      if (result is! Map) {
+        throw const FormatException('Invalid transcript response');
+      }
+
+      return Map<String, dynamic>.from(result);
+    } on http.ClientException catch (error) {
+      throw ApiException(0, 'Cannot connect to backend: $error');
+    }
+  }
+
   void dispose() => _http.close();
 }

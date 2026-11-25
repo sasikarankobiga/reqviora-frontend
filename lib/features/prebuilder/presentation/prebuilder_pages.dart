@@ -7,6 +7,8 @@ import '../../../app/widgets.dart';
 import '../../workspace/application/workspace_providers.dart';
 import '../../workspace/domain/workspace.dart';
 import '../domain/review_summary.dart';
+import 'ai_extraction_panel.dart';
+import 'voice_input_panel.dart';
 import '../../workspace/domain/draft_conflict.dart';
 
 /// PB-05 Ã¢â‚¬â€ persisted text/manual source intake; file and voice services are
@@ -168,8 +170,7 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                     (
                       Icons.mic_none_rounded,
                       'Voice',
-                      'Tamil / English STT Ã‚Â· pending provider',
-                      false,
+                      'Tamil / English audio transcription', true,
                     ),
                   ])
                     SizedBox(
@@ -308,6 +309,18 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                             if (busy) const LinearProgressIndicator(),
                           ],
                         ),
+                      ),
+                      const SizedBox(height: 15),
+                      VoiceInputPanel(
+                        key: ValueKey('voice-${w.projectId}'),
+                        workspace: w,
+                        disabled: busy,
+                      ),
+                      const SizedBox(height: 15),
+                      AiExtractionPanel(
+                        key: ValueKey(w.projectId),
+                        workspace: w,
+                        disabled: busy,
                       ),
                       const SizedBox(height: 15),
                       SurfaceCard(

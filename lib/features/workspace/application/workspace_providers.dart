@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../projects/application/projects_providers.dart';
 import '../domain/workspace.dart';
 import '../data/workspace_repository.dart';
+import '../data/ai_intelligence_repository.dart';
 import '../data/browser_source_picker_stub.dart'
     if (dart.library.html) '../data/browser_source_picker.dart'
     as platform_picker;
@@ -24,4 +25,8 @@ final sourcePickerProvider = Provider<SourcePicker>(
 
 final downloadPortProvider = Provider<DownloadPort>(
   (ref) => platform_download.createDownloader(),
+);
+
+final aiIntelligenceRepositoryProvider = Provider<AiIntelligenceRepository>(
+  (ref) => AiIntelligenceRepository(ref.watch(apiClientProvider)),
 );
