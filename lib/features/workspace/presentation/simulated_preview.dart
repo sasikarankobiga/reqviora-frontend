@@ -40,6 +40,41 @@ class _SafePreviewState extends State<SafePreview> {
     return Color(int.tryParse('FF$hex', radix: 16) ?? 0xFF6654E8);
   }
 
+  Map<String, dynamic> get projectTokens =>
+      obj(widget.blueprint['designTokens']);
+
+  String get projectFontFamily {
+    final font = projectTokens['fontFamily']?.toString().trim() ?? '';
+    return font.isEmpty ? 'Roboto' : font;
+  }
+
+  double get projectSpacing {
+    final raw = projectTokens['baseSpacing'];
+    final number = raw is num
+        ? raw.toDouble()
+        : double.tryParse(raw?.toString() ?? '');
+
+    return number != null &&
+            number.isFinite &&
+            number >= 4 &&
+            number <= 32
+        ? number
+        : 8;
+  }
+
+  double get projectRadius {
+    final raw = projectTokens['borderRadius'];
+    final number = raw is num
+        ? raw.toDouble()
+        : double.tryParse(raw?.toString() ?? '');
+
+    return number != null &&
+            number.isFinite &&
+            number >= 0 &&
+            number <= 48
+        ? number
+        : 12;
+  }
   void navigate(String id) => setState(() {
         screenId = id;
         inputs.clear();
@@ -117,7 +152,7 @@ class _SafePreviewState extends State<SafePreview> {
           _ => TextAlign.left,
         };
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: EdgeInsets.symmetric(vertical: projectSpacing),
           child: SizedBox(
             width: double.infinity,
             child: Text(
@@ -129,6 +164,7 @@ class _SafePreviewState extends State<SafePreview> {
                 fontWeight: type == 'header' || props['variant'] == 'heading'
                     ? FontWeight.w900
                     : FontWeight.w500,
+                fontFamily: projectFontFamily,
               ),
             ),
           ),
@@ -144,10 +180,10 @@ class _SafePreviewState extends State<SafePreview> {
               'preview-parent-${c['componentInstanceId'] ?? c['id']}',
             ),
             width: double.infinity,
-            padding: const EdgeInsets.all(18),
+            padding: EdgeInsets.all(projectSpacing * 2),
             decoration: BoxDecoration(
               color: const Color(0xFFF6F4FC),
-              borderRadius: BorderRadius.circular(15),
+              borderRadius: BorderRadius.circular(projectRadius),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -471,10 +507,10 @@ class _SafePreviewState extends State<SafePreview> {
               child: Container(
                   width: double.infinity,
                   constraints: const BoxConstraints(minHeight: 320),
-                  padding: const EdgeInsets.all(21),
+                  padding: EdgeInsets.all(projectSpacing * 2),
                   decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(21),
+                      borderRadius: BorderRadius.circular(projectRadius),
                       border: Border.all(color: AppColors.line),
                       boxShadow: [
                         BoxShadow(

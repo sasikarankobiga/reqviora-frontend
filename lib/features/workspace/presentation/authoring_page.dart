@@ -1526,6 +1526,9 @@ class _ThemeEditorState extends State<_ThemeEditor> {
   final form = GlobalKey<FormState>();
   late final TextEditingController primary;
   late final TextEditingController secondary;
+  late final TextEditingController fontFamily;
+  late final TextEditingController baseSpacing;
+  late final TextEditingController borderRadius;
   late String mode;
   @override
   void initState() {
@@ -1535,6 +1538,12 @@ class _ThemeEditorState extends State<_ThemeEditor> {
         text: (values['primaryColor'] ?? '#6654E8').toString());
     secondary = TextEditingController(
         text: (values['secondaryColor'] ?? '#2C8FCE').toString());
+    fontFamily = TextEditingController(
+        text: (values['fontFamily'] ?? 'Roboto').toString());
+    baseSpacing = TextEditingController(
+        text: (values['baseSpacing'] ?? 8).toString());
+    borderRadius = TextEditingController(
+        text: (values['borderRadius'] ?? 12).toString());
     mode = (values['mode'] ?? 'light').toString();
   }
 
@@ -1542,6 +1551,9 @@ class _ThemeEditorState extends State<_ThemeEditor> {
   void dispose() {
     primary.dispose();
     secondary.dispose();
+    fontFamily.dispose();
+    baseSpacing.dispose();
+    borderRadius.dispose();
     super.dispose();
   }
 
@@ -1636,6 +1648,54 @@ class _ThemeEditorState extends State<_ThemeEditor> {
           },
         ),
         const SizedBox(height: 17),
+        const SizedBox(height: 20),
+        const SectionTitle(
+          'Typography & layout',
+          subtitle: 'Project-level design tokens for the generated UI.',
+        ),
+        const SizedBox(height: 14),
+        TextFormField(
+          controller: fontFamily,
+          decoration: const InputDecoration(
+            labelText: 'Font family',
+            hintText: 'Roboto',
+          ),
+          validator: (value) =>
+              (value ?? '').trim().isEmpty
+                  ? 'Enter a font family'
+                  : null,
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: baseSpacing,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Base spacing (px)',
+            hintText: '8',
+          ),
+          validator: (value) {
+            final number = int.tryParse((value ?? '').trim());
+            return number != null && number >= 4 && number <= 32
+                ? null
+                : 'Use a whole number from 4 to 32';
+          },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: borderRadius,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Border radius (px)',
+            hintText: '12',
+          ),
+          validator: (value) {
+            final number = int.tryParse((value ?? '').trim());
+            return number != null && number >= 0 && number <= 48
+                ? null
+                : 'Use a whole number from 0 to 48';
+          },
+        ),
+        const SizedBox(height: 17),
         DropdownButtonFormField<String>(
             initialValue: mode,
             decoration: const InputDecoration(labelText: 'Color mode'),
@@ -1651,7 +1711,10 @@ class _ThemeEditorState extends State<_ThemeEditor> {
                 ...widget.workspace.fields('theme'),
                 'primaryColor': primary.text.trim(),
                 'secondaryColor': secondary.text.trim(),
-                'mode': mode
+                'mode': mode,
+                'fontFamily': fontFamily.text.trim(),
+                'baseSpacing': int.parse(baseSpacing.text.trim()),
+                'borderRadius': int.parse(borderRadius.text.trim())
               });
             },
             icon: const Icon(Icons.save_outlined),
