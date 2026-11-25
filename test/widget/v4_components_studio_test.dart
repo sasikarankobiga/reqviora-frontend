@@ -1884,7 +1884,7 @@ void main() {
 
     var saveCalls = 0;
 
-    await openStudio(tester, (_, __) async {
+    await openStudio(tester, (_, _) async {
       saveCalls++;
     }, workspace: workspace);
 
@@ -1944,7 +1944,7 @@ void main() {
 
     var saveCalls = 0;
 
-    await openStudio(tester, (_, __) async {
+    await openStudio(tester, (_, _) async {
       saveCalls++;
     }, workspace: workspace);
 

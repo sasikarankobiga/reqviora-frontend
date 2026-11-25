@@ -19,6 +19,7 @@ import 'simulated_preview.dart';
 import 'v4_blueprint_selection_panel.dart';
 import 'v4_blueprint_property_inspector.dart';
 import '../domain/local_preview_blueprint.dart';
+import '../domain/v4_blueprint_history.dart';
 
 /// Service-backed authoring for Builder steps 02-08. All writes are owner-scoped
 /// and carry a draft version. No fake AI/approval states are produced here.
@@ -67,8 +68,8 @@ class _ContentState extends ConsumerState<_Content> {
       ref.invalidate(workspaceProvider(widget.workspace.projectId));
       ref.invalidate(projectValidationProvider(widget.workspace.projectId));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('$section saved · next version created')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$section saved · next version created')));
       }
     } catch (e) {
       if (mounted) {
@@ -1555,85 +1556,86 @@ class _ThemeEditorState extends State<_ThemeEditor> {
             subtitle:
                 'Persistent design tokens used by the template renderer.'),
         const SizedBox(height: 20),
-        Wrap(spacing: 20, runSpacing: 18, children: [
-          for (final entry in <(String, TextEditingController)>[
-            ('Primary color', primary),
-            ('Secondary color', secondary)
-          ])
-            SizedBox(
+        Wrap(
+          spacing: 20,
+          runSpacing: 18,
+          children: [
+            for (final entry in <(String, TextEditingController)>[
+              ('Primary color', primary),
+              ('Secondary color', secondary)
+            ])
+              SizedBox(
                 width: 240,
-                child: Row(children: [
-                  Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                          color: swatch(entry.$2.text),
-                          borderRadius: BorderRadius.circular(10))),
-                  const SizedBox(width: 10),
-                  Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                            color: swatch(entry.$2.text),
+                            borderRadius: BorderRadius.circular(10))),
+                    const SizedBox(width: 10),
+                    Expanded(
                       child: TextFormField(
-                          controller: entry.$2,
-                          decoration: InputDecoration(labelText: entry.$1),
-                          onChanged: (_) => setState(() {}),
-                          validator:
-                              (s) =>
-                                  RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(s ?? '')
-                                      ? null
-                                      : 'Use #RRGGBB',
-                        ),
+                        controller: entry.$2,
+                        decoration: InputDecoration(labelText: entry.$1),
+                        onChanged: (_) => setState(() {}),
+                        validator: (s) =>
+                            RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(s ?? '')
+                                ? null
+                                : 'Use #RRGGBB',
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-            ],
-          ),
-          Builder(
-            builder: (context) {
-              final color = primary.text.trim();
-              final valid = RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(color);
+              ),
+          ],
+        ),
+        Builder(
+          builder: (context) {
+            final color = primary.text.trim();
+            final valid = RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(color);
 
-              if (!valid) {
-                return const Text(
-                  'Enter a valid primary color to check contrast.',
-                );
-              }
-
-              final ratio = contrastRatio(color, '#FFFFFF');
-              final passes = meetsNormalTextContrast(color, '#FFFFFF');
-
-              return Text(
-                'Primary color on white: ${ratio.toStringAsFixed(2)}:1 — '
-                '${passes ? 'WCAG AA normal-text contrast passed' : 'Low contrast: use a darker primary color'}',
-                style: TextStyle(
-                  color:
-                      passes
-                          ? const Color(0xFF16734C)
-                          : const Color(0xFFB42318),
-                  fontWeight: FontWeight.w600,
-                ),
+            if (!valid) {
+              return const Text(
+                'Enter a valid primary color to check contrast.',
               );
-            },
-          ),
-          Builder(
-            builder: (context) {
-              final color = secondary.text.trim();
-              if (!RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(color)) {
-                return const Text(
-                  'Enter a valid secondary color to check contrast.',
-                );
-              }
+            }
 
-              final ratio = contrastRatio(color, '#FFFFFF');
-              final passes = meetsNormalTextContrast(color, '#FFFFFF');
+            final ratio = contrastRatio(color, '#FFFFFF');
+            final passes = meetsNormalTextContrast(color, '#FFFFFF');
 
-              return Text(
-                'Secondary color on white: ${ratio.toStringAsFixed(2)}:1 — '
-                '${passes ? 'WCAG AA normal-text contrast passed' : 'Low contrast: use a darker secondary color'}',
+            return Text(
+              'Primary color on white: ${ratio.toStringAsFixed(2)}:1 — '
+              '${passes ? 'WCAG AA normal-text contrast passed' : 'Low contrast: use a darker primary color'}',
+              style: TextStyle(
+                color:
+                    passes ? const Color(0xFF16734C) : const Color(0xFFB42318),
+                fontWeight: FontWeight.w600,
+              ),
+            );
+          },
+        ),
+        Builder(
+          builder: (context) {
+            final color = secondary.text.trim();
+            if (!RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(color)) {
+              return const Text(
+                'Enter a valid secondary color to check contrast.',
               );
-            },
-          ),
-          const SizedBox(height: 17),
-          DropdownButtonFormField<String>(
+            }
+
+            final ratio = contrastRatio(color, '#FFFFFF');
+            final passes = meetsNormalTextContrast(color, '#FFFFFF');
+
+            return Text(
+              'Secondary color on white: ${ratio.toStringAsFixed(2)}:1 — '
+              '${passes ? 'WCAG AA normal-text contrast passed' : 'Low contrast: use a darker secondary color'}',
+            );
+          },
+        ),
+        const SizedBox(height: 17),
+        DropdownButtonFormField<String>(
             initialValue: mode,
             decoration: const InputDecoration(labelText: 'Color mode'),
             items: ['light', 'dark', 'system']
@@ -1659,6 +1661,21 @@ final projectValidationProvider =
     FutureProvider.family<Map<String, dynamic>, String>(
         (ref, id) => ref.watch(workspaceRepositoryProvider).validate(id));
 
+/// Testable Step 07 Blueprint studio.
+class V4BlueprintStudio extends StatelessWidget {
+  const V4BlueprintStudio({
+    super.key,
+    required this.workspace,
+  });
+
+  final Workspace workspace;
+
+  @override
+  Widget build(BuildContext context) {
+    return _BlueprintEditor(workspace: workspace);
+  }
+}
+
 class _BlueprintEditor extends ConsumerStatefulWidget {
   const _BlueprintEditor({required this.workspace});
 
@@ -1674,6 +1691,28 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   String? selectedBlueprintComponentId;
   Map<String, dynamic>? draftBlueprint;
   Map<String, dynamic>? localPreview;
+  V4BlueprintHistory? blueprintHistory;
+  int inspectorRevision = 0;
+
+  void undoBlueprint() {
+    final restored = blueprintHistory?.undo();
+    if (restored == null) return;
+
+    setState(() {
+      draftBlueprint = restored;
+      inspectorRevision++;
+    });
+  }
+
+  void redoBlueprint() {
+    final restored = blueprintHistory?.redo();
+    if (restored == null) return;
+
+    setState(() {
+      draftBlueprint = restored;
+      inspectorRevision++;
+    });
+  }
 
   Map<String, dynamic>? selectedComponent(Map<String, dynamic> blueprint) {
     final selectedId = selectedBlueprintComponentId;
@@ -1685,8 +1724,8 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     for (final raw in components) {
       if (raw is! Map) continue;
       final component = Map<String, dynamic>.from(raw);
-      final id =
-          (component['componentInstanceId'] ?? component['id'] ?? '').toString();
+      final id = (component['componentInstanceId'] ?? component['id'] ?? '')
+          .toString();
       if (id == selectedId) return component;
     }
     return null;
@@ -1709,7 +1748,8 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
       if (raw is! Map) return raw;
       final component = Map<String, dynamic>.from(raw);
       final currentId =
-          (component['componentInstanceId'] ?? component['id'] ?? '').toString();
+          (component['componentInstanceId'] ?? component['id'] ?? '')
+              .toString();
       if (currentId != id) return raw;
       found = true;
       return Map<String, dynamic>.from(updated);
@@ -1718,7 +1758,14 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
 
     final nextBlueprint = Map<String, dynamic>.from(blueprint);
     nextBlueprint['componentInstances'] = components;
-    setState(() => draftBlueprint = nextBlueprint);
+    final history = blueprintHistory ??=
+        V4BlueprintHistory(widget.workspace.fields('blueprint'));
+
+    if (!history.record(nextBlueprint)) return;
+
+    setState(() {
+      draftBlueprint = history.current;
+    });
   }
 
   void generatePreview() {
@@ -1759,6 +1806,8 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
         // Only compiled server state is authoritative after a successful save.
         draftBlueprint = null;
         selectedBlueprintComponentId = null;
+        blueprintHistory = null;
+        inspectorRevision++;
       });
       ref.invalidate(projectValidationProvider(widget.workspace.projectId));
       ref.invalidate(workspaceProvider(widget.workspace.projectId));
@@ -1775,6 +1824,10 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     final visibleBlueprint = draftBlueprint ?? savedBlueprint;
     final hasCompiledBlueprint = savedBlueprint['screens'] is List;
     final interactionRules = widget.workspace.items('interactions');
+
+    if (hasCompiledBlueprint) {
+      blueprintHistory ??= V4BlueprintHistory(savedBlueprint);
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1836,6 +1889,27 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
         const SectionTitle('Saved Blueprint'),
         const SizedBox(height: 8),
         if (hasCompiledBlueprint) ...[
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                key: const ValueKey('step07-undo-button'),
+                onPressed:
+                    blueprintHistory?.canUndo == true ? undoBlueprint : null,
+                icon: const Icon(Icons.undo),
+                label: const Text('Undo'),
+              ),
+              OutlinedButton.icon(
+                key: const ValueKey('step07-redo-button'),
+                onPressed:
+                    blueprintHistory?.canRedo == true ? redoBlueprint : null,
+                icon: const Icon(Icons.redo),
+                label: const Text('Redo'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           SurfaceCard(
             child: V4BlueprintSelectionPanel(
               blueprint: visibleBlueprint,
@@ -1849,6 +1923,9 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
             const SizedBox(height: 12),
             SurfaceCard(
               child: V4BlueprintPropertyInspector(
+                key: ValueKey(
+                  'step07-inspector-$inspectorRevision-$selectedBlueprintComponentId',
+                ),
                 component: selectedComponent(visibleBlueprint),
                 onChanged: (updated) {
                   updateDraftComponent(visibleBlueprint, updated);
@@ -1901,7 +1978,8 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
       result = null;
     });
     try {
-      final response = await ref.read(workspaceRepositoryProvider)
+      final response = await ref
+          .read(workspaceRepositoryProvider)
           .validate(widget.workspace.projectId);
       if (mounted) setState(() => result = response);
     } catch (e) {
@@ -1917,7 +1995,8 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
       error = null;
     });
     try {
-      final bytes = await ref.read(workspaceRepositoryProvider)
+      final bytes = await ref
+          .read(workspaceRepositoryProvider)
           .exportDraft(widget.workspace.projectId);
       if (!mounted) return;
       ref.read(downloadPortProvider).saveZip(
@@ -1952,7 +2031,8 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
           FilledButton.icon(
             onPressed: validating || exporting ? null : runValidation,
             icon: const Icon(Icons.fact_check_outlined),
-            label: Text(validating ? 'Validating...' : 'Run Backend Validation'),
+            label:
+                Text(validating ? 'Validating...' : 'Run Backend Validation'),
           ),
           const SizedBox(height: 12),
           if (validating)
@@ -1969,15 +2049,15 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
                       color: blockers > 0
                           ? const Color(0xFFCA5161)
                           : AppColors.green),
-                if (advisories is int)
-                  SmallLabel('$advisories advisories'),
+                if (advisories is int) SmallLabel('$advisories advisories'),
                 if (current['draftVersion'] != null)
                   SmallLabel("Draft v${current['draftVersion']}"),
               ],
             ),
             const SizedBox(height: 12),
             if (findings.isEmpty)
-              const Text('No validation findings returned for implemented rules.'),
+              const Text(
+                  'No validation findings returned for implemented rules.'),
             for (final finding in findings)
               ListTile(
                 leading: Icon(
@@ -1988,7 +2068,8 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
                       ? const Color(0xFFCA5161)
                       : AppColors.purple,
                 ),
-                title: Text((finding['ruleId'] ?? finding['code'] ?? 'Finding').toString()),
+                title: Text((finding['ruleId'] ?? finding['code'] ?? 'Finding')
+                    .toString()),
                 subtitle: Text((finding['message'] ?? '').toString()),
               ),
           ],
