@@ -16,6 +16,7 @@ import '../domain/draft_conflict.dart';
 import '../domain/feature_coverage.dart';
 import '../domain/builder_quality_checks.dart';
 import '../domain/theme_accessibility.dart';
+import '../domain/theme_draft_tokens.dart';
 import 'simulated_preview.dart';
 import 'v4_blueprint_selection_panel.dart';
 import 'v4_blueprint_property_inspector.dart';
@@ -1707,15 +1708,18 @@ class _ThemeEditorState extends State<_ThemeEditor> {
         FilledButton.icon(
             onPressed: () async {
               if (!(form.currentState?.validate() ?? false)) return;
-              await widget.onSave('theme', {
-                ...widget.workspace.fields('theme'),
-                'primaryColor': primary.text.trim(),
-                'secondaryColor': secondary.text.trim(),
-                'mode': mode,
-                'fontFamily': fontFamily.text.trim(),
-                'baseSpacing': int.parse(baseSpacing.text.trim()),
-                'borderRadius': int.parse(borderRadius.text.trim())
-              });
+              await widget.onSave(
+                'theme',
+                buildThemeDraftTokens(
+                  existing: widget.workspace.fields('theme'),
+                  primaryColor: primary.text.trim(),
+                  secondaryColor: secondary.text.trim(),
+                  mode: mode,
+                  fontFamily: fontFamily.text.trim(),
+                  baseSpacing: int.parse(baseSpacing.text.trim()),
+                  borderRadius: int.parse(borderRadius.text.trim()),
+                ),
+              );
             },
             icon: const Icon(Icons.save_outlined),
             label: const Text('Save Theme')),
