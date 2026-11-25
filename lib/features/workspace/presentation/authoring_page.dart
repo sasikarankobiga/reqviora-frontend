@@ -10,9 +10,15 @@ import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
 import '../application/workspace_providers.dart';
 import '../domain/workspace.dart';
+import '../domain/navigation_diagnostics.dart';
+import '../domain/draft_conflict.dart';
+import '../domain/feature_coverage.dart';
+import '../domain/builder_quality_checks.dart';
+import '../domain/theme_accessibility.dart';
 import 'simulated_preview.dart';
 import 'v4_blueprint_selection_panel.dart';
 import 'v4_blueprint_property_inspector.dart';
+import '../domain/local_preview_blueprint.dart';
 
 /// Service-backed authoring for Builder steps 02-08. All writes are owner-scoped
 /// and carry a draft version. No fake AI/approval states are produced here.
@@ -47,11 +53,13 @@ class _Content extends ConsumerStatefulWidget {
 
 class _ContentState extends ConsumerState<_Content> {
   bool busy = false;
+  bool conflict = false;
   String? message;
   Future<void> save(String section, dynamic data) async {
     setState(() {
       busy = true;
       message = null;
+      conflict = false;
     });
     try {
       await ref.read(workspaceRepositoryProvider).save(
@@ -60,10 +68,15 @@ class _ContentState extends ConsumerState<_Content> {
       ref.invalidate(projectValidationProvider(widget.workspace.projectId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('$section saved Ã‚Â· next version created')));
+            content: Text('$section saved · next version created')));
       }
     } catch (e) {
-      if (mounted) setState(() => message = '$e');
+      if (mounted) {
+        setState(() {
+          conflict = isDraftConflict(e);
+          message = draftConflictMessage(e);
+        });
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -82,7 +95,7 @@ class _ContentState extends ConsumerState<_Content> {
             SizedBox(width: 12),
             Expanded(
                 child: Text(
-                    'Real server-backed draft editor Ã‚Â· Owner-controlled Ã‚Â· Saved content stays after refresh.',
+                    'Real server-backed draft editor · Owner-controlled · Saved content stays after refresh.',
                     style: TextStyle(fontSize: 12, height: 1.45)))
           ])),
       const SizedBox(height: 16),
@@ -128,7 +141,23 @@ class _ContentState extends ConsumerState<_Content> {
         _ValidationEditor(workspace: w),
       if (message != null) ...[
         const SizedBox(height: 15),
-        InlineError(message!)
+        Semantics(
+          liveRegion: true,
+          child: InlineError(
+            message!,
+            onRetry: conflict
+                ? () {
+                    setState(() {
+                      conflict = false;
+                      message = null;
+                    });
+                    ref.invalidate(
+                      workspaceProvider(widget.workspace.projectId),
+                    );
+                  }
+                : null,
+          ),
+        )
       ],
       if (busy) const LinearProgressIndicator(),
       const SizedBox(height: 24),
@@ -236,7 +265,7 @@ class _ItemEditorState extends State<_ItemEditor> {
       final lookup = {
         for (final s in widget.workspace.items('screens')) s['id']: s['name']
       };
-      return '${lookup[row['fromScreenId']] ?? 'Missing source'} Ã¢â€ â€™ ${lookup[row['toScreenId']] ?? 'Missing target'}';
+      return '${lookup[row['fromScreenId']] ?? 'Missing source'} → ${lookup[row['toScreenId']] ?? 'Missing target'}';
     }
     return (row['description'] ??
             row['purpose'] ??
@@ -443,6 +472,104 @@ class _ItemEditorState extends State<_ItemEditor> {
               label: const Text('Add'))
         ]),
         const SizedBox(height: 16),
+        if (widget.type == _ItemType.feature) ...[
+          Builder(
+            builder: (context) {
+              final duplicates = BuilderQualityChecks.duplicateNames(items);
+              return duplicates.isEmpty
+                  ? const SizedBox.shrink()
+                  : Text('Duplicate feature names: ${duplicates.join(', ')}');
+            },
+          ),
+        ],
+        if (widget.type == _ItemType.screen) ...[
+          Builder(
+            builder: (context) {
+              final coverage = FeatureCoverage.calculate(
+                widget.workspace.items('features'),
+                items,
+              );
+
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F0FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Feature coverage: ${coverage.mappedFeatures}/${coverage.totalFeatures} mapped',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    if (coverage.unmappedFeatureNames.isNotEmpty)
+                      Text(
+                        'Unmapped features: ${coverage.unmappedFeatureNames.join(', ')}',
+                      ),
+                    if (coverage.screensWithoutFeatures > 0)
+                      Text(
+                        'Screens without feature mappings: ${coverage.screensWithoutFeatures}',
+                      ),
+                    if (coverage.invalidFeatureReferences > 0)
+                      Text(
+                        'Invalid feature references: ${coverage.invalidFeatureReferences}',
+                      ),
+                    if (BuilderQualityChecks.duplicateNames(items).isNotEmpty)
+                      Text(
+                        'Duplicate screen names: ${BuilderQualityChecks.duplicateNames(items).join(', ')}',
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (widget.type == _ItemType.route) ...[
+          Builder(
+            builder: (context) {
+              final screens = widget.workspace.items('screens');
+              final diagnostics = NavigationDiagnostics.inspect(
+                screens,
+                items,
+              );
+              final unreachable =
+                  BuilderQualityChecks.unreachableFromEntry(screens, items);
+
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F0FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Navigation diagnostics',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    Text('Broken routes: ${diagnostics.brokenRoutes}'),
+                    Text('Duplicate routes: ${diagnostics.duplicateRoutes}'),
+                    Text(
+                      'Disconnected screens: '
+                      '${diagnostics.disconnectedScreenNames.isEmpty ? 'None' : diagnostics.disconnectedScreenNames.join(', ')}',
+                    ),
+                    if (screens.isNotEmpty)
+                      Text(
+                        'Unreachable from first screen (assumed entry): '
+                        '${unreachable.isEmpty ? 'None' : unreachable.join(', ')}',
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 14),
+        ],
         if (items.isEmpty)
           Container(
               width: double.infinity,
@@ -1448,14 +1575,65 @@ class _ThemeEditorState extends State<_ThemeEditor> {
                           controller: entry.$2,
                           decoration: InputDecoration(labelText: entry.$1),
                           onChanged: (_) => setState(() {}),
-                          validator: (s) =>
-                              RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(s ?? '')
-                                  ? null
-                                  : 'Use #RRGGBB')),
-                ])),
-        ]),
-        const SizedBox(height: 17),
-        DropdownButtonFormField<String>(
+                          validator:
+                              (s) =>
+                                  RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(s ?? '')
+                                      ? null
+                                      : 'Use #RRGGBB',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          Builder(
+            builder: (context) {
+              final color = primary.text.trim();
+              final valid = RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(color);
+
+              if (!valid) {
+                return const Text(
+                  'Enter a valid primary color to check contrast.',
+                );
+              }
+
+              final ratio = contrastRatio(color, '#FFFFFF');
+              final passes = meetsNormalTextContrast(color, '#FFFFFF');
+
+              return Text(
+                'Primary color on white: ${ratio.toStringAsFixed(2)}:1 — '
+                '${passes ? 'WCAG AA normal-text contrast passed' : 'Low contrast: use a darker primary color'}',
+                style: TextStyle(
+                  color:
+                      passes
+                          ? const Color(0xFF16734C)
+                          : const Color(0xFFB42318),
+                  fontWeight: FontWeight.w600,
+                ),
+              );
+            },
+          ),
+          Builder(
+            builder: (context) {
+              final color = secondary.text.trim();
+              if (!RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(color)) {
+                return const Text(
+                  'Enter a valid secondary color to check contrast.',
+                );
+              }
+
+              final ratio = contrastRatio(color, '#FFFFFF');
+              final passes = meetsNormalTextContrast(color, '#FFFFFF');
+
+              return Text(
+                'Secondary color on white: ${ratio.toStringAsFixed(2)}:1 — '
+                '${passes ? 'WCAG AA normal-text contrast passed' : 'Low contrast: use a darker secondary color'}',
+              );
+            },
+          ),
+          const SizedBox(height: 17),
+          DropdownButtonFormField<String>(
             initialValue: mode,
             decoration: const InputDecoration(labelText: 'Color mode'),
             items: ['light', 'dark', 'system']
@@ -1483,7 +1661,9 @@ final projectValidationProvider =
 
 class _BlueprintEditor extends ConsumerStatefulWidget {
   const _BlueprintEditor({required this.workspace});
+
   final Workspace workspace;
+
   @override
   ConsumerState<_BlueprintEditor> createState() => _BlueprintEditorState();
 }
@@ -1493,261 +1673,345 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   String? error;
   String? selectedBlueprintComponentId;
   Map<String, dynamic>? draftBlueprint;
+  Map<String, dynamic>? localPreview;
 
-  Map<String, dynamic>? selectedComponent(
-    Map<String, dynamic> blueprint,
-  ) {
+  Map<String, dynamic>? selectedComponent(Map<String, dynamic> blueprint) {
     final selectedId = selectedBlueprintComponentId;
-
     if (selectedId == null) return null;
 
     final components = blueprint['componentInstances'];
-
     if (components is! List) return null;
 
     for (final raw in components) {
       if (raw is! Map) continue;
-
       final component = Map<String, dynamic>.from(raw);
-
-      final id = (component['componentInstanceId'] ?? component['id'] ?? '')
-          .toString();
-
-      if (id == selectedId) {
-        return component;
-      }
+      final id =
+          (component['componentInstanceId'] ?? component['id'] ?? '').toString();
+      if (id == selectedId) return component;
     }
-
     return null;
   }
 
+  // Edits are local preview-only. Never represent them as saved or approved.
   void updateDraftComponent(
     Map<String, dynamic> blueprint,
     Map<String, dynamic> updated,
   ) {
     final id =
         (updated['componentInstanceId'] ?? updated['id'] ?? '').toString();
-
-    if (id.isEmpty || id != selectedBlueprintComponentId) {
-      return;
-    }
+    if (id.isEmpty || id != selectedBlueprintComponentId) return;
 
     final rawComponents = blueprint['componentInstances'];
-
     if (rawComponents is! List) return;
 
     var found = false;
-
     final components = rawComponents.map((raw) {
       if (raw is! Map) return raw;
-
       final component = Map<String, dynamic>.from(raw);
-
       final currentId =
-          (component['componentInstanceId'] ?? component['id'] ?? '')
-              .toString();
-
-      if (currentId == id) {
-        found = true;
-        return Map<String, dynamic>.from(updated);
-      }
-
-      return component;
+          (component['componentInstanceId'] ?? component['id'] ?? '').toString();
+      if (currentId != id) return raw;
+      found = true;
+      return Map<String, dynamic>.from(updated);
     }).toList();
-
     if (!found) return;
 
     final nextBlueprint = Map<String, dynamic>.from(blueprint);
-
     nextBlueprint['componentInstances'] = components;
+    setState(() => draftBlueprint = nextBlueprint);
+  }
 
+  void generatePreview() {
+    try {
+      // Derived from server-loaded Workspace content, not hardcoded DB records.
+      final preview = buildLocalPreviewBlueprint(widget.workspace);
+      setState(() {
+        localPreview = preview;
+        error = null;
+      });
+    } catch (e) {
+      setState(() {
+        localPreview = null;
+        error = e.toString();
+      });
+    }
+  }
+
+  Future<void> compileBlueprint() async {
     setState(() {
-      draftBlueprint = nextBlueprint;
+      generating = true;
+      error = null;
     });
+    try {
+      final response = await ref.read(workspaceRepositoryProvider).compile(
+            widget.workspace.projectId,
+            widget.workspace.version,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Template Blueprint saved - v${response['draftVersion']}',
+          ),
+        ),
+      );
+      setState(() {
+        // Only compiled server state is authoritative after a successful save.
+        draftBlueprint = null;
+        selectedBlueprintComponentId = null;
+      });
+      ref.invalidate(projectValidationProvider(widget.workspace.projectId));
+      ref.invalidate(workspaceProvider(widget.workspace.projectId));
+    } catch (e) {
+      if (mounted) setState(() => error = e.toString());
+    } finally {
+      if (mounted) setState(() => generating = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final blueprint = draftBlueprint ?? widget.workspace.fields('blueprint');
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SurfaceCard(
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const SectionTitle('Blueprint & UI Studio',
-            subtitle:
-                'A deterministic local template generates validated design data, not executable customer code.'),
-        const SizedBox(height: 17),
-        FilledButton.icon(
-            onPressed: generating
-                ? null
-                : () async {
-                    setState(() {
-                      generating = true;
-                      error = null;
-                    });
-                    try {
-                      final result = await ref
-                          .read(workspaceRepositoryProvider)
-                          .compile(widget.workspace.projectId,
-                              widget.workspace.version);
-                      ref.invalidate(
-                          workspaceProvider(widget.workspace.projectId));
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(
-                                'Template Blueprint saved Ã‚Â· v${result['draftVersion']}')));
-                      }
-                    } catch (e) {
-                      if (mounted) setState(() => error = '$e');
-                    } finally {
-                      if (mounted) setState(() => generating = false);
-                    }
-                  },
-            icon: const Icon(Icons.auto_awesome),
-            label: Text(generating
-                ? 'CompilingÃ¢â‚¬Â¦'
-                : 'Compile & Save Template Blueprint')),
+    final savedBlueprint = widget.workspace.fields('blueprint');
+    final visibleBlueprint = draftBlueprint ?? savedBlueprint;
+    final hasCompiledBlueprint = savedBlueprint['screens'] is List;
+    final interactionRules = widget.workspace.items('interactions');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SurfaceCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SectionTitle(
+                'Blueprint & UI Studio',
+                subtitle:
+                    'Preview server-loaded Builder data or compile a Blueprint through the backend.',
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: generating ? null : generatePreview,
+                    icon: const Icon(Icons.visibility_outlined),
+                    label: const Text('Generate Local Preview'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: generating ? null : compileBlueprint,
+                    icon: const Icon(Icons.auto_awesome),
+                    label: Text(
+                      generating
+                          ? 'Compiling...'
+                          : 'Compile & Save Template Blueprint',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Local previews are temporary and are based on the loaded workspace. '
+                'Backend compilation does not mean approval or remote AI generation.',
+                style: TextStyle(color: AppColors.muted, fontSize: 12),
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 12),
+                InlineError(error!),
+              ],
+            ],
+          ),
+        ),
+        if (localPreview != null) ...[
+          const SizedBox(height: 16),
+          const SectionTitle('Local simulation - not validated'),
+          const SizedBox(height: 8),
+          SafePreview(
+            key: ObjectKey(localPreview),
+            blueprint: localPreview!,
+            interactionRules: interactionRules,
+          ),
+        ],
+        const SizedBox(height: 16),
+        const SectionTitle('Saved Blueprint'),
         const SizedBox(height: 8),
-        const Text(
-            'Requires mapped features and valid routes. Remote AI is intentionally not connected.',
-            style: TextStyle(color: AppColors.muted, fontSize: 12)),
-        if (error != null) ...[const SizedBox(height: 13), InlineError(error!)],
-      ])),
-      const SizedBox(height: 15),
-      if (blueprint['screens'] is List)
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        if (hasCompiledBlueprint) ...[
+          SurfaceCard(
+            child: V4BlueprintSelectionPanel(
+              blueprint: visibleBlueprint,
+              selectedComponentId: selectedBlueprintComponentId,
+              onSelected: (id) {
+                setState(() => selectedBlueprintComponentId = id);
+              },
+            ),
+          ),
+          if (selectedBlueprintComponentId != null) ...[
+            const SizedBox(height: 12),
             SurfaceCard(
-              child: V4BlueprintSelectionPanel(
-                blueprint: blueprint,
-                selectedComponentId: selectedBlueprintComponentId,
-                onSelected: (id) {
-                  setState(() {
-                    selectedBlueprintComponentId = id;
-                  });
+              child: V4BlueprintPropertyInspector(
+                component: selectedComponent(visibleBlueprint),
+                onChanged: (updated) {
+                  updateDraftComponent(visibleBlueprint, updated);
                 },
               ),
             ),
-            if (selectedBlueprintComponentId != null) ...[
-              const SizedBox(height: 12),
-              SurfaceCard(
-                child: V4BlueprintPropertyInspector(
-                  component: selectedComponent(blueprint),
-                  onChanged: (updated) {
-                    updateDraftComponent(blueprint, updated);
-                  },
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Unsaved local preview changes · Backend not updated',
-                key: ValueKey('step07-unsaved-notice'),
-              ),
-            ],
-            const SizedBox(height: 16),
-            SafePreview(
-              blueprint: blueprint,
-              interactionRules: widget.workspace.items('interactions'),
+          ],
+          if (draftBlueprint != null) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'Unsaved local preview changes - Backend not updated',
+              key: ValueKey('step07-unsaved-notice'),
             ),
           ],
-        )
-      else
-        const SurfaceCard(
+          const SizedBox(height: 12),
+          SafePreview(
+            blueprint: visibleBlueprint,
+            interactionRules: interactionRules,
+          ),
+        ] else
+          const SurfaceCard(
             child: Text(
-                'No compiled blueprint yet. Add features, screens, and routes; then compile.')),
-    ]);
+              'No compiled Blueprint yet. Add features, screens and routes; then compile.',
+            ),
+          ),
+      ],
+    );
   }
 }
 
 class _ValidationEditor extends ConsumerStatefulWidget {
   const _ValidationEditor({required this.workspace});
+
   final Workspace workspace;
+
   @override
   ConsumerState<_ValidationEditor> createState() => _ValidationEditorState();
 }
 
 class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
+  bool validating = false;
   bool exporting = false;
+  Map<String, dynamic>? result;
   String? error;
+
+  Future<void> runValidation() async {
+    setState(() {
+      validating = true;
+      error = null;
+      result = null;
+    });
+    try {
+      final response = await ref.read(workspaceRepositoryProvider)
+          .validate(widget.workspace.projectId);
+      if (mounted) setState(() => result = response);
+    } catch (e) {
+      if (mounted) setState(() => error = e.toString());
+    } finally {
+      if (mounted) setState(() => validating = false);
+    }
+  }
+
+  Future<void> exportDraft() async {
+    setState(() {
+      exporting = true;
+      error = null;
+    });
+    try {
+      final bytes = await ref.read(workspaceRepositoryProvider)
+          .exportDraft(widget.workspace.projectId);
+      if (!mounted) return;
+      ref.read(downloadPortProvider).saveZip(
+          'reqviora-${widget.workspace.projectId}-draft-v${widget.workspace.version}.zip',
+          bytes);
+    } catch (e) {
+      if (mounted) setState(() => error = e.toString());
+    } finally {
+      if (mounted) setState(() => exporting = false);
+    }
+  }
+
   @override
-  Widget build(BuildContext context) =>
-      ref.watch(projectValidationProvider(widget.workspace.projectId)).when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => InlineError('$e',
-              onRetry: () => ref.invalidate(
-                  projectValidationProvider(widget.workspace.projectId))),
-          data: (result) {
-            final findings = (result['findings'] as List? ?? [])
-                .cast<Map<String, dynamic>>();
-            return SurfaceCard(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  const SectionTitle('Review & Export',
-                      subtitle:
-                          'Live deterministic checks Ã‚Â· explicit draft-only handoff; approval service not yet enabled.'),
-                  const SizedBox(height: 18),
-                  Wrap(spacing: 10, runSpacing: 10, children: [
-                    SmallLabel('${result['blockers']} blockers',
-                        color: (result['blockers'] as int) > 0
-                            ? const Color(0xFFCA5161)
-                            : AppColors.green),
-                    SmallLabel('${result['advisories']} advisories'),
-                    SmallLabel('Draft v${result['draftVersion']}'),
-                  ]),
-                  const SizedBox(height: 15),
-                  if (findings.isEmpty)
-                    const Text(
-                        'No current validation findings for implemented rules.')
-                  else ...[
-                    for (final finding in findings)
-                      ListTile(
-                          leading: Icon(
-                              finding['severity'] == 'blocker'
-                                  ? Icons.error_outline
-                                  : Icons.info_outline,
-                              color: finding['severity'] == 'blocker'
-                                  ? const Color(0xFFCA5161)
-                                  : AppColors.purple),
-                          title:
-                              Text((finding['ruleId'] ?? 'Finding').toString()),
-                          subtitle: Text((finding['message'] ?? '').toString()))
-                  ],
-                  const SizedBox(height: 14),
-                  FilledButton.icon(
-                      onPressed: exporting
-                          ? null
-                          : () async {
-                              setState(() {
-                                exporting = true;
-                                error = null;
-                              });
-                              try {
-                                final bytes = await ref
-                                    .read(workspaceRepositoryProvider)
-                                    .exportDraft(widget.workspace.projectId);
-                                ref.read(downloadPortProvider).saveZip(
-                                    'reqviora-${widget.workspace.projectId}-draft-v${widget.workspace.version}.zip',
-                                    bytes);
-                              } catch (e) {
-                                if (mounted) setState(() => error = '$e');
-                              } finally {
-                                if (mounted) setState(() => exporting = false);
-                              }
-                            },
-                      icon: const Icon(Icons.download_outlined),
-                      label: Text(exporting
-                          ? 'Preparing ZIPÃ¢â‚¬Â¦'
-                          : 'Download Draft 19 + manifest ZIP')),
-                  const SizedBox(height: 9),
-                  const Text(
-                      'DRAFT export only. Not an approved immutable revision or a deployable customer app.',
-                      style: TextStyle(color: AppColors.muted, fontSize: 12)),
-                  if (error != null) ...[
-                    const SizedBox(height: 13),
-                    InlineError(error!)
-                  ],
-                ]));
-          });
+  Widget build(BuildContext context) {
+    final current = result;
+    final findings = (current?['findings'] as List? ?? [])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    final blockers = current?['blockers'];
+    final advisories = current?['advisories'];
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionTitle(
+            'Review & Validation',
+            subtitle: 'Run backend validation for the saved draft.',
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: validating || exporting ? null : runValidation,
+            icon: const Icon(Icons.fact_check_outlined),
+            label: Text(validating ? 'Validating...' : 'Run Backend Validation'),
+          ),
+          const SizedBox(height: 12),
+          if (validating)
+            const LinearProgressIndicator()
+          else if (current == null)
+            const Text('Validation has not been completed.')
+          else ...[
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                if (blockers is int)
+                  SmallLabel('$blockers blockers',
+                      color: blockers > 0
+                          ? const Color(0xFFCA5161)
+                          : AppColors.green),
+                if (advisories is int)
+                  SmallLabel('$advisories advisories'),
+                if (current['draftVersion'] != null)
+                  SmallLabel("Draft v${current['draftVersion']}"),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (findings.isEmpty)
+              const Text('No validation findings returned for implemented rules.'),
+            for (final finding in findings)
+              ListTile(
+                leading: Icon(
+                  finding['severity'] == 'blocker'
+                      ? Icons.error_outline
+                      : Icons.info_outline,
+                  color: finding['severity'] == 'blocker'
+                      ? const Color(0xFFCA5161)
+                      : AppColors.purple,
+                ),
+                title: Text((finding['ruleId'] ?? finding['code'] ?? 'Finding').toString()),
+                subtitle: Text((finding['message'] ?? '').toString()),
+              ),
+          ],
+          const SizedBox(height: 20),
+          const Divider(),
+          const SizedBox(height: 12),
+          const Text(
+            'Draft export only. Official export requires an approved revision. '
+            'A draft ZIP is not approval or a deployable application.',
+            style: TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: validating || exporting ? null : exportDraft,
+            icon: const Icon(Icons.download_outlined),
+            label: Text(exporting ? 'Preparing ZIP...' : 'Download Draft ZIP'),
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 12),
+            InlineError(error!),
+          ],
+        ],
+      ),
+    );
+  }
 }

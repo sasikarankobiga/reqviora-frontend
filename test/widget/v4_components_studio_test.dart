@@ -42,7 +42,7 @@ void main() {
   }
 
   testWidgets('opens the original Add Component dialog', (tester) async {
-    await openStudio(tester, (_, __) async {});
+    await openStudio(tester, (_, _) async {});
 
     expect(find.text('Components Studio'), findsOneWidget);
 
@@ -57,7 +57,7 @@ void main() {
   testWidgets('prevents saving without a screen', (tester) async {
     var saveCalls = 0;
 
-    await openStudio(tester, (_, __) async {
+    await openStudio(tester, (_, _) async {
       saveCalls++;
     });
 

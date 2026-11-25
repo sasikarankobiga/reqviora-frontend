@@ -1,3 +1,4 @@
+import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -9,7 +10,8 @@ class ApiException implements Exception {
   const ApiException(this.statusCode, this.message);
   final int statusCode;
   final String message;
-  @override String toString() => message;
+  @override
+  String toString() => message;
 }
 
 class ApiClient {
@@ -18,52 +20,135 @@ class ApiClient {
   Uri _uri(String path) {
     final base = Uri.parse(apiBaseUrl);
     if (kReleaseMode && (isLocalDemo || base.scheme != 'https')) {
-      throw const ApiException(0, 'Production mode requires HTTPS and real authentication.');
+      throw const ApiException(
+        0,
+        'Production mode requires HTTPS and real authentication.',
+      );
     }
     return base.resolve(path);
   }
+
   Map<String, String> get _headers => {
-    'Accept': 'application/json', 'Content-Type': 'application/json',
-    if (authSession.token != null) 'Authorization': 'Bearer ${authSession.token}',
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    if (authSession.token != null)
+      'Authorization': 'Bearer ${authSession.token}',
     if (isLocalDemo && !kReleaseMode) 'X-Reqviora-Local-Demo': 'true',
   };
   dynamic _parse(http.Response response) {
     dynamic data;
-    try { data = response.body.isEmpty ? null : jsonDecode(response.body); }
-    on FormatException { throw ApiException(response.statusCode, 'Invalid response from server'); }
+    try {
+      data = response.body.isEmpty ? null : jsonDecode(response.body);
+    } on FormatException {
+      throw ApiException(response.statusCode, 'Invalid response from server');
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final message = data is Map ? (data['code'] ?? data['title'] ?? 'Request failed') : 'Request failed';
-      throw ApiException(response.statusCode, '$message (HTTP ${response.statusCode})');
+      final message =
+          data is Map
+              ? (data['code'] ?? data['title'] ?? 'Request failed')
+              : 'Request failed';
+      throw ApiException(
+        response.statusCode,
+        '$message (HTTP ${response.statusCode})',
+      );
     }
     return data;
   }
+
   Future<dynamic> get(String path) async {
-    try { return _parse(await _http.get(_uri(path), headers: _headers)); }
-    on http.ClientException catch (e) { throw ApiException(0, 'Cannot connect to backend: $e'); }
+    try {
+      return _parse(await _http.get(_uri(path), headers: _headers));
+    } on http.ClientException catch (e) {
+      throw ApiException(0, 'Cannot connect to backend: $e');
+    }
   }
-  Future<dynamic> post(String path, Map<String, dynamic> data, {String? key}) async {
-    try { return _parse(await _http.post(_uri(path),
-      headers: {..._headers, if (key != null) 'Idempotency-Key': key}, body: jsonEncode(data))); }
-    on http.ClientException catch (e) { throw ApiException(0, 'Cannot connect to backend: $e'); }
+
+  Future<dynamic> post(
+    String path,
+    Map<String, dynamic> data, {
+    String? key,
+  }) async {
+    try {
+      return _parse(
+        await _http.post(
+          _uri(path),
+          headers: {..._headers, if (key != null) 'Idempotency-Key': key},
+          body: jsonEncode(data),
+        ),
+      );
+    } on http.ClientException catch (e) {
+      throw ApiException(0, 'Cannot connect to backend: $e');
+    }
   }
+
   Future<dynamic> put(String path, Map<String, dynamic> data) async {
-    try { return _parse(await _http.put(_uri(path), headers: _headers, body: jsonEncode(data))); }
-    on http.ClientException catch (e) { throw ApiException(0, 'Cannot connect to backend: $e'); }
+    try {
+      return _parse(
+        await _http.put(_uri(path), headers: _headers, body: jsonEncode(data)),
+      );
+    } on http.ClientException catch (e) {
+      throw ApiException(0, 'Cannot connect to backend: $e');
+    }
   }
-  Future<Map<String, dynamic>> uploadSource(String projectId, int expectedVersion,
-      String name, Uint8List data) async {
-    final request = http.MultipartRequest('POST', _uri('/api/v1/projects/$projectId/sources/upload'));
+
+  Future<Map<String, dynamic>> uploadSource(
+    String projectId,
+    int expectedVersion,
+    String name,
+    Uint8List data,
+  ) async {
+    if (expectedVersion < 0) {
+      throw ArgumentError.value(
+        expectedVersion,
+        'expectedVersion',
+        'Cannot be negative',
+      );
+    }
+
+    final extension = name.split('.').last.toLowerCase();
+
+    final mediaType = switch (extension) {
+      'pdf' => MediaType('application', 'pdf'),
+      'docx' => MediaType(
+        'application',
+        'vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ),
+      'txt' => MediaType('text', 'plain'),
+      _ =>
+        throw ArgumentError.value(
+          name,
+          'name',
+          'Only PDF, DOCX and TXT files are supported',
+        ),
+    };
+
+    final request = http.MultipartRequest(
+      'POST',
+      _uri('/api/projects/$projectId/documents'),
+    );
+
     request.headers.addAll({
       'Accept': 'application/json',
-      if (authSession.token != null) 'Authorization': 'Bearer ${authSession.token}',
+      if (authSession.token != null)
+        'Authorization': 'Bearer ${authSession.token}',
       if (isLocalDemo && !kReleaseMode) 'X-Reqviora-Local-Demo': 'true',
     });
-    request.fields['expectedVersion'] = '$expectedVersion';
-    request.files.add(http.MultipartFile.fromBytes('file', data, filename: name));
+
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'file',
+        data,
+        filename: name,
+        contentType: mediaType,
+      ),
+    );
+
     final response = await _http.send(request);
     final received = await http.Response.fromStream(response);
+
     return Map<String, dynamic>.from(_parse(received) as Map);
   }
+
   Future<List<int>> getBytes(String path) async {
     try {
       final response = await _http.get(_uri(path), headers: _headers);
@@ -76,5 +161,6 @@ class ApiClient {
       throw ApiException(0, 'Cannot connect to backend: $e');
     }
   }
+
   void dispose() => _http.close();
 }

@@ -3,8 +3,8 @@ import '../../builder/domain/registry/v4_visibility_rules.dart';
 import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
 
-/// Restricted UI renderer. Only known, typed component labels and mock
-/// in-memory navigation are supported; never evaluates generated code.
+/// Restricted UI preview based on the supplied Blueprint only.
+/// Interactions run in memory; this widget never writes to the backend.
 class SafePreview extends StatefulWidget {
   const SafePreview({
     super.key,
@@ -175,7 +175,7 @@ class _SafePreviewState extends State<SafePreview> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
-                              'Mock action only · No live transaction executed',
+                              'Preview-only action · No backend request was made',
                             ),
                           ),
                         );
@@ -201,8 +201,13 @@ class _SafePreviewState extends State<SafePreview> {
       case 'list':
       case 'tabs':
         final dense = type == 'list' && props['dense'] == true;
-        final values =
-            props['items'] as List? ?? ['Item 1', 'Item 2', 'Item 3'];
+        final values = props['items'] is List ? props['items'] as List : const [];
+        if (values.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: Text('No list data available'),
+          );
+        }
         return Padding(
           padding: EdgeInsets.all(dense ? 4 : 9),
           child: Wrap(
@@ -221,8 +226,13 @@ class _SafePreviewState extends State<SafePreview> {
 
       case 'table':
         final striped = props['stripedRows'] == true;
-        final values =
-            props['items'] as List? ?? ['Item 1', 'Item 2', 'Item 3'];
+        final values = props['items'] is List ? props['items'] as List : const [];
+        if (values.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: Text('No table data available'),
+          );
+        }
         return Padding(
           padding: const EdgeInsets.all(9),
           child: Column(
@@ -241,23 +251,49 @@ class _SafePreviewState extends State<SafePreview> {
         );
 
       case 'chart':
+        // Render saved Blueprint values only; never generate chart samples.
+        final rawValues = props['values'] ?? props['items'];
+        final values = rawValues is List
+            ? rawValues.map<double?>((item) {
+                final raw = item is Map
+                    ? (item['value'] ?? item['y'])
+                    : item;
+                if (raw is! num) return null;
+                final number = raw.toDouble();
+                return number.isFinite && number >= 0 ? number : null;
+              }).whereType<double>().take(12).toList()
+            : <double>[];
+        if (values.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: Text('No chart data available'),
+          );
+        }
+        final maxValue = values.reduce((a, b) => a > b ? a : b);
         return Container(
-            height: 110,
-            padding: const EdgeInsets.all(8),
-            alignment: Alignment.bottomCenter,
-            child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (final h in [35.0, 72, 55, 90, 63])
-                    Container(
-                        width: 28,
-                        height: h.toDouble(),
-                        decoration: BoxDecoration(
-                            color: accent.withValues(alpha: .7),
-                            borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(7))))
-                ]));
+          height: 110,
+          padding: const EdgeInsets.all(8),
+          alignment: Alignment.bottomCenter,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (final value in values)
+                Container(
+                  width: 28,
+                  height: maxValue == 0
+                      ? 0.0
+                      : (value / maxValue * 90).clamp(0.0, 90.0).toDouble(),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: .7),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(7),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
       case 'dialog':
         return ListTile(
             leading: Icon(Icons.info_outline, color: accent),
@@ -460,7 +496,7 @@ class _SafePreviewState extends State<SafePreview> {
                           nestedComponent(c, accent, components, <String>{}),
                         const SizedBox(height: 18),
                         if (routes.isNotEmpty)
-                          const Text('Mock navigation',
+                          const Text('Preview navigation',
                               style: TextStyle(fontWeight: FontWeight.w800)),
                         if (routes.isNotEmpty) const SizedBox(height: 9),
                         Wrap(spacing: 8, runSpacing: 8, children: [
@@ -480,7 +516,7 @@ class _SafePreviewState extends State<SafePreview> {
                       ])))),
       const SizedBox(height: 16),
       const Text(
-          'Preview is a schema-driven approximation. Payment, booking, account and network actions are mocked.',
+          'Preview-only UI. Actions are simulated locally; no payments, bookings, account changes or network requests are made.',
           style: TextStyle(fontSize: 11, color: AppColors.muted)),
     ]));
   }

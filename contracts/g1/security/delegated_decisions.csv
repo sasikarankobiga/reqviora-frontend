@@ -1,0 +1,12 @@
+﻿ID,Topic,Delegated decision,Status
+AC-01F,Viewer resource access,"C + fixed group grants; metadata only default, explicit object+revision+action grants for any other reads; download separate",OWNER-DELEGATED DESIGN BASELINE
+AC-01G,Project create bootstrap,Verified active member creates eligible project; Owner membership atomically attached; admin not implicit member,OWNER-DELEGATED DESIGN BASELINE
+AC-01H,Conditional permission resolution,"Deny by default; explicit action, resource, version, membership, grant and separation rules enforced server side",OWNER-DELEGATED DESIGN BASELINE
+AC-02,Invitations & membership,Only Owner invites/removes; verified recipient accepts role; membership audited; last Owner protected; atomic ownership transfer; no auto escalation,OWNER-DELEGATED DESIGN BASELINE
+AC-03,Authentication & session,"Secure provider-agnostic identity, verified email, strong password or passkey/OIDC option, mandatory MFA for privileged roles and sensitive actions, revocable sessions; exact vendor and timeouts pending",OWNER-DELEGATED DESIGN BASELINE
+AC-04,Account lifecycle,"Active/Suspended/Disabled states; suspension immediately denies new effective access, revokes active sessions/grants as appropriate; admin reactivation reason and audit",OWNER-DELEGATED DESIGN BASELINE
+AC-05,Super Admin functionality,"SA-FR-01..15 as V1 baseline; SA-FR-13 minimal incident support queue; SA-FR-12 limited versioned settings; metadata-only project view, no content/approval power",OWNER-DELEGATED DESIGN BASELINE
+AC-06,Sharing and export,Authenticated invitation or explicitly scoped nonpublic share; Viewer metadata default; version-frozen individual/group/revision grants; expiry/revocation; download separate; drafts deny by default,OWNER-DELEGATED DESIGN BASELINE
+AC-07,Review & revision approval,"Reviewer cannot approve by role; only explicit Approver role+grant; no material self-approval; exact saved version, zero blockers, current validation, server audit; one independent approver V1",OWNER-DELEGATED DESIGN BASELINE
+AC-08,MCP policy,"Owner issues read-only exact approved-revision grants; allowlisted tools, expiry/revocation, scoped identity, audit; SA emergency revoke only; no arbitrary ZIP, no writes",OWNER-DELEGATED DESIGN BASELINE
+AC-09,"Privacy, audit & operations","Minimum necessary access, encrypted transit/storage, secret isolation, redacted audit events, audit for sensitive operations, backup/restore test; retention/regional legal choices and quantitative limits remain technical decisions",OWNER-DELEGATED DESIGN BASELINE

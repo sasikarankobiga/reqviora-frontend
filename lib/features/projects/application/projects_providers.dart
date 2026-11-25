@@ -10,9 +10,12 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   ref.onDispose(client.dispose);
   return client;
 });
-final projectsRepositoryProvider = Provider<ProjectsRepository>((ref) =>
-  HttpProjectsRepository(ref.watch(apiClientProvider)));
-final projectsProvider = FutureProvider<List<ProjectSummary>>((ref) =>
-  ref.watch(projectsRepositoryProvider).list());
-final projectDraftProvider = FutureProvider.family<ProjectDraft, String>((ref, id) =>
-  ref.watch(projectsRepositoryProvider).draft(id));
+final projectsRepositoryProvider = Provider<ProjectsRepository>(
+  (ref) => HttpProjectsRepository(ref.watch(apiClientProvider)),
+);
+final projectsProvider = FutureProvider<List<ProjectSummary>>(
+  (ref) => ref.watch(projectsRepositoryProvider).list(),
+);
+final projectDraftProvider = FutureProvider.family<ProjectDraft, String>(
+  (ref, id) => ref.watch(projectsRepositoryProvider).draft(id),
+);

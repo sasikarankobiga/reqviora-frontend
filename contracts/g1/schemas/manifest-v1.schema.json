@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.reqviora.example/schemas/manifest-v1.schema.json",
+  "title": "REQVIORA canonical19 ZIP manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "projectId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "revisionId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "revisionStatus": {
+      "const": "approved"
+    },
+    "packageProfile": {
+      "const": "canonical19"
+    },
+    "generatorVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "files": {
+      "type": "array",
+      "minItems": 19,
+      "maxItems": 19,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "enum": [
+              "README.md",
+              "project-overview.md",
+              "goals-and-success-criteria.md",
+              "audience-and-roles.md",
+              "scope-and-constraints.md",
+              "feature-catalog.md",
+              "business-rules-and-acceptance.md",
+              "screen-specifications.md",
+              "feature-screen-mapping.md",
+              "navigation-and-journeys.md",
+              "design-tokens.md",
+              "components-and-layout.md",
+              "interactions-and-states.md",
+              "accessibility-requirements.md",
+              "decision-register.md",
+              "open-questions.md",
+              "validation-report.md",
+              "implementation-checklist.md",
+              "project.json"
+            ]
+          },
+          "mediaType": {
+            "enum": [
+              "text/markdown",
+              "application/json"
+            ]
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "documentSchemaVersion": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "sourceRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "path",
+          "mediaType",
+          "bytes",
+          "sha256",
+          "documentSchemaVersion",
+          "sourceRevisionId"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "projectId",
+    "revisionId",
+    "revisionStatus",
+    "packageProfile",
+    "generatorVersion",
+    "generatedAt",
+    "files"
+  ]
+}
