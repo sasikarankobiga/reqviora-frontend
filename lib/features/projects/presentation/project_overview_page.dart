@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
+import '../../../l10n/language_settings.dart';
 import '../application/projects_providers.dart';
 import '../domain/project.dart';
 
@@ -14,7 +15,7 @@ class ProjectOverviewPage extends ConsumerWidget {
   final String projectId;
   @override
   Widget build(BuildContext context, WidgetRef ref) => AppShell(
-    pageTitle: 'Project / Overview',
+    pageTitle: localizedLabel(context, 'Project / Overview'),
     projectId: projectId,
     child: ref
         .watch(projectDraftProvider(projectId))
@@ -38,7 +39,7 @@ class _Contents extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       PageIntro(
-        eyebrow: 'Project workspace',
+        eyebrow: localizedLabel(context, 'Project workspace'),
         title: draft.name,
         subtitle:
             draft.description.isEmpty
@@ -67,14 +68,14 @@ class _Contents extends StatelessWidget {
           final tiles = <Widget>[
             FeatureTile(
               icon: Icons.file_upload_outlined,
-              title: 'Input Studio',
+              title: localizedLabel(context, 'Input Studio'),
               subtitle: 'Documents · Tamil/English voice · Text · Manual',
               label: 'Text and document input',
               onTap: () => context.go('/projects/${draft.projectId}/sources'),
             ),
             FeatureTile(
               icon: Icons.fact_check_outlined,
-              title: 'Requirements Review',
+              title: localizedLabel(context, 'Requirements Review'),
               subtitle: 'Local-rule suggestions and human review',
               label: 'Local review available',
               onTap:
@@ -82,7 +83,7 @@ class _Contents extends StatelessWidget {
             ),
             FeatureTile(
               icon: Icons.layers_outlined,
-              title: '8-Step Builder',
+              title: localizedLabel(context, '8-Step Builder'),
               subtitle: 'Plan screens, design UI and review',
               label: 'Draft editor available',
               active: true,
@@ -115,13 +116,13 @@ class _Contents extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SectionTitle(
-              'Builder journey',
+              localizedLabel(context, 'Builder journey'),
               subtitle: 'Your approved eight-stage workflow.',
               trailing: FilledButton.icon(
                 onPressed:
                     () => context.go('/projects/${draft.projectId}/builder/1'),
                 icon: const Icon(Icons.arrow_forward, size: 17),
-                label: const Text('Continue'),
+                label: Text(localizedLabel(context, 'Continue')),
               ),
             ),
             const SizedBox(height: 17),

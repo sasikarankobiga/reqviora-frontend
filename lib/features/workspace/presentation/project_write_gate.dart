@@ -1,3 +1,4 @@
+import 'package:reqviora_frontend/l10n/language_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -68,7 +69,7 @@ class ProjectWriteGate extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SectionTitle('Read-only workspace'),
+                      const LocalizedSectionTitle('Read-only workspace'),
                       const SizedBox(height: 12),
                       Text(
                         workspace.isApproved
@@ -83,12 +84,14 @@ class ProjectWriteGate extends ConsumerWidget {
                       OutlinedButton(
                         onPressed:
                             () => context.go('/projects/$projectId/overview'),
-                        child: const Text('Back to project overview'),
+                        child: const LocalizedUiText(
+                          'Back to project overview',
+                        ),
                       ),
                       OutlinedButton(
                         onPressed:
                             () => context.go('/projects/$projectId/preview'),
-                        child: const Text('Open preview'),
+                        child: const LocalizedUiText('Open preview'),
                       ),
                     ],
                   ),

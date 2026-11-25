@@ -5,6 +5,7 @@ import '../core/config/app_config.dart';
 import '../features/auth/application/auth_providers.dart';
 import 'theme.dart';
 import 'widgets.dart';
+import '../l10n/language_settings.dart';
 
 class AppShell extends StatelessWidget {
   const AppShell({
@@ -172,7 +173,12 @@ class _Sidebar extends ConsumerWidget {
         child: ListView(
           children: [
             const Padding(padding: EdgeInsets.only(left: 12), child: _Brand()),
-            const SizedBox(height: 35),
+            const SizedBox(height: 12),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: LanguageSwitcher(),
+            ),
+            const SizedBox(height: 20),
             const Padding(
               padding: EdgeInsets.fromLTRB(12, 0, 0, 12),
               child: Text(
@@ -188,13 +194,13 @@ class _Sidebar extends ConsumerWidget {
             link(
               context,
               Icons.space_dashboard_rounded,
-              'Dashboard',
+              uiText(context, 'Dashboard', 'முகப்புப் பலகை'),
               '/projects',
             ),
             link(
               context,
               Icons.add_box_outlined,
-              'Create Project',
+              uiText(context, 'Create Project', 'திட்டத்தை உருவாக்கு'),
               '/projects/new',
             ),
             if (projectId != null) ...[
@@ -214,31 +220,31 @@ class _Sidebar extends ConsumerWidget {
               link(
                 context,
                 Icons.grid_view_rounded,
-                'Overview',
+                uiText(context, 'Overview', 'திட்ட மேலோட்டம்'),
                 '/projects/$projectId/overview',
               ),
               link(
                 context,
                 Icons.file_present_outlined,
-                'Input Studio',
+                uiText(context, 'Input Studio', 'உள்ளீட்டு மையம்'),
                 '/projects/$projectId/sources',
               ),
               link(
                 context,
                 Icons.fact_check_outlined,
-                'AI Review',
+                uiText(context, 'AI Review', 'AI மதிப்பாய்வு'),
                 '/projects/$projectId/review-input',
               ),
               link(
                 context,
                 Icons.view_week_outlined,
-                '8-Step Builder',
+                uiText(context, '8-Step Builder', '8 படி வடிவமைப்பு'),
                 '/projects/$projectId/builder/1',
               ),
               link(
                 context,
                 Icons.touch_app_outlined,
-                'Preview',
+                uiText(context, 'Preview', 'முன்னோட்டம்'),
                 '/projects/$projectId/preview',
               ),
             ],
@@ -246,7 +252,7 @@ class _Sidebar extends ConsumerWidget {
               link(
                 context,
                 Icons.manage_accounts_outlined,
-                'My Account',
+                uiText(context, 'My Account', 'எனது கணக்கு'),
                 '/account',
               ),
             const SizedBox(height: 24),

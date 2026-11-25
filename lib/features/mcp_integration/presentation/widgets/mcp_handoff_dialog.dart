@@ -1,3 +1,4 @@
+import 'package:reqviora_frontend/l10n/language_settings.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -22,7 +23,7 @@ class McpHandoffButton extends ConsumerWidget {
     return OutlinedButton.icon(
       key: const ValueKey('open-mcp-handoff'),
       icon: const Icon(Icons.integration_instructions_outlined),
-      label: const Text('MCP & Developer Handoff'),
+      label: const LocalizedUiText('MCP & Developer Handoff'),
       onPressed: () {
         final repository = ref.read(mcpRepositoryProvider);
 
@@ -73,11 +74,18 @@ class _McpHandoffDialogState extends State<McpHandoffDialog> {
         401 => 'Session expired. Please sign in again.',
         403 => 'You do not have permission to read this project.',
         404 => 'MCP service or requested data is unavailable.',
-        _ => failure.message,
+        0 => 'Cannot reach the MCP service. Check your connection.',
+        429 => 'Too many requests. Try again later.',
+        _ => 'MCP request failed (HTTP ${failure.statusCode}).',
       };
     }
 
-    return failure.toString();
+    if (failure is FormatException &&
+        failure.message == 'Unsupported or non-read-only MCP catalog') {
+      return 'Unsupported or non-read-only MCP catalog. Access denied.';
+    }
+
+    return 'MCP response could not be processed. Refresh the catalog.';
   }
 
   Future<void> loadCatalog() async {
@@ -201,7 +209,7 @@ class _McpHandoffDialogState extends State<McpHandoffDialog> {
     final available = catalog;
 
     return AlertDialog(
-      title: const Text('MCP & Developer Handoff'),
+      title: const LocalizedUiText('MCP & Developer Handoff'),
       content: SizedBox(
         width: 720,
         child: SingleChildScrollView(
@@ -211,7 +219,7 @@ class _McpHandoffDialogState extends State<McpHandoffDialog> {
             children: [
               const Chip(
                 avatar: Icon(Icons.lock_outline, size: 18),
-                label: Text('Read-only project context'),
+                label: LocalizedUiText('Read-only project context'),
               ),
               const SizedBox(height: 12),
               const Text(
@@ -234,7 +242,7 @@ class _McpHandoffDialogState extends State<McpHandoffDialog> {
               OutlinedButton.icon(
                 onPressed: busy ? null : loadCatalog,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Refresh Catalog'),
+                label: const LocalizedUiText('Refresh Catalog'),
               ),
               if (available != null) ...[
                 const Divider(height: 28),
@@ -310,7 +318,7 @@ class _McpHandoffDialogState extends State<McpHandoffDialog> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                const Text(
+                const LocalizedUiText(
                   'Only share project data with authorized recipients.',
                 ),
                 TextButton.icon(
@@ -331,7 +339,7 @@ class _McpHandoffDialogState extends State<McpHandoffDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Close'),
+          child: const LocalizedUiText('Close'),
         ),
       ],
     );

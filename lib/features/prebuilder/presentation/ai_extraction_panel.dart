@@ -1,3 +1,4 @@
+import 'package:reqviora_frontend/l10n/language_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -322,7 +323,7 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
       context: context,
       builder:
           (dialogContext) => AlertDialog(
-            title: const Text('Edit server requirement'),
+            title: const LocalizedUiText('Edit server requirement'),
             content: SingleChildScrollView(
               child: SizedBox(
                 width: 450,
@@ -333,8 +334,12 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
                       initialValue: title,
                       maxLength: 200,
                       onChanged: (value) => title = value,
-                      decoration: const InputDecoration(
-                        labelText: 'Requirement title',
+                      decoration: InputDecoration(
+                        labelText: uiText(
+                          context,
+                          'Requirement title',
+                          'தேவையின் தலைப்பு',
+                        ),
                       ),
                     ),
                     TextFormField(
@@ -343,8 +348,8 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
                       minLines: 3,
                       maxLines: 6,
                       onChanged: (value) => description = value,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
+                      decoration: InputDecoration(
+                        labelText: uiText(context, 'Description', 'விளக்கம்'),
                       ),
                     ),
                     const Text(
@@ -358,11 +363,11 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
+                child: const LocalizedUiText('Cancel'),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Save edit'),
+                child: const LocalizedUiText('Save edit'),
               ),
             ],
           ),
@@ -422,27 +427,27 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
         if (canDecide)
           FilledButton(
             onPressed: blocked ? null : () => submitDecision(id, 'accept'),
-            child: const Text('Accept requirement'),
+            child: const LocalizedUiText('Accept requirement'),
           ),
         if (canEdit)
           OutlinedButton(
             onPressed: blocked ? null : () => editReview(candidate),
-            child: const Text('Edit requirement'),
+            child: const LocalizedUiText('Edit requirement'),
           ),
         if (canDecide)
           OutlinedButton(
             onPressed: blocked ? null : () => submitDecision(id, 'reject'),
-            child: const Text('Reject requirement'),
+            child: const LocalizedUiText('Reject requirement'),
           ),
         OutlinedButton.icon(
           onPressed: busy ? null : () => openClarifications(requirementId: id),
           icon: const Icon(Icons.question_answer_outlined),
-          label: const Text('Clarifications'),
+          label: const LocalizedUiText('Clarifications'),
         ),
         if (status == 'Suggested')
           OutlinedButton(
             onPressed: blocked ? null : () => submitDecision(id, 'defer'),
-            child: const Text('Defer requirement'),
+            child: const LocalizedUiText('Defer requirement'),
           ),
       ],
     );
@@ -464,7 +469,7 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionTitle(
+          const LocalizedSectionTitle(
             'AI Requirements Extraction',
             subtitle:
                 'Extract suggestions from saved sources using the server AI provider.',
@@ -496,7 +501,9 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
                 blocked
                     ? null
                     : (value) => setState(() => consent = value ?? false),
-            title: const Text('I consent to AI processing of saved sources'),
+            title: const LocalizedUiText(
+              'I consent to AI processing of saved sources',
+            ),
             subtitle: const Text(
               'Selected project source text is sent to the configured server AI service.',
             ),
@@ -504,19 +511,19 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
           OutlinedButton.icon(
             onPressed: busy ? null : () => openClarifications(),
             icon: const Icon(Icons.sync),
-            label: const Text('Clarifications & Blueprint sync'),
+            label: const LocalizedUiText('Clarifications & Blueprint sync'),
           ),
           Text('${sources.length} text sources available'),
           const SizedBox(height: 10),
           FilledButton.icon(
             onPressed: blocked || !consent || sources.isEmpty ? null : extract,
             icon: const Icon(Icons.auto_awesome_outlined),
-            label: const Text('Extract with AI'),
+            label: const LocalizedUiText('Extract with AI'),
           ),
           OutlinedButton.icon(
             onPressed: blocked || candidates.isEmpty ? null : recoverReviews,
             icon: const Icon(Icons.refresh),
-            label: const Text('Recover saved server reviews'),
+            label: const LocalizedUiText('Recover saved server reviews'),
           ),
           if (busy) ...[
             const SizedBox(height: 12),
@@ -577,14 +584,14 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
                               )
                           ? null
                           : () => stage(candidate),
-                  child: const Text('Stage for review'),
+                  child: const LocalizedUiText('Stage for review'),
                 ),
                 OutlinedButton(
                   onPressed:
                       blocked
                           ? null
                           : () => refreshReview(candidate['id'].toString()),
-                  child: const Text('Refresh server status'),
+                  child: const LocalizedUiText('Refresh server status'),
                 ),
               ],
             ),

@@ -1,3 +1,4 @@
+import 'package:reqviora_frontend/l10n/language_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -140,7 +141,7 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
                         OutlinedButton.icon(
                           onPressed: _busy ? null : _loadProfile,
                           icon: const Icon(Icons.refresh),
-                          label: const Text('Load account profile'),
+                          label: const LocalizedUiText('Load account profile'),
                         ),
                         if (_profile != null) ...[
                           const SizedBox(height: 12),
@@ -150,7 +151,7 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
                             Text(_profile!['email'] as String),
                         ],
                         const Divider(height: 32),
-                        const Text('Change email address'),
+                        const LocalizedUiText('Change email address'),
                         const SizedBox(height: 12),
                         TextFormField(
                           key: const ValueKey('account-new-email'),
@@ -158,8 +159,12 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
                           enabled: !_busy,
                           keyboardType: TextInputType.emailAddress,
                           validator: AuthValidation.validateEmail,
-                          decoration: const InputDecoration(
-                            labelText: 'New email address',
+                          decoration: InputDecoration(
+                            labelText: uiText(
+                              context,
+                              'New email address',
+                              'புதிய மின்னஞ்சல் முகவரி',
+                            ),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -219,7 +224,7 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
                                       ? '/projects'
                                       : '/login',
                                 ),
-                        child: const Text('Return to REQVIORA'),
+                        child: const LocalizedUiText('Return to REQVIORA'),
                       ),
                     ],
                   ),

@@ -1,3 +1,4 @@
+import 'package:reqviora_frontend/l10n/language_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -242,22 +243,24 @@ class _ClarificationDialogState extends ConsumerState<ClarificationDialog> {
       context: context,
       builder:
           (dialogContext) => AlertDialog(
-            title: const Text('Answer clarification'),
+            title: const LocalizedUiText('Answer clarification'),
             content: TextFormField(
               minLines: 3,
               maxLines: 5,
               maxLength: 1500,
               onChanged: (value) => answer = value,
-              decoration: const InputDecoration(labelText: 'Your answer'),
+              decoration: InputDecoration(
+                labelText: uiText(context, 'Your answer', 'உங்கள் பதில்'),
+              ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
+                child: const LocalizedUiText('Cancel'),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Submit answer'),
+                child: const LocalizedUiText('Submit answer'),
               ),
             ],
           ),
@@ -342,12 +345,12 @@ class _ClarificationDialogState extends ConsumerState<ClarificationDialog> {
                               ? null
                               : () => _run(_refreshList),
                       icon: const Icon(Icons.question_answer_outlined),
-                      label: const Text('Load clarifications'),
+                      label: const LocalizedUiText('Load clarifications'),
                     ),
                     OutlinedButton.icon(
                       onPressed: _busy || !_sessionValid ? null : _loadSync,
                       icon: const Icon(Icons.sync),
-                      label: const Text('Check Blueprint sync'),
+                      label: const LocalizedUiText('Check Blueprint sync'),
                     ),
                   ],
                 ),
@@ -379,7 +382,8 @@ class _ClarificationDialogState extends ConsumerState<ClarificationDialog> {
                 ],
                 if (_loaded) ...[
                   const Divider(height: 24),
-                  if (items.isEmpty) const Text('No saved clarifications.'),
+                  if (items.isEmpty)
+                    const LocalizedUiText('No saved clarifications.'),
                   for (final item in items) ...[
                     Text(
                       (item['question'] ?? '').toString(),
@@ -392,13 +396,13 @@ class _ClarificationDialogState extends ConsumerState<ClarificationDialog> {
                     if (item['answer'] != null)
                       Text('Answer: ${item['answer']}')
                     else
-                      const Text('Awaiting answer'),
+                      const LocalizedUiText('Awaiting answer'),
                     if (item['answer'] == null && !widget.readOnly)
                       Align(
                         alignment: Alignment.centerLeft,
                         child: TextButton(
                           onPressed: _canWrite ? () => _answer(item) : null,
-                          child: const Text('Answer'),
+                          child: const LocalizedUiText('Answer'),
                         ),
                       ),
                     const Divider(),
@@ -415,8 +419,12 @@ class _ClarificationDialogState extends ConsumerState<ClarificationDialog> {
                     maxLength: 1500,
                     minLines: 2,
                     maxLines: 4,
-                    decoration: const InputDecoration(
-                      labelText: 'New clarification question',
+                    decoration: InputDecoration(
+                      labelText: uiText(
+                        context,
+                        'New clarification question',
+                        'புதிய விளக்கக் கேள்வி',
+                      ),
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
@@ -425,7 +433,7 @@ class _ClarificationDialogState extends ConsumerState<ClarificationDialog> {
                         !_canWrite || _question.text.trim().isEmpty
                             ? null
                             : _create,
-                    child: const Text('Save clarification'),
+                    child: const LocalizedUiText('Save clarification'),
                   ),
                 ],
                 if (_busy) ...[
@@ -453,7 +461,7 @@ class _ClarificationDialogState extends ConsumerState<ClarificationDialog> {
                     child: Semantics(liveRegion: true, child: Text(_notice!)),
                   ),
                 const SizedBox(height: 12),
-                const Text(
+                const LocalizedUiText(
                   'Clarification answers do not automatically approve requirements.',
                 ),
               ],
@@ -463,7 +471,7 @@ class _ClarificationDialogState extends ConsumerState<ClarificationDialog> {
         actions: [
           TextButton(
             onPressed: _busy ? null : () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: const LocalizedUiText('Close'),
           ),
         ],
       ),

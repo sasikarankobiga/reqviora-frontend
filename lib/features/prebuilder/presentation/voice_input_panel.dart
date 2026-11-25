@@ -1,3 +1,4 @@
+import 'package:reqviora_frontend/l10n/language_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -187,7 +188,9 @@ class _VoiceInputPanelState extends ConsumerState<VoiceInputPanel> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Voice transcript saved as text source')),
+        const SnackBar(
+          content: LocalizedUiText('Voice transcript saved as text source'),
+        ),
       );
 
       ref.invalidate(workspaceProvider(projectId));
@@ -206,7 +209,7 @@ class _VoiceInputPanelState extends ConsumerState<VoiceInputPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionTitle(
+          const LocalizedSectionTitle(
             'Voice Input',
             subtitle: 'Upload recorded audio and review the server transcript.',
           ),
@@ -246,7 +249,7 @@ class _VoiceInputPanelState extends ConsumerState<VoiceInputPanel> {
               OutlinedButton.icon(
                 onPressed: blocked ? null : selectAudio,
                 icon: const Icon(Icons.audio_file_outlined),
-                label: const Text('Select audio file'),
+                label: const LocalizedUiText('Select audio file'),
               ),
             ],
           ),
@@ -258,8 +261,12 @@ class _VoiceInputPanelState extends ConsumerState<VoiceInputPanel> {
             controller: duration,
             enabled: !blocked,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Actual audio duration in seconds',
+            decoration: InputDecoration(
+              labelText: uiText(
+                context,
+                'Actual audio duration in seconds',
+                'ஒலியின் கால அளவு (வினாடிகள்)',
+              ),
               hintText: 'Example: 60',
             ),
           ),
@@ -270,12 +277,14 @@ class _VoiceInputPanelState extends ConsumerState<VoiceInputPanel> {
                 blocked
                     ? null
                     : (value) => setState(() => consent = value ?? false),
-            title: const Text('I consent to server audio processing'),
+            title: const LocalizedUiText(
+              'I consent to server audio processing',
+            ),
           ),
           FilledButton.icon(
             onPressed: blocked || audio == null || !consent ? null : transcribe,
             icon: const Icon(Icons.record_voice_over_outlined),
-            label: const Text('Transcribe audio'),
+            label: const LocalizedUiText('Transcribe audio'),
           ),
           if (busy) ...[
             const SizedBox(height: 12),
@@ -294,8 +303,12 @@ class _VoiceInputPanelState extends ConsumerState<VoiceInputPanel> {
               minLines: 4,
               maxLines: 10,
               onChanged: (_) => setState(() => reviewed = false),
-              decoration: const InputDecoration(
-                labelText: 'Editable transcript',
+              decoration: InputDecoration(
+                labelText: uiText(
+                  context,
+                  'Editable transcript',
+                  'திருத்தக்கூடிய குரல் உரை',
+                ),
               ),
             ),
             CheckboxListTile(
@@ -305,12 +318,12 @@ class _VoiceInputPanelState extends ConsumerState<VoiceInputPanel> {
                   blocked
                       ? null
                       : (value) => setState(() => reviewed = value ?? false),
-              title: const Text('I have reviewed this transcript'),
+              title: const LocalizedUiText('I have reviewed this transcript'),
             ),
             FilledButton.icon(
               onPressed: blocked || !reviewed ? null : saveTranscript,
               icon: const Icon(Icons.save_outlined),
-              label: const Text('Save transcript as source'),
+              label: const LocalizedUiText('Save transcript as source'),
             ),
           ],
         ],

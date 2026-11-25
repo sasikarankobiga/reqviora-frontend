@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
+import '../../../core/network/api_client.dart';
 import '../application/auth_providers.dart';
 import '../data/auth_repository.dart';
 import '../domain/auth_validation.dart';
 import '../domain/auth_error_message.dart';
+import '../../../l10n/language_settings.dart';
 
 class AuthPage extends ConsumerStatefulWidget {
   const AuthPage({
@@ -36,6 +38,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
   bool isLoading = false;
   bool showPassword = false;
   bool showConfirmPassword = false;
+  bool showAuthenticatorCode = false;
 
   RegistrationVerificationPending? pendingVerification;
 
@@ -154,7 +157,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
         await repository.signIn(
           emailController.text.trim(),
           passwordController.text,
-          otpCode: otpController.text.trim(),
+          otpCode: showAuthenticatorCode ? otpController.text.trim() : null,
         );
 
         if (!mounted) return;
@@ -173,6 +176,14 @@ class _AuthPageState extends ConsumerState<AuthPage> {
         if (e is RegistrationVerificationPending) {
           pendingVerification?.clear();
           pendingVerification = e;
+        }
+
+        if (!isRegister &&
+            e is ApiException &&
+            e.statusCode == 401 &&
+            (e.message == 'One-time password required.' ||
+                e.message == 'One-time password required. (HTTP 401)')) {
+          showAuthenticatorCode = true;
         }
 
         errorMessage = authErrorMessage(e);
@@ -240,15 +251,28 @@ class _AuthPageState extends ConsumerState<AuthPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              isRegister ? 'Create your account' : 'Welcome back',
+              isRegister
+                  ? uiText(
+                    context,
+                    'Create your account',
+                    'உங்கள் கணக்கை உருவாக்குங்கள்',
+                  )
+                  : uiText(context, 'Welcome back', 'மீண்டும் வரவேற்கிறோம்'),
               style: Theme.of(context).textTheme.headlineSmall,
             ),
 
             const SizedBox(height: 8),
-
-            const Text(
-              'Secure access to your REQVIORA workspace',
-              style: TextStyle(color: AppColors.muted),
+            const Align(
+              alignment: Alignment.centerRight,
+              child: LanguageSwitcher(),
+            ),
+            Text(
+              uiText(
+                context,
+                'Secure access to your REQVIORA workspace',
+                'உங்கள் REQVIORA பணியிடத்திற்கான பாதுகாப்பான அணுகல்',
+              ),
+              style: const TextStyle(color: AppColors.muted),
             ),
 
             const SizedBox(height: 24),
@@ -262,24 +286,40 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                 textCapitalization: TextCapitalization.words,
                 textInputAction: TextInputAction.next,
                 autofillHints: const [AutofillHints.name],
-                decoration: const InputDecoration(
-                  labelText: 'Display Name',
-                  hintText: 'Enter your full name',
+                decoration: InputDecoration(
+                  labelText: uiText(context, 'Display Name', 'பயனர் பெயர்'),
+                  hintText: uiText(
+                    context,
+                    'Enter your full name',
+                    'உங்கள் முழுப் பெயரை உள்ளிடவும்',
+                  ),
                   prefixIcon: Icon(Icons.person_outline),
                 ),
                 validator: (value) {
                   final name = (value ?? '').trim();
 
                   if (name.isEmpty) {
-                    return 'Display name is required';
+                    return uiText(
+                      context,
+                      'Display name is required',
+                      'பயனர் பெயர் அவசியம்',
+                    );
                   }
 
                   if (name.length < 2) {
-                    return 'Display name must contain at least 2 characters';
+                    return uiText(
+                      context,
+                      'Display name must contain at least 2 characters',
+                      'பயனர் பெயரில் குறைந்தது 2 எழுத்துகள் இருக்க வேண்டும்',
+                    );
                   }
 
                   if (name.length > 200) {
-                    return 'Display name must not exceed 200 characters';
+                    return uiText(
+                      context,
+                      'Display name must not exceed 200 characters',
+                      'பயனர் பெயர் 200 எழுத்துகளைத் தாண்டக்கூடாது',
+                    );
                   }
 
                   return null;
@@ -296,11 +336,19 @@ class _AuthPageState extends ConsumerState<AuthPage> {
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
               autofillHints: const [AutofillHints.email],
-              decoration: const InputDecoration(
-                labelText: 'Email Address',
+              decoration: InputDecoration(
+                labelText: uiText(
+                  context,
+                  'Email Address',
+                  'மின்னஞ்சல் முகவரி',
+                ),
                 prefixIcon: Icon(Icons.email_outlined),
               ),
-              validator: AuthValidation.validateEmail,
+              validator:
+                  (value) => localizedValidation(
+                    context,
+                    AuthValidation.validateEmail(value),
+                  ),
             ),
 
             const SizedBox(height: 16),
@@ -319,10 +367,21 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                       ? const [AutofillHints.newPassword]
                       : const [AutofillHints.password],
               decoration: InputDecoration(
-                labelText: 'Password',
+                labelText: uiText(context, 'Password', 'கடவுச்சொல்'),
                 prefixIcon: const Icon(Icons.lock_outline),
                 suffixIcon: IconButton(
-                  tooltip: showPassword ? 'Hide password' : 'Show password',
+                  tooltip:
+                      showPassword
+                          ? uiText(
+                            context,
+                            'Hide password',
+                            'கடவுச்சொல்லை மறைக்கவும்',
+                          )
+                          : uiText(
+                            context,
+                            'Show password',
+                            'கடவுச்சொல்லைக் காட்டவும்',
+                          ),
                   onPressed:
                       isLoading
                           ? null
@@ -338,7 +397,11 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                   ),
                 ),
               ),
-              validator: AuthValidation.validatePassword,
+              validator:
+                  (value) => localizedValidation(
+                    context,
+                    AuthValidation.validatePassword(value),
+                  ),
             ),
 
             // Confirm password is visible only in registration.
@@ -353,13 +416,25 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                 textInputAction: TextInputAction.done,
                 onFieldSubmitted: (_) => submitForm(),
                 decoration: InputDecoration(
-                  labelText: 'Confirm Password',
+                  labelText: uiText(
+                    context,
+                    'Confirm Password',
+                    'கடவுச்சொல்லை உறுதிப்படுத்தவும்',
+                  ),
                   prefixIcon: const Icon(Icons.lock_reset_outlined),
                   suffixIcon: IconButton(
                     tooltip:
                         showConfirmPassword
-                            ? 'Hide confirm password'
-                            : 'Show confirm password',
+                            ? uiText(
+                              context,
+                              'Hide confirm password',
+                              'உறுதிப்படுத்தும் கடவுச்சொல்லை மறைக்கவும்',
+                            )
+                            : uiText(
+                              context,
+                              'Show confirm password',
+                              'உறுதிப்படுத்தும் கடவுச்சொல்லைக் காட்டவும்',
+                            ),
                     onPressed:
                         isLoading
                             ? null
@@ -376,38 +451,93 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                   ),
                 ),
                 validator: (value) {
-                  return AuthValidation.validateConfirmPassword(
-                    value,
-                    passwordController.text,
+                  return localizedValidation(
+                    context,
+                    AuthValidation.validateConfirmPassword(
+                      value,
+                      passwordController.text,
+                    ),
                   );
                 },
               ),
 
               const SizedBox(height: 10),
 
-              const Text(
-                'Use at least 12 characters for your password.',
+              Text(
+                uiText(
+                  context,
+                  'Use at least 12 characters for your password.',
+                  'கடவுச்சொல்லில் குறைந்தது 12 எழுத்துகளைப் பயன்படுத்தவும்.',
+                ),
                 style: TextStyle(fontSize: 12, color: AppColors.muted),
               ),
             ],
 
             if (!isRegister) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: const ValueKey('auth-toggle-mfa'),
+                  onPressed:
+                      isLoading
+                          ? null
+                          : () {
+                            setState(() {
+                              showAuthenticatorCode = !showAuthenticatorCode;
+                              if (!showAuthenticatorCode) {
+                                otpController.clear();
+                              }
+                            });
+                          },
+                  icon: const Icon(Icons.security_outlined),
+                  label: Text(
+                    showAuthenticatorCode
+                        ? uiText(
+                          context,
+                          'Hide authenticator code',
+                          'அங்கீகாரக் குறியீட்டை மறைக்கவும்',
+                        )
+                        : uiText(
+                          context,
+                          'Use an authenticator code',
+                          'அங்கீகாரக் குறியீட்டைப் பயன்படுத்தவும்',
+                        ),
+                  ),
+                ),
+              ),
+            ],
+
+            if (!isRegister && showAuthenticatorCode) ...[
               const SizedBox(height: 12),
               TextFormField(
                 key: const ValueKey('auth-otp'),
                 controller: otpController,
                 enabled: !isLoading && pendingVerification == null,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Authenticator code (only when required)',
-                  helperText: 'For admin or additional login verification.',
+                decoration: InputDecoration(
+                  labelText: uiText(
+                    context,
+                    'Authenticator code',
+                    'அங்கீகாரக் குறியீடு',
+                  ),
+                  helperText: uiText(
+                    context,
+                    'Enter the code from your authenticator app.',
+                    'அங்கீகார செயலியிலுள்ள குறியீட்டை உள்ளிடவும்.',
+                  ),
+                  helperMaxLines: 2,
                   prefixIcon: Icon(Icons.security_outlined),
                 ),
                 validator: (value) {
                   final code = (value ?? '').trim();
-                  return code.isEmpty || RegExp(r'^\d{6}$').hasMatch(code)
+                  return RegExp(r'^\d{6}$').hasMatch(code)
                       ? null
-                      : 'Enter a 6-digit code or leave blank';
+                      : uiText(
+                        context,
+                        'Enter a valid 6-digit authenticator code',
+                        'சரியான 6 இலக்க அங்கீகாரக் குறியீட்டை உள்ளிடவும்',
+                      );
                 },
               ),
             ],
@@ -434,10 +564,18 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                         )
                         : Text(
                           pendingVerification != null
-                              ? 'Retry Email Verification'
+                              ? uiText(
+                                context,
+                                'Retry Email Verification',
+                                'மின்னஞ்சல் உறுதிப்படுத்தலை மீண்டும் முயற்சிக்கவும்',
+                              )
                               : isRegister
-                              ? 'Create Account'
-                              : 'Sign In',
+                              ? uiText(
+                                context,
+                                'Create Account',
+                                'கணக்கை உருவாக்கு',
+                              )
+                              : uiText(context, 'Sign In', 'உள்நுழைக'),
                         ),
               ),
             ),
@@ -450,8 +588,16 @@ class _AuthPageState extends ConsumerState<AuthPage> {
               onPressed: isLoading ? null : switchMode,
               child: Text(
                 isRegister
-                    ? 'Already have an account? Sign in'
-                    : 'New to REQVIORA? Register',
+                    ? uiText(
+                      context,
+                      'Already have an account? Sign in',
+                      'ஏற்கனவே கணக்கு உள்ளதா? உள்நுழைக',
+                    )
+                    : uiText(
+                      context,
+                      'New to REQVIORA? Register',
+                      'புதிய பயனரா? பதிவு செய்யுங்கள்',
+                    ),
               ),
             ),
 
@@ -459,11 +605,23 @@ class _AuthPageState extends ConsumerState<AuthPage> {
               TextButton(
                 onPressed:
                     isLoading ? null : () => context.go('/forgot-password'),
-                child: const Text('Forgot password?'),
+                child: Text(
+                  uiText(
+                    context,
+                    'Forgot password?',
+                    'கடவுச்சொல் மறந்துவிட்டதா?',
+                  ),
+                ),
               ),
               TextButton(
                 onPressed: isLoading ? null : () => context.go('/verify-email'),
-                child: const Text('Request email verification'),
+                child: Text(
+                  uiText(
+                    context,
+                    'Request email verification',
+                    'மின்னஞ்சல் உறுதிப்படுத்தல் கோருக',
+                  ),
+                ),
               ),
             ],
 
@@ -471,6 +629,14 @@ class _AuthPageState extends ConsumerState<AuthPage> {
             if (errorMessage != null) ...[
               const SizedBox(height: 12),
               Semantics(liveRegion: true, child: InlineError(errorMessage!)),
+              if (isRegister && pendingVerification == null) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'If account creation was interrupted, check your email '
+                  'before submitting again.',
+                  style: TextStyle(fontSize: 12, color: AppColors.muted),
+                ),
+              ],
             ],
 
             // Success message after registration.
@@ -494,10 +660,16 @@ class _AuthPageState extends ConsumerState<AuthPage> {
 
             const SizedBox(height: 18),
 
-            const Text(
-              'Authentication uses the ASP.NET Core backend. '
-              'Email verification and password recovery '
-              'depend on backend support.',
+            Text(
+              uiText(
+                context,
+                'Authentication uses the ASP.NET Core backend. '
+                    'Email verification and password recovery '
+                    'depend on backend support.',
+                'உள்நுழைவு ASP.NET Core பின்தளத்தைப் பயன்படுத்துகிறது. '
+                    'மின்னஞ்சல் உறுதிப்படுத்தல் மற்றும் கடவுச்சொல் மீட்டமைப்பு '
+                    'பின்தள சேவையைச் சார்ந்தவை.',
+              ),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 11, color: AppColors.muted),
             ),
@@ -509,12 +681,13 @@ class _AuthPageState extends ConsumerState<AuthPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.sizeOf(context).width > 850;
+    final width = MediaQuery.sizeOf(context).width;
+    final isDesktop = width >= 1000;
 
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(width < 480 ? 12 : 24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1100),
             child:

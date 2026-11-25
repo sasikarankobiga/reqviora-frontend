@@ -6,6 +6,8 @@ import '../features/projects/presentation/project_overview_page.dart';
 import '../features/builder/presentation/builder_page.dart';
 import '../features/prebuilder/presentation/prebuilder_pages.dart';
 import 'theme.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/language_settings.dart';
 import '../core/auth/auth_session.dart';
 import '../core/config/app_config.dart';
 import '../features/auth/presentation/auth_page.dart';
@@ -140,10 +142,17 @@ final appRouter = GoRouter(
 class ReqvioraApp extends StatelessWidget {
   const ReqvioraApp({super.key});
   @override
-  Widget build(BuildContext context) => MaterialApp.router(
-    title: 'REQVIORA · Design Workspace',
-    debugShowCheckedModeBanner: false,
-    theme: appTheme(),
-    routerConfig: appRouter,
+  Widget build(BuildContext context) => ValueListenableBuilder<Locale>(
+    valueListenable: appLocale,
+    builder:
+        (context, locale, _) => MaterialApp.router(
+          title: 'REQVIORA · Design Workspace',
+          debugShowCheckedModeBanner: false,
+          theme: appTheme(),
+          routerConfig: appRouter,
+          locale: locale,
+          supportedLocales: supportedAppLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+        ),
   );
 }

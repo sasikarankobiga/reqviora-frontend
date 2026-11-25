@@ -6,6 +6,7 @@ import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
 import '../application/projects_providers.dart';
 import '../domain/project.dart';
+import '../../../l10n/language_settings.dart';
 
 class ProjectsPage extends ConsumerWidget {
   const ProjectsPage({super.key});
@@ -13,15 +14,26 @@ class ProjectsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final projects = ref.watch(projectsProvider);
     return AppShell(
-      pageTitle: 'Workspace / Dashboard',
+      pageTitle: uiText(
+        context,
+        'Workspace / Dashboard',
+        'பணியிடம் / முகப்புப் பலகை',
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           PageIntro(
-            eyebrow: 'Welcome back',
-            title: 'Your design workspace',
-            subtitle:
-                'Turn project ideas into clear, traceable software blueprints.',
+            eyebrow: uiText(context, 'Welcome back', 'மீண்டும் வரவேற்கிறோம்'),
+            title: uiText(
+              context,
+              'Your design workspace',
+              'உங்கள் வடிவமைப்புப் பணியிடம்',
+            ),
+            subtitle: uiText(
+              context,
+              'Turn project ideas into clear, traceable software blueprints.',
+              'திட்ட யோசனைகளைத் தெளிவான மென்பொருள் வடிவமைப்புகளாக மாற்றுங்கள்.',
+            ),
           ),
           const SizedBox(height: 23),
           _Hero(onCreate: () => context.go('/projects/new')),
@@ -69,12 +81,16 @@ class ProjectsPage extends ConsumerWidget {
           ),
           const SizedBox(height: 30),
           SectionTitle(
-            'Your projects',
-            subtitle: 'Open a saved project or start something new.',
+            uiText(context, 'Your projects', 'உங்கள் திட்டங்கள்'),
+            subtitle: uiText(
+              context,
+              'Open a saved project or start something new.',
+              'சேமித்த திட்டத்தைத் திறக்கவும் அல்லது புதிய திட்டத்தைத் தொடங்கவும்.',
+            ),
             trailing: TextButton.icon(
               onPressed: () => ref.invalidate(projectsProvider),
               icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Refresh'),
+              label: Text(uiText(context, 'Refresh', 'புதுப்பிக்கவும்')),
             ),
           ),
           const SizedBox(height: 15),
@@ -107,7 +123,13 @@ class ProjectsPage extends ConsumerWidget {
                                 FilledButton.icon(
                                   onPressed: () => context.go('/projects/new'),
                                   icon: const Icon(Icons.add),
-                                  label: const Text('Create project'),
+                                  label: Text(
+                                    uiText(
+                                      context,
+                                      'Create project',
+                                      'திட்டத்தை உருவாக்கு',
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -154,7 +176,7 @@ class ProjectsPage extends ConsumerWidget {
                 const SizedBox(width: 13),
                 const Expanded(
                   child: Text(
-                    'Development preview: AI processing, production auth, approval and exports are not active yet.',
+                    'AI processing, authentication, approval and exports require a configured backend service.',
                     style: TextStyle(color: AppColors.muted, fontSize: 12),
                   ),
                 ),
@@ -241,7 +263,13 @@ class _Hero extends StatelessWidget {
                         foregroundColor: AppColors.purple,
                       ),
                       icon: const Icon(Icons.add_circle_outline),
-                      label: const Text('Start a new project'),
+                      label: Text(
+                        uiText(
+                          context,
+                          'Start a new project',
+                          'புதிய திட்டத்தைத் தொடங்கு',
+                        ),
+                      ),
                     ),
                   ],
                 ),

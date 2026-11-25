@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../builder/domain/registry/v4_visibility_rules.dart';
 import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
+import '../domain/canonical_preview_adapter.dart';
 
 /// Restricted UI preview based on the supplied Blueprint only.
 /// Interactions run in memory; this widget never writes to the backend.
@@ -32,7 +33,7 @@ class _SafePreviewState extends State<SafePreview> {
   Map<String, dynamic> obj(dynamic v) =>
       v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
   List<Map<String, dynamic>> array(String key) {
-    final value = widget.blueprint[key];
+    final value = adaptCanonicalPreview(widget.blueprint)[key];
 
     if (value is! List) return [];
 

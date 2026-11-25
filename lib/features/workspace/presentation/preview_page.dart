@@ -1,3 +1,4 @@
+import 'package:reqviora_frontend/l10n/language_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -44,7 +45,7 @@ class ProjectPreviewPage extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         if (hasVisualDraft) ...[
-                          const SectionTitle(
+                          const LocalizedSectionTitle(
                             'Saved visual draft',
                             subtitle:
                                 'Local simulation only. Not the approved Blueprint.',
@@ -58,7 +59,7 @@ class ProjectPreviewPage extends ConsumerWidget {
                         ],
                         if (hasCanonical) ...[
                           const SizedBox(height: 20),
-                          const SectionTitle(
+                          const LocalizedSectionTitle(
                             'Canonical Blueprint',
                             subtitle:
                                 'Server-generated design. Approval is a separate action.',
@@ -84,7 +85,7 @@ class ProjectPreviewPage extends ConsumerWidget {
                                 () => context.go(
                                   '/projects/$projectId/builder/7',
                                 ),
-                            child: const Text('Open UI Studio'),
+                            child: const LocalizedUiText('Open UI Studio'),
                           ),
                         ],
                       ),

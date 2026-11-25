@@ -1,3 +1,4 @@
+import 'package:reqviora_frontend/l10n/language_settings.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -56,7 +57,7 @@ class ProjectMembersButton extends ConsumerWidget {
     return OutlinedButton.icon(
       key: const ValueKey('open-project-members'),
       icon: const Icon(Icons.group_outlined),
-      label: const Text('Project Members & Permissions'),
+      label: const LocalizedUiText('Project Members & Permissions'),
       onPressed: () {
         showDialog<void>(
           context: context,
@@ -127,11 +128,13 @@ class _ProjectMembersDialogState extends State<ProjectMembersDialog> {
         403 => 'You do not have permission for this action.',
         404 => 'Project or registered user was not found.',
         409 => 'Membership conflict. Refresh and retry.',
-        _ => failure.message,
+        0 => 'Cannot reach the server. Refresh before retrying.',
+        429 => 'Too many requests. Try again later.',
+        _ => 'Membership request failed (HTTP ${failure.statusCode}).',
       };
     }
 
-    return failure.toString();
+    return 'Membership data could not be processed. Refresh and try again.';
   }
 
   Future<void> loadMembers() async {
@@ -204,11 +207,11 @@ class _ProjectMembersDialogState extends State<ProjectMembersDialog> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel'),
+                    child: const LocalizedUiText('Cancel'),
                   ),
                   FilledButton(
                     onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Confirm'),
+                    child: const LocalizedUiText('Confirm'),
                   ),
                 ],
               ),
@@ -304,7 +307,7 @@ class _ProjectMembersDialogState extends State<ProjectMembersDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Project Members & Permissions'),
+      title: const LocalizedUiText('Project Members & Permissions'),
       content: SizedBox(
         width: 600,
         child: SingleChildScrollView(
@@ -316,13 +319,13 @@ class _ProjectMembersDialogState extends State<ProjectMembersDialog> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  const Chip(label: Text('Owner')),
-                  const Chip(label: Text('Editor')),
-                  const Chip(label: Text('Viewer')),
+                  const Chip(label: LocalizedUiText('Owner')),
+                  const Chip(label: LocalizedUiText('Editor')),
+                  const Chip(label: LocalizedUiText('Viewer')),
                   OutlinedButton.icon(
                     onPressed: busy ? null : loadMembers,
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Refresh'),
+                    label: const LocalizedUiText('Refresh'),
                   ),
                 ],
               ),
@@ -375,7 +378,7 @@ class _ProjectMembersDialogState extends State<ProjectMembersDialog> {
                                   onPressed:
                                       busy ? null : () => removeMember(member),
                                   icon: const Icon(Icons.person_remove),
-                                  label: const Text('Remove'),
+                                  label: const LocalizedUiText('Remove'),
                                 ),
                               ],
                             ),
@@ -394,15 +397,25 @@ class _ProjectMembersDialogState extends State<ProjectMembersDialog> {
                   key: const ValueKey('member-user-id'),
                   controller: userId,
                   enabled: !busy,
-                  decoration: const InputDecoration(
-                    labelText: 'Registered User ID',
+                  decoration: InputDecoration(
+                    labelText: uiText(
+                      context,
+                      'Registered User ID',
+                      'பதிவுசெய்த பயனரின் ID',
+                    ),
                     hintText: 'Enter user GUID',
                   ),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<ProjectMemberRole>(
                   initialValue: newRole,
-                  decoration: const InputDecoration(labelText: 'Project role'),
+                  decoration: InputDecoration(
+                    labelText: uiText(
+                      context,
+                      'Project role',
+                      'திட்டப் பொறுப்பு',
+                    ),
+                  ),
                   items: [
                     for (final role in [
                       ProjectMemberRole.viewer,
@@ -424,7 +437,7 @@ class _ProjectMembersDialogState extends State<ProjectMembersDialog> {
                   key: const ValueKey('add-project-member'),
                   onPressed: busy ? null : addMember,
                   icon: const Icon(Icons.person_add_alt_1),
-                  label: const Text('Add Member'),
+                  label: const LocalizedUiText('Add Member'),
                 ),
                 const SizedBox(height: 10),
                 const Text(
@@ -439,7 +452,7 @@ class _ProjectMembersDialogState extends State<ProjectMembersDialog> {
       actions: [
         TextButton(
           onPressed: busy ? null : () => Navigator.pop(context),
-          child: const Text('Close'),
+          child: const LocalizedUiText('Close'),
         ),
       ],
     );

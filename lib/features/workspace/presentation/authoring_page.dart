@@ -1,3 +1,4 @@
+import 'package:reqviora_frontend/l10n/language_settings.dart';
 import 'v4_blueprint_property_inspector.dart';
 import 'v4_blueprint_selection_panel.dart';
 import '../domain/v4_blueprint_history.dart';
@@ -75,7 +76,7 @@ class _ReadOnlyBuilder extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SectionTitle('Read-only workspace'),
+              const LocalizedSectionTitle('Read-only workspace'),
               const SizedBox(height: 12),
               Text(reason),
               const SizedBox(height: 12),
@@ -90,7 +91,7 @@ class _ReadOnlyBuilder extends StatelessWidget {
                     () =>
                         context.go('/projects/${workspace.projectId}/overview'),
                 icon: const Icon(Icons.arrow_back),
-                label: const Text('Project overview'),
+                label: const LocalizedUiText('Project overview'),
               ),
               if (step < 8)
                 OutlinedButton(
@@ -98,21 +99,21 @@ class _ReadOnlyBuilder extends StatelessWidget {
                       () => context.go(
                         '/projects/${workspace.projectId}/builder/${step + 1}',
                       ),
-                  child: const Text('Next step'),
+                  child: const LocalizedUiText('Next step'),
                 ),
             ],
           ),
         ),
         if (visual['screens'] is List) ...[
           const SizedBox(height: 16),
-          const SectionTitle('Saved visual draft'),
+          const LocalizedSectionTitle('Saved visual draft'),
           SafePreview(
             blueprint: visual,
             interactionRules: workspace.items('interactions'),
           ),
         ] else if (canonical['screens'] is List) ...[
           const SizedBox(height: 16),
-          const SectionTitle('Canonical Blueprint'),
+          const LocalizedSectionTitle('Canonical Blueprint'),
           SafePreview(blueprint: canonical),
         ],
       ],
@@ -347,7 +348,7 @@ class _ContentState extends ConsumerState<_Content> {
               onPressed:
                   () => context.go('/projects/${w.projectId}/builder/${n - 1}'),
               icon: const Icon(Icons.arrow_back),
-              label: const Text('Previous'),
+              label: const LocalizedUiText('Previous'),
             ),
             if (n < 8)
               FilledButton.icon(
@@ -534,9 +535,9 @@ class _ItemEditorState extends State<_ItemEditor> {
     final screens = widget.workspace.items('screens');
 
     if (screens.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Add a screen first')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: LocalizedUiText('Add a screen first')),
+      );
       return;
     }
 
@@ -548,14 +549,18 @@ class _ItemEditorState extends State<_ItemEditor> {
           (dialogContext) => StatefulBuilder(
             builder:
                 (dialogContext, updateDialog) => AlertDialog(
-                  title: const Text('Reuse component on screen'),
+                  title: const LocalizedUiText('Reuse component on screen'),
                   content: DropdownButtonFormField<String>(
                     initialValue:
                         screens.any((screen) => screen['id'] == targetScreenId)
                             ? targetScreenId
                             : null,
-                    decoration: const InputDecoration(
-                      labelText: 'Target screen',
+                    decoration: InputDecoration(
+                      labelText: uiText(
+                        context,
+                        'Target screen',
+                        'இலக்குத் திரை',
+                      ),
                     ),
                     isExpanded: true,
                     items: [
@@ -574,7 +579,7 @@ class _ItemEditorState extends State<_ItemEditor> {
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(dialogContext),
-                      child: const Text('Cancel'),
+                      child: const LocalizedUiText('Cancel'),
                     ),
                     FilledButton(
                       onPressed:
@@ -582,7 +587,7 @@ class _ItemEditorState extends State<_ItemEditor> {
                               ? null
                               : () =>
                                   Navigator.pop(dialogContext, targetScreenId),
-                      child: const Text('Reuse'),
+                      child: const LocalizedUiText('Reuse'),
                     ),
                   ],
                 ),
@@ -632,18 +637,18 @@ class _ItemEditorState extends State<_ItemEditor> {
       context: context,
       builder:
           (c) => AlertDialog(
-            title: const Text('Remove this item?'),
+            title: const LocalizedUiText('Remove this item?'),
             content: const Text(
               'Linked screens/routes/components may become invalid. Validation will flag dependencies.',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(c, false),
-                child: const Text('Cancel'),
+                child: const LocalizedUiText('Cancel'),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(c, true),
-                child: const Text('Remove'),
+                child: const LocalizedUiText('Remove'),
               ),
             ],
           ),
@@ -689,7 +694,7 @@ class _ItemEditorState extends State<_ItemEditor> {
             FilledButton.icon(
               onPressed: () => edit(),
               icon: const Icon(Icons.add, size: 17),
-              label: const Text('Add'),
+              label: const LocalizedUiText('Add'),
             ),
           ],
         ),
@@ -1133,7 +1138,9 @@ class _ItemDialogState extends State<_ItemDialog> {
           input('description', 'Description', lines: 3),
           DropdownButtonFormField<String>(
             initialValue: priority,
-            decoration: const InputDecoration(labelText: 'Priority'),
+            decoration: InputDecoration(
+              labelText: uiText(context, 'Priority', 'முன்னுரிமை'),
+            ),
             items:
                 ['Must', 'Should', 'Could', "Won't"]
                     .map((v) => DropdownMenuItem(value: v, child: Text(v)))
@@ -1207,7 +1214,9 @@ class _ItemDialogState extends State<_ItemDialog> {
           ),
           DropdownButtonFormField<String>(
             initialValue: componentType,
-            decoration: const InputDecoration(labelText: 'Component type'),
+            decoration: InputDecoration(
+              labelText: uiText(context, 'Component type', 'கூறின் வகை'),
+            ),
             items:
                 ComponentRegistry.v4ComponentTypes
                     .map((v) => DropdownMenuItem(value: v, child: Text(v)))
@@ -1242,8 +1251,12 @@ class _ItemDialogState extends State<_ItemDialog> {
                   key: ValueKey('parent-$screenId-$validParent'),
                   initialValue: validParent ?? '',
                   isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Parent component',
+                  decoration: InputDecoration(
+                    labelText: uiText(
+                      context,
+                      'Parent component',
+                      'முதன்மைக் கூறு',
+                    ),
                   ),
                   items: [
                     const DropdownMenuItem<String>(
@@ -1273,8 +1286,8 @@ class _ItemDialogState extends State<_ItemDialog> {
             input('placeholder', 'Placeholder'),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Required'),
-              subtitle: const Text('Require a value for this input'),
+              title: const LocalizedUiText('Required'),
+              subtitle: const LocalizedUiText('Require a value for this input'),
               value: componentRequired,
               onChanged: (value) => setState(() => componentRequired = value),
             ),
@@ -1340,7 +1353,13 @@ class _ItemDialogState extends State<_ItemDialog> {
             DropdownButtonFormField<String>(
               key: ValueKey('header-alignment-$componentHeaderAlignment'),
               initialValue: componentHeaderAlignment,
-              decoration: const InputDecoration(labelText: 'Header alignment'),
+              decoration: InputDecoration(
+                labelText: uiText(
+                  context,
+                  'Header alignment',
+                  'தலைப்பு சீரமைப்பு',
+                ),
+              ),
               items: const [
                 DropdownMenuItem(value: 'left', child: Text('Left')),
                 DropdownMenuItem(value: 'center', child: Text('Center')),
@@ -1354,14 +1373,14 @@ class _ItemDialogState extends State<_ItemDialog> {
           if (componentType == 'list')
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Dense layout'),
+              title: const LocalizedUiText('Dense layout'),
               value: componentListDense,
               onChanged: (value) => setState(() => componentListDense = value),
             ),
           if (componentType == 'table')
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Striped rows'),
+              title: const LocalizedUiText('Striped rows'),
               value: componentTableStriped,
               onChanged:
                   (value) => setState(() => componentTableStriped = value),
@@ -1369,8 +1388,8 @@ class _ItemDialogState extends State<_ItemDialog> {
           if (componentType == 'button')
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Enabled'),
-              subtitle: const Text('Allow button interaction'),
+              title: const LocalizedUiText('Enabled'),
+              subtitle: const LocalizedUiText('Allow button interaction'),
               value: componentEnabled,
               onChanged: (value) => setState(() => componentEnabled = value),
             ),
@@ -1383,8 +1402,12 @@ class _ItemDialogState extends State<_ItemDialog> {
           DropdownButtonFormField<String>(
             key: const ValueKey('visibility-mode-selector'),
             initialValue: visibilityMode,
-            decoration: const InputDecoration(
-              labelText: 'Visibility Condition',
+            decoration: InputDecoration(
+              labelText: uiText(
+                context,
+                'Visibility Condition',
+                'காட்சிக்கான நிபந்தனை',
+              ),
             ),
             items: const [
               DropdownMenuItem(value: 'always', child: Text('Always visible')),
@@ -1405,7 +1428,13 @@ class _ItemDialogState extends State<_ItemDialog> {
             DropdownButtonFormField<String>(
               key: const ValueKey('visibility-state-selector'),
               initialValue: visibilityState,
-              decoration: const InputDecoration(labelText: 'Required UI State'),
+              decoration: InputDecoration(
+                labelText: uiText(
+                  context,
+                  'Required UI State',
+                  'தேவையான UI நிலை',
+                ),
+              ),
               items: [
                 for (final value in V4VisibilityRules.states)
                   DropdownMenuItem(value: value, child: Text(value)),
@@ -1447,7 +1476,9 @@ class _ItemDialogState extends State<_ItemDialog> {
                       ? interactionComponentId
                       : null,
               isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Source Component'),
+              decoration: InputDecoration(
+                labelText: uiText(context, 'Source Component', 'மூலக் கூறு'),
+              ),
               items: [
                 const DropdownMenuItem<String>(
                   value: '',
@@ -1480,7 +1511,9 @@ class _ItemDialogState extends State<_ItemDialog> {
                     availableTriggers.contains(interactionTrigger)
                         ? interactionTrigger
                         : null,
-                decoration: const InputDecoration(labelText: 'Trigger'),
+                decoration: InputDecoration(
+                  labelText: uiText(context, 'Trigger', 'தூண்டுதல்'),
+                ),
                 items: [
                   for (final trigger in availableTriggers)
                     DropdownMenuItem(value: trigger, child: Text(trigger)),
@@ -1497,7 +1530,9 @@ class _ItemDialogState extends State<_ItemDialog> {
                         )
                         ? interactionAction
                         : 'navigate',
-                decoration: const InputDecoration(labelText: 'Action'),
+                decoration: InputDecoration(
+                  labelText: uiText(context, 'Action', 'செயல்'),
+                ),
                 items: [
                   for (final action in [
                     'navigate',
@@ -1523,8 +1558,12 @@ class _ItemDialogState extends State<_ItemDialog> {
               if (interactionAction == 'set-state')
                 DropdownButtonFormField<String>(
                   initialValue: interactionTargetState,
-                  decoration: const InputDecoration(
-                    labelText: 'Target UI State',
+                  decoration: InputDecoration(
+                    labelText: uiText(
+                      context,
+                      'Target UI State',
+                      'இலக்கு UI நிலை',
+                    ),
                   ),
                   items: [
                     for (final target in [
@@ -1548,7 +1587,9 @@ class _ItemDialogState extends State<_ItemDialog> {
           ],
           DropdownButtonFormField<String>(
             initialValue: state,
-            decoration: const InputDecoration(labelText: 'UI State'),
+            decoration: InputDecoration(
+              labelText: uiText(context, 'UI State', 'UI நிலை'),
+            ),
             items:
                 [
                       'default',
@@ -1588,7 +1629,7 @@ class _ItemDialogState extends State<_ItemDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: const LocalizedUiText('Cancel'),
         ),
         FilledButton(
           onPressed: () {
@@ -1823,7 +1864,7 @@ class _ItemDialogState extends State<_ItemDialog> {
             }
             Navigator.pop(context, result);
           },
-          child: const Text('Save'),
+          child: const LocalizedUiText('Save'),
         ),
       ],
     );
@@ -1873,7 +1914,7 @@ class _ThemeEditorState extends State<_ThemeEditor> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionTitle(
+          const LocalizedSectionTitle(
             'Brand & theme',
             subtitle: 'Persistent design tokens used by the template renderer.',
           ),
@@ -1964,7 +2005,9 @@ class _ThemeEditorState extends State<_ThemeEditor> {
           const SizedBox(height: 17),
           DropdownButtonFormField<String>(
             initialValue: mode,
-            decoration: const InputDecoration(labelText: 'Color mode'),
+            decoration: InputDecoration(
+              labelText: uiText(context, 'Color mode', 'நிற முறை'),
+            ),
             items:
                 ['light', 'dark', 'system']
                     .map((v) => DropdownMenuItem(value: v, child: Text(v)))
@@ -1982,7 +2025,7 @@ class _ThemeEditorState extends State<_ThemeEditor> {
               });
             },
             icon: const Icon(Icons.save_outlined),
-            label: const Text('Save Theme'),
+            label: const LocalizedUiText('Save Theme'),
           ),
         ],
       ),
@@ -2184,18 +2227,18 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
       barrierDismissible: false,
       builder:
           (dialogContext) => AlertDialog(
-            title: const Text('Discard unsaved visual changes?'),
-            content: const Text(
+            title: const LocalizedUiText('Discard unsaved visual changes?'),
+            content: const LocalizedUiText(
               'Your last saved visual draft will remain unchanged.',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
+                child: const LocalizedUiText('Cancel'),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Discard changes'),
+                child: const LocalizedUiText('Discard changes'),
               ),
             ],
           ),
@@ -2289,7 +2332,12 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   }
 
   void generatePreview() {
-    if (savingDraft || generating || draftBlueprint != null) return;
+    if (savingDraft ||
+        generating ||
+        draftBlueprint != null ||
+        _versionConflict) {
+      return;
+    }
     try {
       // Derived from server-loaded Workspace content, not hardcoded DB records.
       final preview = buildLocalPreviewBlueprint(widget.workspace);
@@ -2311,7 +2359,12 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   }
 
   Future<void> regenerateBlueprint() async {
-    if (generating || savingDraft || draftBlueprint != null) return;
+    if (generating ||
+        savingDraft ||
+        draftBlueprint != null ||
+        _versionConflict) {
+      return;
+    }
 
     final projectId = widget.workspace.projectId;
     final workspaceRepository = ref.read(workspaceRepositoryProvider);
@@ -2398,7 +2451,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
             (dialogContext) => StatefulBuilder(
               builder:
                   (context, update) => AlertDialog(
-                    title: const Text('Safe AI Regeneration'),
+                    title: const LocalizedUiText('Safe AI Regeneration'),
                     content: SizedBox(
                       width: 520,
                       child: SingleChildScrollView(
@@ -2416,8 +2469,12 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                             const SizedBox(height: 12),
                             DropdownButtonFormField<String>(
                               initialValue: language,
-                              decoration: const InputDecoration(
-                                labelText: 'AI instruction language',
+                              decoration: InputDecoration(
+                                labelText: uiText(
+                                  context,
+                                  'AI instruction language',
+                                  'AI வழிமுறை மொழி',
+                                ),
                               ),
                               items: const [
                                 DropdownMenuItem(
@@ -2444,8 +2501,12 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                                   (value) => update(() {
                                     instructions = value;
                                   }),
-                              decoration: const InputDecoration(
-                                labelText: 'Regeneration instructions',
+                              decoration: InputDecoration(
+                                labelText: uiText(
+                                  context,
+                                  'Regeneration instructions',
+                                  'மீள் உருவாக்க வழிமுறைகள்',
+                                ),
                                 hintText:
                                     'Describe the requested design improvements',
                               ),
@@ -2457,7 +2518,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                                   (value) => update(() {
                                     consent = value ?? false;
                                   }),
-                              title: const Text(
+                              title: const LocalizedUiText(
                                 'I consent to AI processing of this Blueprint.',
                               ),
                             ),
@@ -2472,14 +2533,14 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(dialogContext, false),
-                        child: const Text('Cancel'),
+                        child: const LocalizedUiText('Cancel'),
                       ),
                       FilledButton(
                         onPressed:
                             !consent || instructions.trim().isEmpty
                                 ? null
                                 : () => Navigator.pop(dialogContext, true),
-                        child: const Text('Regenerate'),
+                        child: const LocalizedUiText('Regenerate'),
                       ),
                     ],
                   ),
@@ -2623,7 +2684,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
           return StatefulBuilder(
             builder: (context, update) {
               return AlertDialog(
-                title: const Text('Generate Blueprint'),
+                title: const LocalizedUiText('Generate Blueprint'),
                 content: SizedBox(
                   width: 650,
                   child: SingleChildScrollView(
@@ -2695,8 +2756,12 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                           DropdownButtonFormField<String>(
                             initialValue: routeMappings[route['id'].toString()],
                             isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Navigation button',
+                            decoration: InputDecoration(
+                              labelText: uiText(
+                                context,
+                                'Navigation button',
+                                'வழிசெலுத்தல் பொத்தான்',
+                              ),
                             ),
                             items: [
                               for (final component in components)
@@ -2740,7 +2805,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(dialogContext),
-                    child: const Text('Cancel'),
+                    child: const LocalizedUiText('Cancel'),
                   ),
                   FilledButton(
                     onPressed: () {
@@ -2759,7 +2824,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                         });
                       }
                     },
-                    child: const Text('Generate & save'),
+                    child: const LocalizedUiText('Generate & save'),
                   ),
                 ],
               );
@@ -2872,7 +2937,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SectionTitle(
+              const LocalizedSectionTitle(
                 'Blueprint & UI Studio',
                 subtitle:
                     'Preview server-loaded Builder data or compile a Blueprint through the backend.',
@@ -2884,7 +2949,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                 children: [
                   FilterChip(
                     key: const ValueKey('step07-autosave-toggle'),
-                    label: const Text('Autosave (2s)'),
+                    label: const LocalizedUiText('Autosave (2s)'),
                     selected: autosaveEnabled,
                     onSelected:
                         savingDraft || generating
@@ -2902,9 +2967,9 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                     onPressed:
                         generating || savingDraft || draftBlueprint != null
                             ? null
-                            : generatePreview,
+                            : (_versionConflict ? null : generatePreview),
                     icon: const Icon(Icons.visibility_outlined),
-                    label: const Text('Generate Local Preview'),
+                    label: const LocalizedUiText('Generate Local Preview'),
                   ),
                   if (draftBlueprint != null)
                     OutlinedButton.icon(
@@ -2914,7 +2979,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                               ? null
                               : discardVisualChanges,
                       icon: const Icon(Icons.restore),
-                      label: const Text('Discard Changes'),
+                      label: const LocalizedUiText('Discard Changes'),
                     ),
                   if (draftBlueprint != null)
                     FilledButton.icon(
@@ -2932,7 +2997,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                             ? null
                             : compileBlueprint,
                     icon: const Icon(Icons.auto_awesome),
-                    label: const Text('Generate & Save Blueprint'),
+                    label: const LocalizedUiText('Generate & Save Blueprint'),
                   ),
                   OutlinedButton.icon(
                     onPressed:
@@ -2940,7 +3005,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                             ? null
                             : regenerateBlueprint,
                     icon: const Icon(Icons.auto_awesome),
-                    label: const Text('Safe AI Regeneration'),
+                    label: const LocalizedUiText('Safe AI Regeneration'),
                   ),
                 ],
               ),
@@ -2959,7 +3024,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
         ),
         if (localPreview != null && draftBlueprint == null) ...[
           const SizedBox(height: 16),
-          const SectionTitle('Local simulation - not validated'),
+          const LocalizedSectionTitle('Local simulation - not validated'),
           const SizedBox(height: 8),
           SafePreview(
             key: ObjectKey(localPreview),
@@ -2968,7 +3033,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
           ),
         ],
         const SizedBox(height: 16),
-        const SectionTitle('Visual Design Workspace'),
+        const LocalizedSectionTitle('Visual Design Workspace'),
         const SizedBox(height: 8),
         if (hasCompiledBlueprint) ...[
           Wrap(
@@ -2980,22 +3045,24 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                 onPressed:
                     !savingDraft &&
                             !generating &&
+                            !_versionConflict &&
                             blueprintHistory?.canUndo == true
                         ? undoBlueprint
                         : null,
                 icon: const Icon(Icons.undo),
-                label: const Text('Undo'),
+                label: const LocalizedUiText('Undo'),
               ),
               OutlinedButton.icon(
                 key: const ValueKey('step07-redo-button'),
                 onPressed:
                     !savingDraft &&
                             !generating &&
+                            !_versionConflict &&
                             blueprintHistory?.canRedo == true
                         ? redoBlueprint
                         : null,
                 icon: const Icon(Icons.redo),
-                label: const Text('Redo'),
+                label: const LocalizedUiText('Redo'),
               ),
             ],
           ),
@@ -3013,9 +3080,9 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
             const SizedBox(height: 12),
             SurfaceCard(
               child: IgnorePointer(
-                ignoring: savingDraft || generating,
+                ignoring: savingDraft || generating || _versionConflict,
                 child: ExcludeFocus(
-                  excluding: savingDraft || generating,
+                  excluding: savingDraft || generating || _versionConflict,
                   child: V4BlueprintPropertyInspector(
                     key: ValueKey(
                       'step07-inspector-$inspectorRevision-$selectedBlueprintComponentId',
@@ -3263,7 +3330,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
       context: context,
       builder:
           (dialogContext) => AlertDialog(
-            title: const Text('Approve validated design?'),
+            title: const LocalizedUiText('Approve validated design?'),
             content: const Text(
               'Approval creates an immutable revision of the current '
               'validated Blueprint. Confirm only after reviewing the design.',
@@ -3271,11 +3338,11 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
+                child: const LocalizedUiText('Cancel'),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Approve design'),
+                child: const LocalizedUiText('Approve design'),
               ),
             ],
           ),
@@ -3322,7 +3389,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
       context: context,
       builder:
           (dialogContext) => AlertDialog(
-            title: const Text('Approved revision details'),
+            title: const LocalizedUiText('Approved revision details'),
             content: SingleChildScrollView(
               child: SelectableText(
                 'Revision: ${revision['revisionId']}\n'
@@ -3335,7 +3402,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Close'),
+                child: const LocalizedUiText('Close'),
               ),
             ],
           ),
@@ -3398,7 +3465,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionTitle(
+          const LocalizedSectionTitle(
             'Review, Approval & Export',
             subtitle:
                 'Validate the current design and manage approved revisions.',
@@ -3413,7 +3480,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
                 onPressed:
                     busy || widget.workspace.isApproved ? null : runValidation,
                 icon: const Icon(Icons.fact_check_outlined),
-                label: const Text('Run Backend Validation'),
+                label: const LocalizedUiText('Run Backend Validation'),
               ),
               FilledButton.icon(
                 onPressed:
@@ -3424,12 +3491,12 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
                         ? null
                         : approveDraft,
                 icon: const Icon(Icons.verified_outlined),
-                label: const Text('Approve Design'),
+                label: const LocalizedUiText('Approve Design'),
               ),
               OutlinedButton.icon(
                 onPressed: busy ? null : loadHistory,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Refresh History'),
+                label: const LocalizedUiText('Refresh History'),
               ),
             ],
           ),
@@ -3442,7 +3509,9 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
           const SizedBox(height: 12),
 
           if (current == null)
-            const Text('Run validation before approving this design.')
+            const LocalizedUiText(
+              'Run validation before approving this design.',
+            )
           else ...[
             Text(
               passed ? 'Validation PASSED' : 'Validation FAILED',
@@ -3467,7 +3536,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
 
           const Divider(height: 36),
 
-          const SectionTitle(
+          const LocalizedSectionTitle(
             'Approved Revision History',
             subtitle: 'Immutable server-approved design snapshots.',
           ),
@@ -3475,7 +3544,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
           if (revisions.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('No approved revisions loaded.'),
+              child: LocalizedUiText('No approved revisions loaded.'),
             ),
 
           for (final revision in revisions)
@@ -3506,7 +3575,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
                                     : () => inspectRevision(
                                       revision['revisionId'] as String,
                                     ),
-                            child: const Text('Revision details'),
+                            child: const LocalizedUiText('Revision details'),
                           ),
                           FilledButton.icon(
                             onPressed:
@@ -3516,7 +3585,9 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
                                       revision['revisionId'] as String,
                                     ),
                             icon: const Icon(Icons.archive_outlined),
-                            label: const Text('Create Official Export'),
+                            label: const LocalizedUiText(
+                              'Create Official Export',
+                            ),
                           ),
                         ],
                       ),
@@ -3527,7 +3598,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
 
           const Divider(height: 36),
 
-          const SectionTitle(
+          const LocalizedSectionTitle(
             'Official Second Brain Exports',
             subtitle: 'Download archives created from approved revisions.',
           ),
@@ -3535,7 +3606,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
           if (exports.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('No official export records loaded.'),
+              child: LocalizedUiText('No official export records loaded.'),
             ),
 
           for (final item in exports)
@@ -3561,7 +3632,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
                                 : () =>
                                     downloadExport(item['exportId'] as String),
                         icon: const Icon(Icons.download_outlined),
-                        label: const Text('Download Official ZIP'),
+                        label: const LocalizedUiText('Download Official ZIP'),
                       ),
                     ],
                   ),

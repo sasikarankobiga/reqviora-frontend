@@ -1,3 +1,4 @@
+import 'package:reqviora_frontend/l10n/language_settings.dart';
 import 'package:flutter/material.dart';
 
 /// Draft-only property editor for a selected Blueprint component.
@@ -17,7 +18,7 @@ class V4BlueprintPropertyInspector extends StatelessWidget {
     final selected = component;
 
     if (selected == null) {
-      return const Text('Select a component to edit its properties');
+      return const LocalizedUiText('Select a component to edit its properties');
     }
 
     final id =
@@ -27,9 +28,10 @@ class V4BlueprintPropertyInspector extends StatelessWidget {
 
     final rawProps = selected['props'] ?? selected['properties'];
 
-    final props = rawProps is Map
-        ? Map<String, dynamic>.from(rawProps)
-        : <String, dynamic>{};
+    final props =
+        rawProps is Map
+            ? Map<String, dynamic>.from(rawProps)
+            : <String, dynamic>{};
 
     final field = (type == 'text' || type == 'header') ? 'text' : 'label';
 
@@ -56,10 +58,7 @@ class V4BlueprintPropertyInspector extends StatelessWidget {
       children: [
         const Text(
           'Component Properties',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-          ),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 12),
         Text('Component ID: $id'),
