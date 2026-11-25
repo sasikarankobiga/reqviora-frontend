@@ -1648,6 +1648,7 @@ class _ThemeEditorState extends State<_ThemeEditor> {
             onPressed: () async {
               if (!(form.currentState?.validate() ?? false)) return;
               await widget.onSave('theme', {
+                ...widget.workspace.fields('theme'),
                 'primaryColor': primary.text.trim(),
                 'secondaryColor': secondary.text.trim(),
                 'mode': mode
