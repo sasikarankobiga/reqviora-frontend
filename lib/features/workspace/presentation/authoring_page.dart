@@ -1638,123 +1638,542 @@ class _ValidationEditor extends ConsumerStatefulWidget {
 }
 
 class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
-  bool validating = false;
-  bool exporting = false;
-  Map<String, dynamic>? result;
+  bool busy = false;
   String? error;
+  String? message;
+  String? validationToken;
 
-  Future<void> runValidation() async {
-    setState(() {
-      validating = true;
-      error = null;
+  Map<String, dynamic>? result;
+
+  List<Map<String, dynamic>> revisions = [];
+  List<Map<String, dynamic>> exports = [];
+
+  String get projectId => widget.workspace.projectId;
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) loadHistory();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _ValidationEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.workspace.version != widget.workspace.version ||
+        oldWidget.workspace.projectId != projectId) {
       result = null;
-    });
-    try {
-      final response = await ref.read(workspaceRepositoryProvider)
-          .validate(widget.workspace.projectId);
-      if (mounted) setState(() => result = response);
-    } catch (e) {
-      if (mounted) setState(() => error = e.toString());
-    } finally {
-      if (mounted) setState(() => validating = false);
+      validationToken = null;
+    }
+
+    if (oldWidget.workspace.projectId != projectId) {
+      revisions = [];
+      exports = [];
     }
   }
 
-  Future<void> exportDraft() async {
+  Future<Map<String, dynamic>> currentDraft() async {
+    final repository = ref.read(workspaceRepositoryProvider);
+
+    return Map<String, dynamic>.from(
+      await repository.api.get(
+        '/api/projects/$projectId/drafts/current',
+      ) as Map,
+    );
+  }
+
+  String describeError(Object failure) {
+    if (failure is ApiException) {
+      switch (failure.statusCode) {
+        case 401:
+          return 'Session expired. Sign in again.';
+        case 403:
+          return 'You do not have permission for this operation.';
+        case 409:
+          return 'The draft has changed or is already approved. Reload and retry.';
+        case 404:
+          return 'The requested revision or draft was not found.';
+      }
+    }
+
+    return failure.toString();
+  }
+
+  Future<void> execute(
+    Future<void> Function() operation,
+  ) async {
+    if (busy) return;
+
     setState(() {
-      exporting = true;
+      busy = true;
       error = null;
+      message = null;
     });
+
     try {
-      final bytes = await ref.read(workspaceRepositoryProvider)
-          .exportDraft(widget.workspace.projectId);
-      if (!mounted) return;
-      ref.read(downloadPortProvider).saveZip(
-          'reqviora-${widget.workspace.projectId}-draft-v${widget.workspace.version}.zip',
-          bytes);
-    } catch (e) {
-      if (mounted) setState(() => error = e.toString());
+      await operation();
+    } catch (failure) {
+      if (mounted) {
+        setState(() => error = describeError(failure));
+      }
     } finally {
-      if (mounted) setState(() => exporting = false);
+      if (mounted) {
+        setState(() => busy = false);
+      }
     }
   }
+
+  Future<void> refreshHistory() async {
+    final repository = ref.read(
+      approvalExportRepositoryProvider,
+    );
+
+    final approved = await repository.getRevisions(projectId);
+
+    if (!mounted) return;
+
+    setState(() => revisions = approved);
+
+    try {
+      final records = await repository.getExports(projectId);
+
+      if (mounted) {
+        setState(() => exports = records);
+      }
+    } on ApiException catch (failure) {
+      if (failure.statusCode != 403) rethrow;
+
+      if (mounted) {
+        setState(() {
+          exports = [];
+          message = 'Export records are available to project owners.';
+        });
+      }
+    }
+  }
+
+  Future<void> loadHistory() => execute(refreshHistory);
+
+  Future<void> runValidation() => execute(() async {
+    setState(() {
+      result = null;
+      validationToken = null;
+    });
+
+    final current = await currentDraft();
+
+    if (!mounted) return;
+
+    if (current['version'] != widget.workspace.version) {
+      throw StateError('Workspace changed. Reload before validation.');
+    }
+
+    final token = current['concurrencyToken'];
+
+    if (token is! String || token.isEmpty) {
+      throw StateError('Save the current draft before validation.');
+    }
+
+    final repository = ref.read(workspaceRepositoryProvider);
+
+    final response = Map<String, dynamic>.from(
+      await repository.api.post(
+        '/api/projects/$projectId/blueprints/validate',
+        {'expectedConcurrencyToken': token},
+      ) as Map,
+    );
+
+    if (response['id'] is! String ||
+        response['draftVersionId'] is! String ||
+        response['passed'] is! bool ||
+        response['findings'] is! List) {
+      throw const FormatException('Invalid validation response');
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      result = response;
+      validationToken = token;
+      message = response['passed'] == true
+          ? 'Backend validation passed.'
+          : 'Validation failed. Resolve the findings before approval.';
+    });
+  });
+
+  Future<void> approveDraft() => execute(() async {
+    final validation = result;
+    final token = validationToken;
+
+    if (validation?['passed'] != true ||
+        validation?['id'] is! String ||
+        token == null) {
+      throw StateError('Successful validation is required.');
+    }
+
+    final current = await currentDraft();
+
+    if (!mounted) return;
+
+    if (current['approvedRevisionId'] != null) {
+      throw StateError('This draft is already approved.');
+    }
+
+    if (current['concurrencyToken'] != token ||
+        current['version'] != widget.workspace.version) {
+      setState(() {
+        result = null;
+        validationToken = null;
+      });
+
+      throw StateError('Draft changed. Run validation again.');
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Approve validated design?'),
+        content: const Text(
+          'Approval creates an immutable revision of the current '
+          'validated Blueprint. Confirm only after reviewing the design.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, true),
+            child: const Text('Approve design'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || confirmed != true) return;
+
+    final repository = ref.read(
+      approvalExportRepositoryProvider,
+    );
+
+    final receipt = await repository.approve(
+      projectId: projectId,
+      expectedConcurrencyToken: token,
+      validationRunId: validation!['id'] as String,
+      explicitlyConfirmed: true,
+    );
+
+    if (receipt['revisionId'] is! String ||
+        receipt['validationRunId'] != validation['id']) {
+      throw const FormatException('Invalid approval receipt');
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      result = null;
+      validationToken = null;
+      message = 'Approved revision created successfully.';
+    });
+
+    ref.invalidate(workspaceProvider(projectId));
+    ref.invalidate(projectValidationProvider(projectId));
+
+    await refreshHistory();
+  });
+
+  Future<void> inspectRevision(String revisionId) =>
+      execute(() async {
+    final repository = ref.read(
+      approvalExportRepositoryProvider,
+    );
+
+    final revision = await repository.getRevision(
+      projectId,
+      revisionId,
+    );
+
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Approved revision details'),
+        content: SingleChildScrollView(
+          child: SelectableText(
+            'Revision: ${revision['revisionId']}\n'
+            'Draft version: ${revision['draftVersion']}\n'
+            'Approved at: ${revision['approvedAt']}\n'
+            'Approved by: ${revision['approvedBy']}\n'
+            'Validation: ${revision['validationRunId']}',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  });
+
+  Future<void> createExport(String revisionId) =>
+      execute(() async {
+    final repository = ref.read(
+      approvalExportRepositoryProvider,
+    );
+
+    final receipt = await repository.createExport(
+      projectId,
+      revisionId,
+    );
+
+    if (receipt['exportId'] is! String ||
+        receipt['approvedRevisionId'] != revisionId) {
+      throw const FormatException('Invalid export receipt');
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      message = 'Official export is ready for download.';
+    });
+
+    await refreshHistory();
+  });
+
+  Future<void> downloadExport(String exportId) =>
+      execute(() async {
+    final repository = ref.read(
+      approvalExportRepositoryProvider,
+    );
+
+    final metadata = await repository.getExport(
+      projectId,
+      exportId,
+    );
+
+    if (metadata['exportId'] != exportId) {
+      throw const FormatException('Export identity mismatch');
+    }
+
+    final bytes = await repository.downloadExport(
+      projectId,
+      exportId,
+    );
+
+    if (metadata['archiveBytes'] is! int ||
+        metadata['archiveBytes'] != bytes.length) {
+      throw const FormatException('Archive size mismatch');
+    }
+
+    if (!mounted) return;
+
+    ref.read(downloadPortProvider).saveZip(
+      'reqviora-$exportId.zip',
+      bytes,
+    );
+
+    setState(() {
+      message = 'Official archive sent to browser download.';
+    });
+  });
 
   @override
   Widget build(BuildContext context) {
     final current = result;
+    final passed = current?['passed'] == true;
+
     final findings = (current?['findings'] as List? ?? [])
         .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
         .toList();
-    final blockers = current?['blockers'];
-    final advisories = current?['advisories'];
 
     return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SectionTitle(
-            'Review & Validation',
-            subtitle: 'Run backend validation for the saved draft.',
+            'Review, Approval & Export',
+            subtitle:
+                'Validate the current design and manage approved revisions.',
           ),
           const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: validating || exporting ? null : runValidation,
-            icon: const Icon(Icons.fact_check_outlined),
-            label: Text(validating ? 'Validating...' : 'Run Backend Validation'),
+
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              FilledButton.icon(
+                onPressed: busy ? null : runValidation,
+                icon: const Icon(Icons.fact_check_outlined),
+                label: const Text('Run Backend Validation'),
+              ),
+              FilledButton.icon(
+                onPressed: busy || !passed || validationToken == null
+                    ? null
+                    : approveDraft,
+                icon: const Icon(Icons.verified_outlined),
+                label: const Text('Approve Design'),
+              ),
+              OutlinedButton.icon(
+                onPressed: busy ? null : loadHistory,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Refresh History'),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          if (validating)
-            const LinearProgressIndicator()
-          else if (current == null)
-            const Text('Validation has not been completed.')
-          else ...[
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                if (blockers is int)
-                  SmallLabel('$blockers blockers',
-                      color: blockers > 0
-                          ? const Color(0xFFCA5161)
-                          : AppColors.green),
-                if (advisories is int)
-                  SmallLabel('$advisories advisories'),
-                if (current['draftVersion'] != null)
-                  SmallLabel("Draft v${current['draftVersion']}"),
-              ],
-            ),
+
+          if (busy) ...[
             const SizedBox(height: 12),
-            if (findings.isEmpty)
-              const Text('No validation findings returned for implemented rules.'),
+            const LinearProgressIndicator(),
+          ],
+
+          const SizedBox(height: 12),
+
+          if (current == null)
+            const Text('Run validation before approving this design.')
+          else ...[
+            Text(
+              passed ? 'Validation PASSED' : 'Validation FAILED',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: passed ? Colors.green : Colors.red,
+              ),
+            ),
+            Text('Validation ID: ${current['id']}'),
+            Text('Validated at: ${current['validatedAt']}'),
+
             for (final finding in findings)
               ListTile(
-                leading: Icon(
-                  finding['severity'] == 'blocker'
-                      ? Icons.error_outline
-                      : Icons.info_outline,
-                  color: finding['severity'] == 'blocker'
-                      ? const Color(0xFFCA5161)
-                      : AppColors.purple,
+                leading: const Icon(Icons.info_outline),
+                title: Text(
+                  (finding['code'] ?? 'Finding').toString(),
                 ),
-                title: Text((finding['ruleId'] ?? finding['code'] ?? 'Finding').toString()),
-                subtitle: Text((finding['message'] ?? '').toString()),
+                subtitle: Text(
+                  '${finding['message'] ?? ''}\n'
+                  '${finding['path'] ?? ''}',
+                ),
               ),
           ],
-          const SizedBox(height: 20),
-          const Divider(),
-          const SizedBox(height: 12),
-          const Text(
-            'Draft export only. Official export requires an approved revision. '
-            'A draft ZIP is not approval or a deployable application.',
-            style: TextStyle(color: AppColors.muted, fontSize: 12),
+
+          const Divider(height: 36),
+
+          const SectionTitle(
+            'Approved Revision History',
+            subtitle: 'Immutable server-approved design snapshots.',
           ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: validating || exporting ? null : exportDraft,
-            icon: const Icon(Icons.download_outlined),
-            label: Text(exporting ? 'Preparing ZIP...' : 'Download Draft ZIP'),
+
+          if (revisions.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text('No approved revisions loaded.'),
+            ),
+
+          for (final revision in revisions)
+            if (revision['revisionId'] is String)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Approved draft v${revision['draftVersion']}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text('${revision['approvedAt']}'),
+                      SelectableText(
+                        revision['revisionId'].toString(),
+                      ),
+                      const SizedBox(height: 10),
+
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton(
+                            onPressed: busy
+                                ? null
+                                : () => inspectRevision(
+                                      revision['revisionId'] as String,
+                                    ),
+                            child: const Text('Revision details'),
+                          ),
+                          FilledButton.icon(
+                            onPressed: busy
+                                ? null
+                                : () => createExport(
+                                      revision['revisionId'] as String,
+                                    ),
+                            icon: const Icon(Icons.archive_outlined),
+                            label: const Text('Create Official Export'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+          const Divider(height: 36),
+
+          const SectionTitle(
+            'Official Second Brain Exports',
+            subtitle: 'Download archives created from approved revisions.',
           ),
+
+          if (exports.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text('No official export records loaded.'),
+            ),
+
+          for (final item in exports)
+            if (item['exportId'] is String)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Export: ${item['exportId']}'),
+                      Text('Revision: ${item['approvedRevisionId']}'),
+                      Text('Generator: ${item['generatorVersion']}'),
+                      Text('Size: ${item['archiveBytes']} bytes'),
+                      Text('Created: ${item['createdAt']}'),
+                      const SizedBox(height: 8),
+                      SelectableText(
+                        'SHA-256: ${item['archiveSha256']}',
+                      ),
+                      const SizedBox(height: 10),
+                      FilledButton.icon(
+                        onPressed: busy
+                            ? null
+                            : () => downloadExport(
+                                  item['exportId'] as String,
+                                ),
+                        icon: const Icon(Icons.download_outlined),
+                        label: const Text('Download Official ZIP'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+          if (message != null) ...[
+            const SizedBox(height: 12),
+            Text(message!),
+          ],
+
           if (error != null) ...[
             const SizedBox(height: 12),
             InlineError(error!),

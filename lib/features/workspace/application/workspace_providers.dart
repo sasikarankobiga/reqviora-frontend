@@ -1,3 +1,4 @@
+import '../data/approval_export_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../projects/application/projects_providers.dart';
 import '../domain/workspace.dart';
@@ -29,4 +30,8 @@ final downloadPortProvider = Provider<DownloadPort>(
 
 final aiIntelligenceRepositoryProvider = Provider<AiIntelligenceRepository>(
   (ref) => AiIntelligenceRepository(ref.watch(apiClientProvider)),
+);
+
+final approvalExportRepositoryProvider = Provider<ApprovalExportRepository>(
+  (ref) => ApprovalExportRepository(ref.watch(apiClientProvider)),
 );
