@@ -1,3 +1,4 @@
+import 'navigation_graph_editor.dart';
 import '../../../core/network/api_client.dart';
 import '../domain/blueprint_proposal.dart';
 import '../../builder/domain/registry/component_registry.dart';
@@ -374,6 +375,11 @@ class _ItemEditorState extends State<_ItemEditor> {
           const SizedBox(height: 12),
         ],
         if (widget.type == _ItemType.route) ...[
+          NavigationGraphEditor(
+            key: ValueKey(widget.workspace.projectId),
+            workspace: widget.workspace,
+          ),
+          const SizedBox(height: 16),
           Builder(
             builder: (context) {
               final screens = widget.workspace.items('screens');
