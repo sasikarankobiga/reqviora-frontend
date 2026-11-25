@@ -122,8 +122,10 @@ void main() {
     await tester.pump();
 
     expect(
-      find.text('Mock action only · No live transaction executed'),
+      find.text('Preview-only action - No backend request was made'),
       findsOneWidget,
     );
   });
 }
+
+
