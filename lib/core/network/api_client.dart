@@ -59,7 +59,10 @@ class ApiClient {
     try {
       final response = await _http.post(
         _uri('/api/auth/refresh'),
-        headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
         body: jsonEncode({'refreshToken': currentToken}),
       );
       if (response.statusCode == 401 || response.statusCode == 403) {
@@ -71,9 +74,13 @@ class ApiClient {
       if (data is! Map) return false;
       final access = data['accessToken']?.toString() ?? '';
       final refresh = data['refreshToken']?.toString() ?? '';
-      final expires = DateTime.tryParse(data['accessTokenExpiresAt']?.toString() ?? '');
+      final expires = DateTime.tryParse(
+        data['accessTokenExpiresAt']?.toString() ?? '',
+      );
       if (access.isEmpty || refresh.isEmpty || expires == null) return false;
-      if (authSession.refreshToken != currentToken) return authSession.authenticated;
+      if (authSession.refreshToken != currentToken) {
+        return authSession.authenticated;
+      }
       authSession.startSession(
         accessToken: access,
         refreshToken: refresh,
@@ -109,7 +116,9 @@ class ApiClient {
   Future<dynamic> get(String path) async {
     try {
       var response = await _http.get(_uri(path), headers: _headers);
-      if (response.statusCode == 401 && _canRefresh(path) && await _refreshOnce()) {
+      if (response.statusCode == 401 &&
+          _canRefresh(path) &&
+          await _refreshOnce()) {
         response = await _http.get(_uri(path), headers: _headers);
       }
       return _parse(response);
@@ -125,12 +134,14 @@ class ApiClient {
   }) async {
     try {
       Future<http.Response> send() => _http.post(
-            _uri(path),
-            headers: {..._headers, if (key != null) 'Idempotency-Key': key},
-            body: jsonEncode(data),
-          );
+        _uri(path),
+        headers: {..._headers, if (key != null) 'Idempotency-Key': key},
+        body: jsonEncode(data),
+      );
       var response = await send();
-      if (response.statusCode == 401 && _canRefresh(path) && await _refreshOnce()) {
+      if (response.statusCode == 401 &&
+          _canRefresh(path) &&
+          await _refreshOnce()) {
         response = await send();
       }
       return _parse(response);
@@ -141,15 +152,36 @@ class ApiClient {
 
   Future<dynamic> put(String path, Map<String, dynamic> data) async {
     try {
-      Future<http.Response> send() => _http.put(
-            _uri(path), headers: _headers, body: jsonEncode(data));
+      Future<http.Response> send() =>
+          _http.put(_uri(path), headers: _headers, body: jsonEncode(data));
       var response = await send();
-      if (response.statusCode == 401 && _canRefresh(path) && await _refreshOnce()) {
+      if (response.statusCode == 401 &&
+          _canRefresh(path) &&
+          await _refreshOnce()) {
         response = await send();
       }
       return _parse(response);
     } on http.ClientException catch (e) {
       throw ApiException(0, 'Cannot connect to backend: $e');
+    }
+  }
+
+  Future<void> delete(String path) async {
+    try {
+      Future<http.Response> send() =>
+          _http.delete(_uri(path), headers: _headers);
+
+      var response = await send();
+
+      if (response.statusCode == 401 &&
+          _canRefresh(path) &&
+          await _refreshOnce()) {
+        response = await send();
+      }
+
+      _parse(response);
+    } on http.ClientException catch (error) {
+      throw ApiException(0, 'Cannot connect to backend: $error');
     }
   }
 
@@ -186,7 +218,9 @@ class ApiClient {
 
     final expires = authSession.accessExpiresAt;
     if (expires != null &&
-        expires.isBefore(DateTime.now().toUtc().add(const Duration(seconds: 30))) &&
+        expires.isBefore(
+          DateTime.now().toUtc().add(const Duration(seconds: 30)),
+        ) &&
         _canRefresh('/api/projects/$projectId/documents')) {
       await _refreshOnce();
     }
@@ -221,7 +255,9 @@ class ApiClient {
   Future<List<int>> getBytes(String path) async {
     try {
       var response = await _http.get(_uri(path), headers: _headers);
-      if (response.statusCode == 401 && _canRefresh(path) && await _refreshOnce()) {
+      if (response.statusCode == 401 &&
+          _canRefresh(path) &&
+          await _refreshOnce()) {
         response = await _http.get(_uri(path), headers: _headers);
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -266,8 +302,7 @@ class ApiClient {
       _ => throw ArgumentError('Unsupported audio format'),
     };
 
-    final path =
-        '/api/projects/$projectId/input-intelligence/voice/transcribe';
+    final path = '/api/projects/$projectId/input-intelligence/voice/transcribe';
 
     Future<http.Response> send() async {
       final request = http.MultipartRequest('POST', _uri(path));
@@ -276,8 +311,7 @@ class ApiClient {
         'Accept': 'application/json',
         if (authSession.token != null)
           'Authorization': 'Bearer ${authSession.token}',
-        if (isLocalDemo && !kReleaseMode)
-          'X-Reqviora-Local-Demo': 'true',
+        if (isLocalDemo && !kReleaseMode) 'X-Reqviora-Local-Demo': 'true',
       });
 
       request.fields.addAll({
