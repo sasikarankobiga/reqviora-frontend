@@ -33,10 +33,28 @@ void main() {
 
   // A valid, empty ZIP archive.
   const zipBytes = <int>[
-    80, 75, 5, 6,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0,
+    80,
+    75,
+    5,
+    6,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
   ];
 
   http.Response jsonResponse(Object body, int status) {
@@ -53,12 +71,12 @@ void main() {
     required void Function() onExport,
     required void Function() onDownload,
     bool invalidZip = false,
+    Size screenSize = const Size(1300, 1100),
   }) async {
     final client = MockClient((request) async {
       final path = request.url.path;
 
-      if (request.method == 'GET' &&
-          path == '/api/projects/$projectId') {
+      if (request.method == 'GET' && path == '/api/projects/$projectId') {
         return jsonResponse({
           'id': projectId,
           'name': 'REQVIORA Step 08 Test',
@@ -129,7 +147,7 @@ void main() {
 
     addTearDown(client.close);
 
-    await tester.binding.setSurfaceSize(const Size(1300, 1100));
+    await tester.binding.setSurfaceSize(screenSize);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
@@ -141,10 +159,7 @@ void main() {
         child: const MaterialApp(
           home: Scaffold(
             body: SingleChildScrollView(
-              child: BuilderAuthoringPage(
-                projectId: projectId,
-                step: 8,
-              ),
+              child: BuilderAuthoringPage(projectId: projectId, step: 8),
             ),
           ),
         ),
@@ -160,9 +175,7 @@ void main() {
     await tester.tap(validation);
     await tester.pumpAndSettle();
 
-    final approveButton = find.byKey(
-      const ValueKey('step08-approve-button'),
-    );
+    final approveButton = find.byKey(const ValueKey('step08-approve-button'));
 
     await tester.ensureVisible(approveButton);
     await tester.tap(approveButton);
@@ -171,15 +184,10 @@ void main() {
     await tester.tap(find.text('Confirm Approval'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Approved revision: $revisionId'),
-      findsOneWidget,
-    );
+    expect(find.text('Approved revision: $revisionId'), findsOneWidget);
   }
 
-  testWidgets('Official export disabled before approval', (
-    tester,
-  ) async {
+  testWidgets('Official export disabled before approval', (tester) async {
     final downloader = _RecordingDownloader();
     var exports = 0;
 
@@ -190,9 +198,7 @@ void main() {
       onDownload: () {},
     );
 
-    final button = find.byKey(
-      const ValueKey('step08-export-disabled'),
-    );
+    final button = find.byKey(const ValueKey('step08-export-disabled'));
 
     expect(button, findsOneWidget);
     expect(tester.widget<OutlinedButton>(button).onPressed, isNull);
@@ -200,9 +206,7 @@ void main() {
     expect(downloader.saves, 0);
   });
 
-  testWidgets('Approved revision downloads official ZIP', (
-    tester,
-  ) async {
+  testWidgets('Approved revision downloads official ZIP', (tester) async {
     final downloader = _RecordingDownloader();
     var exports = 0;
     var downloads = 0;
@@ -216,14 +220,9 @@ void main() {
 
     await approve(tester);
 
-    final button = find.byKey(
-      const ValueKey('step08-export-disabled'),
-    );
+    final button = find.byKey(const ValueKey('step08-export-disabled'));
 
-    expect(
-      tester.widget<OutlinedButton>(button).onPressed,
-      isNotNull,
-    );
+    expect(tester.widget<OutlinedButton>(button).onPressed, isNotNull);
 
     await tester.ensureVisible(button);
     await tester.tap(button);
@@ -233,15 +232,10 @@ void main() {
     expect(downloads, 1);
     expect(downloader.saves, 1);
     expect(downloader.bytes, zipBytes);
-    expect(
-      downloader.filename,
-      'reqviora-$projectId-$revisionId.zip',
-    );
+    expect(downloader.filename, 'reqviora-$projectId-$revisionId.zip');
   });
 
-  testWidgets('Invalid backend ZIP is never saved', (
-    tester,
-  ) async {
+  testWidgets('Invalid backend ZIP is never saved', (tester) async {
     final downloader = _RecordingDownloader();
     var exports = 0;
     var downloads = 0;
@@ -256,9 +250,7 @@ void main() {
 
     await approve(tester);
 
-    final button = find.byKey(
-      const ValueKey('step08-export-disabled'),
-    );
+    final button = find.byKey(const ValueKey('step08-export-disabled'));
 
     await tester.ensureVisible(button);
     await tester.tap(button);
@@ -267,9 +259,44 @@ void main() {
     expect(exports, 1);
     expect(downloads, 1);
     expect(downloader.saves, 0);
+    expect(find.textContaining('valid ZIP header'), findsOneWidget);
+  });
+
+  testWidgets('Step 08 responsive mobile layout', (tester) async {
+    final downloader = _RecordingDownloader();
+
+    await openStep08(
+      tester,
+      downloader: downloader,
+      onExport: () {},
+      onDownload: () {},
+      screenSize: const Size(390, 844),
+    );
+
+    expect(find.text('Run Backend Validation'), findsOneWidget);
     expect(
-      find.textContaining('valid ZIP header'),
+      find.byKey(const ValueKey('step08-export-disabled')),
       findsOneWidget,
     );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Step 08 responsive tablet layout', (tester) async {
+    final downloader = _RecordingDownloader();
+
+    await openStep08(
+      tester,
+      downloader: downloader,
+      onExport: () {},
+      onDownload: () {},
+      screenSize: const Size(768, 1024),
+    );
+
+    expect(find.text('Run Backend Validation'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('step08-export-disabled')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 }
