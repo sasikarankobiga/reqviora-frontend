@@ -1,3 +1,5 @@
+import '../../../core/network/api_client.dart';
+import '../domain/blueprint_proposal.dart';
 import '../../builder/domain/registry/component_registry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -998,23 +1000,560 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     }
   }
 
-  Future<void> compileBlueprint() async {
+  Future<void> regenerateBlueprint() async {
+    if (generating) return;
+
+    final projectId = widget.workspace.projectId;
+    final workspaceRepository =
+        ref.read(workspaceRepositoryProvider);
+    final repository =
+        ref.read(aiIntelligenceRepositoryProvider);
+
     setState(() {
       generating = true;
       error = null;
     });
+
     try {
-      final response = await ref.read(workspaceRepositoryProvider).compile(
-          widget.workspace.projectId, widget.workspace.version);
+      final current = Map<String, dynamic>.from(
+        await workspaceRepository.api.get(
+          '/api/projects/$projectId/drafts/current',
+        ) as Map,
+      );
+
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Template Blueprint saved - v${response['draftVersion']}')));
-      ref.invalidate(projectValidationProvider(widget.workspace.projectId));
-      ref.invalidate(workspaceProvider(widget.workspace.projectId));
-    } catch (e) {
-      if (mounted) setState(() => error = e.toString());
+
+      if (current['version'] != widget.workspace.version) {
+        throw StateError('Workspace changed. Reload and retry.');
+      }
+
+      final token = current['concurrencyToken'];
+
+      final draft = Map<String, dynamic>.from(
+        current['draft'] as Map? ?? {},
+      );
+
+      final sections = Map<String, dynamic>.from(
+        draft['sections'] as Map? ?? draft,
+      );
+
+      final blueprint =
+          sections['blueprint'] ?? draft['blueprint'];
+
+      if (blueprint is! Map || blueprint.isEmpty) {
+        throw StateError('Generate a saved Blueprint first.');
+      }
+
+      final revision = blueprint['revision'];
+
+      if (token is! String ||
+          token.isEmpty ||
+          revision is! int ||
+          revision < 1) {
+        throw StateError('Invalid saved Blueprint revision.');
+      }
+
+      List<String> ids(String section) {
+        final rows = blueprint[section];
+
+        if (rows is! List) {
+          throw StateError('Missing Blueprint section: $section');
+        }
+
+        return rows.map((row) {
+          if (row is! Map ||
+              row['id'] is! String ||
+              (row['id'] as String).isEmpty) {
+            throw StateError('Invalid protected $section identifier');
+          }
+
+          return row['id'] as String;
+        }).toList();
+      }
+
+      final featureIds = ids('features');
+      final screenIds = ids('screens');
+      final componentIds = ids('components');
+
+      var instructions = '';
+      var language = 'en';
+      var consent = false;
+
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, update) => AlertDialog(
+            title: const Text('Safe AI Regeneration'),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Current Blueprint revision: $revision'),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Protected: ${featureIds.length} features, '
+                      '${screenIds.length} screens and '
+                      '${componentIds.length} components.',
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: language,
+                      decoration: const InputDecoration(
+                        labelText: 'AI instruction language',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'en',
+                          child: Text('English'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'ta',
+                          child: Text('Tamil'),
+                        ),
+                      ],
+                      onChanged: (value) => update(() {
+                        language = value ?? 'en';
+                        consent = false;
+                      }),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      maxLength: 4000,
+                      minLines: 3,
+                      maxLines: 6,
+                      onChanged: (value) => update(() {
+                        instructions = value;
+                      }),
+                      decoration: const InputDecoration(
+                        labelText: 'Regeneration instructions',
+                        hintText: 'Describe the requested design improvements',
+                      ),
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: consent,
+                      onChanged: (value) => update(() {
+                        consent = value ?? false;
+                      }),
+                      title: const Text(
+                        'I consent to AI processing of this Blueprint.',
+                      ),
+                    ),
+                    const Text(
+                      'The server validates the regenerated draft. '
+                      'This action does not approve the design.',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () =>
+                    Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: !consent ||
+                        instructions.trim().isEmpty
+                    ? null
+                    : () => Navigator.pop(dialogContext, true),
+                child: const Text('Regenerate'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (!mounted || accepted != true) return;
+
+      final response = await repository.regenerateBlueprint(
+        projectId: projectId,
+        expectedConcurrencyToken: token,
+        expectedRevision: revision,
+        languageCode: language,
+        instructions: instructions.trim(),
+        consentGranted: consent,
+        protectedFeatureIds: featureIds,
+        protectedScreenIds: screenIds,
+        protectedComponentIds: componentIds,
+      );
+
+      if (!mounted) return;
+
+      if (response['applied'] == false) {
+        setState(() {
+          error = 'Regeneration was not applied: '
+              '${response['reason'] ?? 'Server validation rejected the proposal'}';
+        });
+        return;
+      }
+
+      if (response['applied'] != true ||
+          response['blueprint'] is! Map) {
+        throw const FormatException(
+          'Invalid regeneration response.',
+        );
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Regenerated Blueprint saved - '
+            'draft v${response['draftVersion']}',
+          ),
+        ),
+      );
+
+      ref.invalidate(projectValidationProvider(projectId));
+      ref.invalidate(workspaceProvider(projectId));
+    } catch (failure) {
+      if (!mounted) return;
+
+      setState(() {
+        if (failure is ApiException &&
+            failure.statusCode == 503) {
+          error = 'AI provider is unavailable or awaiting approval.';
+        } else if (failure is ApiException &&
+            failure.statusCode == 409) {
+          error = 'Blueprint changed. Reload before regenerating.';
+        } else {
+          error = failure.toString();
+        }
+      });
     } finally {
-      if (mounted) setState(() => generating = false);
+      if (mounted) {
+        setState(() => generating = false);
+      }
+    }
+  }
+
+  Future<void> compileBlueprint() async {
+    if (generating) return;
+
+    setState(() {
+      generating = true;
+      error = null;
+    });
+
+    try {
+      final workspace = widget.workspace;
+      final projectId = workspace.projectId;
+      final repository = ref.read(aiIntelligenceRepositoryProvider);
+      final workspaceRepository = ref.read(workspaceRepositoryProvider);
+
+      final latest = await workspaceRepository.load(projectId);
+
+      if (!mounted) return;
+
+      if (latest.version != workspace.version) {
+        throw StateError('Workspace changed. Reload before generating.');
+      }
+
+      final confirmed = <String, Map<String, dynamic>>{};
+
+      for (final candidate in latest.items('aiCandidates')) {
+        final id = candidate['id']?.toString() ?? '';
+
+        if (id.isEmpty) continue;
+
+        Map<String, dynamic> review;
+
+        try {
+          review = await repository.getReview(projectId, id);
+        } on ApiException catch (failure) {
+          if (failure.statusCode == 404) continue;
+          rethrow;
+        }
+
+        final status = review['status']?.toString().toLowerCase();
+
+        if (status == 'confirmed' || status == '1') {
+          confirmed[id] = review;
+        }
+      }
+
+      if (!mounted) return;
+
+      if (confirmed.isEmpty) {
+        throw StateError(
+          'Confirm requirements through the server review workflow first.',
+        );
+      }
+
+      final features = latest.items('features');
+      final screens = latest.items('screens');
+      final components = latest.items('components');
+      final routes = latest.items('routes');
+
+      if (features.isEmpty || screens.isEmpty) {
+        throw StateError('Add features and screens in Builder Step 02.');
+      }
+
+      final featureMappings = <String, List<String>>{};
+      final routeMappings = <String, String>{};
+
+      final screenNames = {
+        for (final screen in screens)
+          screen['id'].toString(): screen['name'].toString(),
+      };
+
+      final proposal = await showDialog<BlueprintProposal>(
+        context: context,
+        builder: (dialogContext) {
+          String? mappingError;
+
+          return StatefulBuilder(
+            builder: (context, update) {
+              return AlertDialog(
+                title: const Text('Generate Blueprint'),
+                content: SizedBox(
+                  width: 650,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${confirmed.length} server-confirmed requirements',
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Map each feature to its confirmed requirements.',
+                        ),
+                        for (final feature in features) ...[
+                          const Divider(height: 24),
+                          Text(
+                            feature['name'].toString(),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final entry in confirmed.entries)
+                                FilterChip(
+                                  label: Text(
+                                    '${entry.key}: ${entry.value['title'] ?? ''}',
+                                  ),
+                                  selected: featureMappings[
+                                        feature['id'].toString()
+                                      ]?.contains(entry.key) ??
+                                      false,
+                                  onSelected: (selected) {
+                                    update(() {
+                                      final mapped = featureMappings
+                                          .putIfAbsent(
+                                        feature['id'].toString(),
+                                        () => <String>[],
+                                      );
+
+                                      if (selected) {
+                                        mapped.add(entry.key);
+                                      } else {
+                                        mapped.remove(entry.key);
+                                      }
+
+                                      mappingError = null;
+                                    });
+                                  },
+                                ),
+                            ],
+                          ),
+                        ],
+                        if (routes.isNotEmpty) ...[
+                          const Divider(height: 28),
+                          const Text(
+                            'Map navigation routes to source buttons.',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                        for (final route in routes) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            '${screenNames[route['fromScreenId']] ?? 'Missing source'}'
+                            ' -> '
+                            '${screenNames[route['toScreenId']] ?? 'Missing target'}',
+                          ),
+                          DropdownButtonFormField<String>(
+                            initialValue:
+                                routeMappings[route['id'].toString()],
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Navigation button',
+                            ),
+                            items: [
+                              for (final component in components)
+                                if (component['type'] == 'button' &&
+                                    component['screenId'] ==
+                                        route['fromScreenId'])
+                                  DropdownMenuItem<String>(
+                                    value: component['id'].toString(),
+                                    child: Text(
+                                      (component['label'] ??
+                                              component['id'])
+                                          .toString(),
+                                    ),
+                                  ),
+                            ],
+                            onChanged: (value) {
+                              update(() {
+                                if (value != null) {
+                                  routeMappings[
+                                      route['id'].toString()] = value;
+                                }
+
+                                mappingError = null;
+                              });
+                            },
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        const Text(
+                          'This generates a draft Blueprint, not an approved design.',
+                        ),
+                        if (mappingError != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            mappingError!,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () {
+                      try {
+                        final result = BlueprintProposal.fromWorkspace(
+                          workspace: latest,
+                          confirmedRequirementIds:
+                              confirmed.keys.toSet(),
+                          featureRequirementIds: featureMappings,
+                          routeComponentIds: routeMappings,
+                        );
+
+                        Navigator.pop(dialogContext, result);
+                      } catch (failure) {
+                        update(() {
+                          mappingError = failure.toString();
+                        });
+                      }
+                    },
+                    child: const Text('Generate & save'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+
+      if (!mounted || proposal == null) return;
+
+      final current = Map<String, dynamic>.from(
+        await workspaceRepository.api.get(
+          '/api/projects/$projectId/drafts/current',
+        ) as Map,
+      );
+
+      if (!mounted) return;
+
+      final currentVersion =
+          (current['version'] as num?)?.toInt();
+
+      if (currentVersion != latest.version) {
+        throw StateError(
+          'Draft changed during mapping. Reload and retry.',
+        );
+      }
+
+      final token = current['concurrencyToken'];
+
+      if (token is! String || token.isEmpty) {
+        throw StateError('Missing draft concurrency token.');
+      }
+
+      final draft = Map<String, dynamic>.from(
+        current['draft'] as Map? ?? {},
+      );
+
+      final sections = Map<String, dynamic>.from(
+        draft['sections'] as Map? ?? draft,
+      );
+
+      final existing = sections['blueprint'] ?? draft['blueprint'];
+
+      String blueprintId;
+
+      if (existing is Map && existing.isNotEmpty) {
+        final id = existing['blueprintId'];
+
+        if (id is! String || id.isEmpty) {
+          throw StateError('Existing Blueprint identity is missing.');
+        }
+
+        blueprintId = id;
+      } else {
+        blueprintId = BlueprintProposal.contractId(
+          'BP',
+          projectId,
+        );
+      }
+
+      final response = await repository.generateBlueprint(
+        projectId: projectId,
+        expectedConcurrencyToken: token,
+        blueprintId: blueprintId,
+        confirmedRequirementIds: proposal.confirmedRequirementIds,
+        features: proposal.features,
+        screens: proposal.screens,
+        components: proposal.components,
+        actions: proposal.actions,
+        navigation: proposal.navigation,
+      );
+
+      if (!mounted) return;
+
+      if (response['applied'] != true ||
+          response['blueprint'] is! Map) {
+        throw StateError(
+          'Server did not apply Blueprint generation: '
+          '${response['reason'] ?? 'Unknown response'}',
+        );
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Blueprint saved - draft v${response['draftVersion']}',
+          ),
+        ),
+      );
+
+      ref.invalidate(projectValidationProvider(projectId));
+      ref.invalidate(workspaceProvider(projectId));
+    } catch (failure) {
+      if (mounted) {
+        setState(() => error = failure.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => generating = false);
+      }
     }
   }
 
@@ -1038,6 +1577,11 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                 runSpacing: 10,
                 children: [
                   OutlinedButton.icon(
+                    onPressed: generating ? null : regenerateBlueprint,
+                    icon: const Icon(Icons.auto_awesome),
+                    label: const Text('Safe AI Regeneration'),
+                  ),
+                  OutlinedButton.icon(
                     onPressed: generating ? null : generatePreview,
                     icon: const Icon(Icons.visibility_outlined),
                     label: const Text('Generate Local Preview'),
@@ -1046,15 +1590,15 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                     onPressed: generating ? null : compileBlueprint,
                     icon: const Icon(Icons.auto_awesome),
                     label: Text(generating
-                        ? 'Compiling...'
-                        : 'Compile & Save Template Blueprint'),
+                        ? 'Generating...'
+                        : 'Generate & Save Blueprint'),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
               const Text(
                 'Local preview is temporary and does not overwrite the saved Blueprint. '
-                'Backend compilation is not approval or remote AI generation.',
+                'Backend generation uses confirmed requirements and explicit mappings. It is not approval.',
                 style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
               if (error != null) ...[
