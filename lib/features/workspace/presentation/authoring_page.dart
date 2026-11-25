@@ -13,6 +13,7 @@ import '../domain/workspace.dart';
 import 'simulated_preview.dart';
 import 'v4_blueprint_selection_panel.dart';
 import 'v4_blueprint_property_inspector.dart';
+import '../domain/v4_blueprint_history.dart';
 
 /// Service-backed authoring for Builder steps 02-08. All writes are owner-scoped
 /// and carry a draft version. No fake AI/approval states are produced here.
@@ -1481,6 +1482,21 @@ final projectValidationProvider =
     FutureProvider.family<Map<String, dynamic>, String>(
         (ref, id) => ref.watch(workspaceRepositoryProvider).validate(id));
 
+/// Testable Step 07 entry point using the real Blueprint editor.
+class V4BlueprintStudio extends StatelessWidget {
+  const V4BlueprintStudio({
+    super.key,
+    required this.workspace,
+  });
+
+  final Workspace workspace;
+
+  @override
+  Widget build(BuildContext context) {
+    return _BlueprintEditor(workspace: workspace);
+  }
+}
+
 class _BlueprintEditor extends ConsumerStatefulWidget {
   const _BlueprintEditor({required this.workspace});
   final Workspace workspace;
@@ -1493,6 +1509,28 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   String? error;
   String? selectedBlueprintComponentId;
   Map<String, dynamic>? draftBlueprint;
+  V4BlueprintHistory? blueprintHistory;
+  int inspectorRevision = 0;
+
+  void undoBlueprint() {
+    final restored = blueprintHistory?.undo();
+    if (restored == null) return;
+
+    setState(() {
+      draftBlueprint = restored;
+      inspectorRevision++;
+    });
+  }
+
+  void redoBlueprint() {
+    final restored = blueprintHistory?.redo();
+    if (restored == null) return;
+
+    setState(() {
+      draftBlueprint = restored;
+      inspectorRevision++;
+    });
+  }
 
   Map<String, dynamic>? selectedComponent(
     Map<String, dynamic> blueprint,
@@ -1561,14 +1599,25 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
 
     nextBlueprint['componentInstances'] = components;
 
+    final history = blueprintHistory ??=
+        V4BlueprintHistory(widget.workspace.fields('blueprint'));
+
+    if (!history.record(nextBlueprint)) return;
+
     setState(() {
-      draftBlueprint = nextBlueprint;
+      draftBlueprint = history.current;
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final blueprint = draftBlueprint ?? widget.workspace.fields('blueprint');
+
+    if (blueprint['screens'] is List) {
+      blueprintHistory ??=
+          V4BlueprintHistory(widget.workspace.fields('blueprint'));
+    }
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       SurfaceCard(
           child:
@@ -1618,6 +1667,27 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  key: const ValueKey('step07-undo-button'),
+                  onPressed:
+                      blueprintHistory?.canUndo == true ? undoBlueprint : null,
+                  icon: const Icon(Icons.undo),
+                  label: const Text('Undo'),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('step07-redo-button'),
+                  onPressed:
+                      blueprintHistory?.canRedo == true ? redoBlueprint : null,
+                  icon: const Icon(Icons.redo),
+                  label: const Text('Redo'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             SurfaceCard(
               child: V4BlueprintSelectionPanel(
                 blueprint: blueprint,
@@ -1633,6 +1703,9 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
               const SizedBox(height: 12),
               SurfaceCard(
                 child: V4BlueprintPropertyInspector(
+                  key: ValueKey(
+                    'step07-inspector-$inspectorRevision-$selectedBlueprintComponentId',
+                  ),
                   component: selectedComponent(blueprint),
                   onChanged: (updated) {
                     updateDraftComponent(blueprint, updated);
