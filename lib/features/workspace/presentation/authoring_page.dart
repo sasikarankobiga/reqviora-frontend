@@ -2120,6 +2120,11 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
         .toList();
     final blockers = current?['blockers'];
     final advisories = current?['advisories'];
+    final hasValidation = current != null;
+    final hasBlockers = blockers is num && blockers > 0;
+    final validationReady = hasValidation &&
+        blockers is num &&
+        blockers == 0;
 
     return SurfaceCard(
       child: Column(
@@ -2157,6 +2162,22 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
               ],
             ),
             const SizedBox(height: 12),
+            if (hasBlockers)
+              const Text(
+                'Validation blocked: resolve all blockers before approval.',
+                key: ValueKey('step08-validation-blocked'),
+              )
+            else if (validationReady)
+              const Text(
+                'Validation returned zero blockers. Approval is still required.',
+                key: ValueKey('step08-validation-ready'),
+              )
+            else
+              const Text(
+                'Validation result is incomplete. Approval readiness is unknown.',
+                key: ValueKey('step08-validation-incomplete'),
+              ),
+            const SizedBox(height: 12),
             if (findings.isEmpty)
               const Text(
                   'No validation findings returned for implemented rules.'),
@@ -2179,15 +2200,17 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
           const Divider(),
           const SizedBox(height: 12),
           const Text(
-            'Draft export only. Official export requires an approved revision. '
-            'A draft ZIP is not approval or a deployable application.',
+            'ZIP export is unavailable in the current Backend API. '
+            'Official export requires an approved revision and export record.',
+            key: ValueKey('step08-export-unavailable'),
             style: TextStyle(color: AppColors.muted, fontSize: 12),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: validating || exporting ? null : exportDraft,
+            key: const ValueKey('step08-export-disabled'),
+            onPressed: null,
             icon: const Icon(Icons.download_outlined),
-            label: Text(exporting ? 'Preparing ZIP...' : 'Download Draft ZIP'),
+            label: const Text('ZIP Export Unavailable'),
           ),
           if (error != null) ...[
             const SizedBox(height: 12),
