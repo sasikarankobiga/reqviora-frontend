@@ -309,6 +309,42 @@ class WorkspaceRepository {
     );
   }
 
+  Future<Map<String, dynamic>> approveValidatedDraft(
+    String projectId,
+    int expectedVersion,
+    String validationRunId,
+  ) async {
+    final current = Map<String, dynamic>.from(
+      await api.get('/api/projects/$projectId/drafts/current') as Map,
+    );
+
+    final latestVersion = (current['version'] as num?)?.toInt();
+    if (latestVersion != expectedVersion) {
+      throw StateError(
+        'The draft changed after validation. Reload and validate again.',
+      );
+    }
+
+    final token = current['concurrencyToken'];
+    if (token == null || token.toString().isEmpty) {
+      throw StateError('A saved draft concurrency token is required.');
+    }
+
+    if (validationRunId.trim().isEmpty) {
+      throw ArgumentError.value(
+        validationRunId,
+        'validationRunId',
+        'Validation run ID is required',
+      );
+    }
+
+    return Map<String, dynamic>.from(
+      await api.post('/api/projects/$projectId/approvals', {
+        'expectedConcurrencyToken': token,
+        'validationRunId': validationRunId,
+      }) as Map,
+    );
+  }
   Future<List<int>> exportDraft(String id) async {
     throw UnsupportedError(
       'Draft ZIP export is not supported by the current Backend. '
