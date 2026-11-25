@@ -23,6 +23,7 @@ void main() {
     WidgetTester tester, {
     required Map<String, dynamic> validation,
     required void Function() onValidate,
+    void Function()? onApprove,
   }) async {
     final client = MockClient((request) async {
       final path = request.url.path;
@@ -58,6 +59,17 @@ void main() {
         expect(body['expectedConcurrencyToken'], token);
         onValidate();
         return reply(validation, 200);
+      }
+
+      if (request.method == 'POST' &&
+          path == '/api/projects/$projectId/approvals') {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['expectedConcurrencyToken'], token);
+        expect(body['validationRunId'], 'validation-approval');
+        onApprove?.call();
+        return reply({
+          'revisionId': 'approved-revision-123',
+        }, 201);
       }
 
       return reply({'error': 'Unexpected request: $path'}, 500);
@@ -268,4 +280,113 @@ void main() {
       findsOneWidget,
     );
   });
+  testWidgets('Approval confirmation cancelled sends no approval request', (
+    tester,
+  ) async {
+    var approvals = 0;
+
+    await openStep08(
+      tester,
+      validation: {
+        'id': 'validation-approval',
+        'passed': true,
+        'findings': [],
+      },
+      onValidate: () {},
+      onApprove: () => approvals++,
+    );
+
+    await validate(tester);
+
+    final approve = find.byKey(
+      const ValueKey('step08-approve-button'),
+    );
+
+    await tester.ensureVisible(approve);
+    await tester.tap(approve);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Approve Blueprint revision?'), findsOneWidget);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(approvals, 0);
+    expect(
+      find.byKey(const ValueKey('step08-approved-revision')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('Confirmed approval displays returned revision ID', (
+    tester,
+  ) async {
+    var approvals = 0;
+
+    await openStep08(
+      tester,
+      validation: {
+        'id': 'validation-approval',
+        'passed': true,
+        'findings': [],
+      },
+      onValidate: () {},
+      onApprove: () => approvals++,
+    );
+
+    await validate(tester);
+
+    final approve = find.byKey(
+      const ValueKey('step08-approve-button'),
+    );
+
+    await tester.ensureVisible(approve);
+    await tester.tap(approve);
+    await tester.pumpAndSettle();
+
+    expect(approvals, 0);
+
+    await tester.tap(find.text('Confirm Approval'));
+    await tester.pumpAndSettle();
+
+    expect(approvals, 1);
+    expect(
+      find.text('Approved revision: approved-revision-123'),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<FilledButton>(approve).onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('Failed backend validation disables approval', (
+    tester,
+  ) async {
+    var approvals = 0;
+
+    await openStep08(
+      tester,
+      validation: {
+        'id': 'validation-approval',
+        'passed': false,
+        'findings': [],
+      },
+      onValidate: () {},
+      onApprove: () => approvals++,
+    );
+
+    await validate(tester);
+
+    final approve = find.byKey(
+      const ValueKey('step08-approve-button'),
+    );
+
+    expect(
+      tester.widget<FilledButton>(approve).onPressed,
+      isNull,
+    );
+    expect(approvals, 0);
+  });
+
 }

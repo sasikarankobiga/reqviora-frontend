@@ -2070,6 +2070,8 @@ class _ValidationEditor extends ConsumerStatefulWidget {
 class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
   bool validating = false;
   bool exporting = false;
+  bool approving = false;
+  String? approvedRevisionId;
   Map<String, dynamic>? result;
   String? error;
 
@@ -2111,6 +2113,73 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
     }
   }
 
+  Future<void> approveValidated() async {
+    final validation = result;
+
+    if (validation?['passed'] != true ||
+        validation?['id'] is! String ||
+        (validation!['id'] as String).isEmpty ||
+        approving ||
+        approvedRevisionId != null) {
+      return;
+    }
+
+    final validationId = validation['id'] as String;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Approve Blueprint revision?'),
+        content: const Text(
+          'Approval creates an immutable revision of the validated draft. '
+          'Confirm only after reviewing the design and validation findings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Confirm Approval'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      approving = true;
+      error = null;
+    });
+
+    try {
+      final approved = await ref
+          .read(workspaceRepositoryProvider)
+          .approveValidatedDraft(
+            widget.workspace.projectId,
+            widget.workspace.version,
+            validationId,
+          );
+
+      final revisionId = approved['revisionId'];
+
+      if (revisionId is! String || revisionId.isEmpty) {
+        throw StateError('Backend returned no approved revision ID.');
+      }
+
+      if (mounted) {
+        setState(() => approvedRevisionId = revisionId);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => error = e.toString());
+      }
+    } finally {
+      if (mounted) setState(() => approving = false);
+    }
+  }
   @override
   Widget build(BuildContext context) {
     final current = result;
@@ -2122,6 +2191,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
     final advisories = current?['advisories'];
     final hasValidation = current != null;
     final backendPassed = current?['passed'];
+    final validationId = current?['id'];
     final hasBlockers = backendPassed == false ||
         (backendPassed == null && blockers is num && blockers > 0);
     final validationReady = backendPassed == true ||
@@ -2209,7 +2279,28 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
                 subtitle: Text((finding['message'] ?? '').toString()),
               ),
           ],
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            key: const ValueKey('step08-approve-button'),
+            onPressed: backendPassed == true &&
+                    validationId is String &&
+                    validationId.isNotEmpty &&
+                    !validating &&
+                    !approving &&
+                    approvedRevisionId == null
+                ? approveValidated
+                : null,
+            icon: const Icon(Icons.verified_outlined),
+            label: Text(approving ? 'Approving...' : 'Approve Revision'),
+          ),
+          if (approvedRevisionId != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Approved revision: $approvedRevisionId',
+              key: const ValueKey('step08-approved-revision'),
+            ),
+          ],
+          if (approving) const LinearProgressIndicator(),          const SizedBox(height: 20),
           const Divider(),
           const SizedBox(height: 12),
           const Text(
