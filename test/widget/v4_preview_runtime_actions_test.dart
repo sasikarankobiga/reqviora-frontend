@@ -122,19 +122,10 @@ void main() {
     await tester.pump();
 
     expect(
-
-testWidgets('button without rule keeps safe mock action', (tester) async {
-  await openPreview(tester, []);
-
-  await tester.tap(find.text('Submit'));
-  await tester.pump();
-
-  expect(
-    find.text('Preview-only action - No backend request was made'),
-    findsOneWidget,
-  );
-});
-
+      find.text('Preview-only action - No backend request was made'),
+      findsOneWidget,
+    );
+  });
 }
 
 
