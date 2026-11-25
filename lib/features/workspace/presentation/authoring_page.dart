@@ -182,6 +182,27 @@ class _ContentState extends ConsumerState<_Content> {
   }
 }
 
+/// Testable Screen Editor entry point for Builder Step 02.
+class V4ScreensStudio extends StatelessWidget {
+  const V4ScreensStudio({
+    super.key,
+    required this.workspace,
+    required this.onSave,
+  });
+
+  final Workspace workspace;
+  final Future<void> Function(String section, dynamic data) onSave;
+
+  @override
+  Widget build(BuildContext context) => _ItemEditor(
+        workspace: workspace,
+        section: 'screens',
+        title: 'Screens & feature mapping',
+        icon: Icons.grid_view_rounded,
+        type: _ItemType.screen,
+        onSave: onSave,
+      );
+}
 /// Testable entry point for the original V4 Components Studio.
 class V4ComponentsStudio extends StatelessWidget {
   const V4ComponentsStudio({
