@@ -243,6 +243,13 @@ class _Sidebar extends ConsumerWidget {
                 '/projects/$projectId/preview',
               ),
             ],
+            if (!isLocalDemo)
+              link(
+                context,
+                Icons.manage_accounts_outlined,
+                'My Account',
+                '/account',
+              ),
             const Spacer(),
             SurfaceCard(
               color: const Color(0xFFF3F0FF),
@@ -278,17 +285,24 @@ class _Sidebar extends ConsumerWidget {
               type: MaterialType.transparency,
               child: ListTile(
                 dense: true,
-                onTap: isLocalDemo ? null : () async {
-                  try {
-                    await ref.read(authRepositoryProvider).logout();
-                  } catch (error) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Sign-out request failed: $error')),
-                      );
-                    }
-                  }
-                },
+                onTap:
+                    isLocalDemo
+                        ? null
+                        : () async {
+                          try {
+                            await ref.read(authRepositoryProvider).logout();
+                          } catch (error) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Sign-out request failed: $error',
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
                 leading: const CircleAvatar(
                   radius: 15,
                   backgroundColor: Color(0xFFE8DFFF),
@@ -298,13 +312,14 @@ class _Sidebar extends ConsumerWidget {
                     color: AppColors.purple,
                   ),
                 ),
-                trailing: isLocalDemo
-                    ? null
-                    : IconButton(
-                        tooltip: 'Authenticator MFA setup',
-                        icon: const Icon(Icons.shield_outlined),
-                        onPressed: () => context.go('/security/mfa'),
-                      ),
+                trailing:
+                    isLocalDemo
+                        ? null
+                        : IconButton(
+                          tooltip: 'Authenticator MFA setup',
+                          icon: const Icon(Icons.shield_outlined),
+                          onPressed: () => context.go('/security/mfa'),
+                        ),
                 title: Text(
                   isLocalDemo ? 'Local demo owner' : 'Account / Sign out',
                   style: const TextStyle(

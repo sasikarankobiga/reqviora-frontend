@@ -179,6 +179,49 @@ class AuthRepository {
     }
   }
 
+  Future<Map<String, dynamic>> getProfile() async {
+    final result = await api.get('/api/users/me');
+
+    if (result is! Map<String, dynamic>) {
+      throw const ApiException(502, 'Invalid account profile response.');
+    }
+
+    return result;
+  }
+
+  Future<void> requestEmailChange(String newEmail) async {
+    final email = newEmail.trim();
+
+    if (!authSession.authenticated) {
+      throw const ApiException(401, 'Sign in before changing your email.');
+    }
+
+    if (email.isEmpty || email.length > 320 || !email.contains('@')) {
+      throw ArgumentError('Enter a valid email address.');
+    }
+
+    await api.post('/api/account-security/email-change/request', {
+      'newEmail': email,
+    });
+  }
+
+  Future<void> confirmEmailChange(String token) async {
+    if (token.trim().isEmpty) {
+      throw ArgumentError('Email change confirmation token is required.');
+    }
+
+    final generation = authSession.generation;
+
+    await api.post('/api/account-security/email-change/confirm', {
+      'token': token,
+    });
+
+    // The backend revokes existing refresh sessions after confirmation.
+    if (authSession.generation == generation) {
+      signOut();
+    }
+  }
+
   Future<void> forgotPassword(String email) async {
     await api.post('/api/account-security/password/forgot', {
       'email': email.trim(),

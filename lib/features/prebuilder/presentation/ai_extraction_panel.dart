@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/widgets.dart';
+import 'clarification_dialog.dart';
 import '../../../core/network/api_client.dart';
 import '../../workspace/application/workspace_providers.dart';
 import '../../workspace/domain/workspace.dart';
@@ -382,6 +383,26 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
     );
   }
 
+  Future<void> openClarifications({String? requirementId}) async {
+    if (busy) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (_) => ClarificationDialog(
+            projectId: widget.workspace.projectId,
+            draftVersion: widget.workspace.version,
+            requirementId: requirementId,
+            readOnly: widget.disabled,
+          ),
+    );
+
+    if (!mounted) return;
+
+    ref.invalidate(workspaceProvider(widget.workspace.projectId));
+  }
+
   Widget reviewControls(Map<String, dynamic> candidate) {
     final id = candidate['id'].toString();
     final review = serverReviews[id];
@@ -413,6 +434,11 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
             onPressed: blocked ? null : () => submitDecision(id, 'reject'),
             child: const Text('Reject requirement'),
           ),
+        OutlinedButton.icon(
+          onPressed: busy ? null : () => openClarifications(requirementId: id),
+          icon: const Icon(Icons.question_answer_outlined),
+          label: const Text('Clarifications'),
+        ),
         if (status == 'Suggested')
           OutlinedButton(
             onPressed: blocked ? null : () => submitDecision(id, 'defer'),
@@ -474,6 +500,11 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
             subtitle: const Text(
               'Selected project source text is sent to the configured server AI service.',
             ),
+          ),
+          OutlinedButton.icon(
+            onPressed: busy ? null : () => openClarifications(),
+            icon: const Icon(Icons.sync),
+            label: const Text('Clarifications & Blueprint sync'),
           ),
           Text('${sources.length} text sources available'),
           const SizedBox(height: 10),

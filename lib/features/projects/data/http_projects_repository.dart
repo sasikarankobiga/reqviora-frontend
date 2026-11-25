@@ -104,7 +104,25 @@ class HttpProjectsRepository implements ProjectsRepository {
     // This is UI metadata, not an identity field.
     identity.remove('expectedVersion');
 
-    updatedDraft['identity'] = identity;
+    if (updatedDraft['sections'] is Map) {
+      final sections = Map<String, dynamic>.from(
+        updatedDraft['sections'] as Map,
+      );
+
+      final existingIdentity = sections['identity'];
+
+      sections['identity'] = <String, dynamic>{
+        if (existingIdentity is Map)
+          ...Map<String, dynamic>.from(existingIdentity),
+        ...values,
+      };
+
+      (sections['identity'] as Map).remove('expectedVersion');
+
+      updatedDraft['sections'] = sections;
+    } else {
+      updatedDraft['identity'] = identity;
+    }
 
     final response = Map<String, dynamic>.from(
       await api.put('/api/projects/$projectId/drafts/current', {

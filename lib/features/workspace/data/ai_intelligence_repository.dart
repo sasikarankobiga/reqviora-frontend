@@ -148,6 +148,86 @@ class AiIntelligenceRepository {
     );
   }
 
+  Future<List<Map<String, dynamic>>> getClarifications(String projectId) async {
+    final result = await api.get('${_workflowPath(projectId)}/clarifications');
+
+    if (result is! List) {
+      throw const FormatException('Invalid clarification response');
+    }
+
+    return result.map(_object).toList();
+  }
+
+  Future<Map<String, dynamic>> createClarification({
+    required String projectId,
+    required String requirementId,
+    required String question,
+    required String? expectedConcurrencyToken,
+  }) async {
+    final cleanQuestion = question.trim();
+
+    if (requirementId.trim().isEmpty ||
+        cleanQuestion.isEmpty ||
+        cleanQuestion.length > 1500) {
+      throw ArgumentError('A valid requirement and question are required');
+    }
+
+    return _object(
+      await api.post('${_workflowPath(projectId)}/clarifications', {
+        'expectedConcurrencyToken': expectedConcurrencyToken,
+        'requirementId': requirementId,
+        'question': cleanQuestion,
+      }),
+    );
+  }
+
+  Future<Map<String, dynamic>> answerClarification({
+    required String projectId,
+    required String questionId,
+    required String expectedConcurrencyToken,
+    required int expectedRevision,
+    required String answer,
+  }) async {
+    final guid = RegExp(
+      r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
+    );
+
+    if (!guid.hasMatch(questionId) ||
+        !guid.hasMatch(expectedConcurrencyToken) ||
+        expectedRevision < 1 ||
+        answer.trim().isEmpty) {
+      throw ArgumentError('Invalid clarification answer request');
+    }
+
+    return _object(
+      await api.post(
+        '${_workflowPath(projectId)}/clarifications/$questionId/answer',
+        {
+          'expectedConcurrencyToken': expectedConcurrencyToken,
+          'expectedRevision': expectedRevision,
+          'answer': answer.trim(),
+        },
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>> getReviewSyncStatus(String projectId) async {
+    final result = _object(
+      await api.get(
+        '${_workflowPath(projectId)}/blueprints/review-sync-status',
+      ),
+    );
+
+    if (result['projectId'] != projectId ||
+        result['blueprintRevision'] is! int ||
+        result['existingRequirementsSynchronized'] is! bool ||
+        result['items'] is! List) {
+      throw const FormatException('Invalid review synchronization response');
+    }
+
+    return result;
+  }
+
   Future<Map<String, dynamic>> generateBlueprint({
     required String projectId,
     required String? expectedConcurrencyToken,

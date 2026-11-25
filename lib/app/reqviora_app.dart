@@ -10,6 +10,7 @@ import '../core/auth/auth_session.dart';
 import '../core/config/app_config.dart';
 import '../features/auth/presentation/auth_page.dart';
 import '../features/auth/presentation/account_security_pages.dart';
+import '../features/auth/presentation/account_profile_page.dart';
 import '../features/workspace/presentation/preview_page.dart';
 
 final appRouter = GoRouter(
@@ -20,10 +21,12 @@ final appRouter = GoRouter(
     final signInPages =
         state.matchedLocation == '/login' ||
         state.matchedLocation == '/register';
-    final publicAuth = signInPages ||
+    final publicAuth =
+        signInPages ||
         state.matchedLocation == '/forgot-password' ||
         state.matchedLocation == '/reset-password' ||
-        state.matchedLocation == '/verify-email';
+        state.matchedLocation == '/verify-email' ||
+        state.matchedLocation == '/confirm-email-change';
     if (!authSession.authenticated && !publicAuth) return '/login';
     if (authSession.authenticated && signInPages) return '/projects';
     return null;
@@ -78,25 +81,39 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/forgot-password',
-      builder: (_, _) => const AccountSecurityPage(action: AccountAction.forgotPassword),
+      builder:
+          (_, _) =>
+              const AccountSecurityPage(action: AccountAction.forgotPassword),
     ),
     GoRoute(
       path: '/reset-password',
-      builder: (_, state) => AccountSecurityPage(
-        action: AccountAction.resetPassword,
-        token: state.uri.queryParameters['token'] ?? '',
-      ),
+      builder:
+          (_, state) => AccountSecurityPage(
+            action: AccountAction.resetPassword,
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
     ),
     GoRoute(
       path: '/verify-email',
-      builder: (_, state) => AccountSecurityPage(
-        action: AccountAction.verifyEmail,
-        token: state.uri.queryParameters['token'] ?? '',
-      ),
+      builder:
+          (_, state) => AccountSecurityPage(
+            action: AccountAction.verifyEmail,
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
+    ),
+    GoRoute(path: '/account', builder: (_, _) => const AccountProfilePage()),
+    GoRoute(
+      path: '/confirm-email-change',
+      builder:
+          (_, state) => AccountProfilePage(
+            confirmChange: true,
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
     ),
     GoRoute(
       path: '/security/mfa',
-      builder: (_, _) => const AccountSecurityPage(action: AccountAction.setupMfa),
+      builder:
+          (_, _) => const AccountSecurityPage(action: AccountAction.setupMfa),
     ),
   ],
 );
