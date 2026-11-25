@@ -35,7 +35,7 @@ class ProjectPreviewPage extends ConsumerWidget {
               data: (workspace) {
                 final blueprint = workspace.fields('blueprint');
                 return blueprint['screens'] is List
-                    ? SafePreview(blueprint: blueprint)
+                    ? SafePreview(blueprint: blueprint, interactionRules: workspace.items('interactions'))
                     : SurfaceCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

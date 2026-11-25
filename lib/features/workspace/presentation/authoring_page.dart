@@ -1955,6 +1955,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
         inspectorRevision++;
         error = null;
       });
+      scheduleAutosave();
     } catch (e) {
       setState(() {
         localPreview = null;
@@ -2081,7 +2082,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
             ],
           ),
         ),
-        if (localPreview != null) ...[
+        if (localPreview != null && draftBlueprint == null) ...[
           const SizedBox(height: 16),
           const SectionTitle('Local simulation - not validated'),
           const SizedBox(height: 8),
