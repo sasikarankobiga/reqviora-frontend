@@ -2,6 +2,7 @@ import '../../builder/domain/registry/component_registry.dart';
 import '../../builder/domain/registry/v4_component_layout.dart';
 import '../../builder/domain/registry/v4_interaction_rule_validator.dart';
 import '../../builder/domain/registry/v4_visibility_rules.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -69,7 +70,7 @@ class _ContentState extends ConsumerState<_Content> {
       ref.invalidate(projectValidationProvider(widget.workspace.projectId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$section saved · next version created')));
+            SnackBar(content: Text('$section saved ┬╖ next version created')));
       }
     } catch (e) {
       if (mounted) {
@@ -96,7 +97,7 @@ class _ContentState extends ConsumerState<_Content> {
             SizedBox(width: 12),
             Expanded(
                 child: Text(
-                    'Real server-backed draft editor · Owner-controlled · Saved content stays after refresh.',
+                    'Real server-backed draft editor ┬╖ Owner-controlled ┬╖ Saved content stays after refresh.',
                     style: TextStyle(fontSize: 12, height: 1.45)))
           ])),
       const SizedBox(height: 16),
@@ -266,7 +267,7 @@ class _ItemEditorState extends State<_ItemEditor> {
       final lookup = {
         for (final s in widget.workspace.items('screens')) s['id']: s['name']
       };
-      return '${lookup[row['fromScreenId']] ?? 'Missing source'} → ${lookup[row['toScreenId']] ?? 'Missing target'}';
+      return '${lookup[row['fromScreenId']] ?? 'Missing source'} ΓåÆ ${lookup[row['toScreenId']] ?? 'Missing target'}';
     }
     return (row['description'] ??
             row['purpose'] ??
@@ -1606,7 +1607,7 @@ class _ThemeEditorState extends State<_ThemeEditor> {
             final passes = meetsNormalTextContrast(color, '#FFFFFF');
 
             return Text(
-              'Primary color on white: ${ratio.toStringAsFixed(2)}:1 — '
+              'Primary color on white: ${ratio.toStringAsFixed(2)}:1 ΓÇö '
               '${passes ? 'WCAG AA normal-text contrast passed' : 'Low contrast: use a darker primary color'}',
               style: TextStyle(
                 color:
@@ -1629,7 +1630,7 @@ class _ThemeEditorState extends State<_ThemeEditor> {
             final passes = meetsNormalTextContrast(color, '#FFFFFF');
 
             return Text(
-              'Secondary color on white: ${ratio.toStringAsFixed(2)}:1 — '
+              'Secondary color on white: ${ratio.toStringAsFixed(2)}:1 ΓÇö '
               '${passes ? 'WCAG AA normal-text contrast passed' : 'Low contrast: use a darker secondary color'}',
             );
           },
@@ -1687,6 +1688,26 @@ class _BlueprintEditor extends ConsumerStatefulWidget {
 
 class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   bool generating = false;
+  bool savingDraft = false;
+  bool autosaveEnabled = false;
+  Timer? _autosaveTimer;
+
+  void scheduleAutosave() {
+    _autosaveTimer?.cancel();
+    if (!autosaveEnabled || draftBlueprint == null) return;
+
+    _autosaveTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted && !savingDraft && !generating) {
+        saveBlueprintDraft();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _autosaveTimer?.cancel();
+    super.dispose();
+  }
   String? error;
   String? selectedBlueprintComponentId;
   Map<String, dynamic>? draftBlueprint;
@@ -1695,6 +1716,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   int inspectorRevision = 0;
 
   void undoBlueprint() {
+    if (savingDraft) return;
     final restored = blueprintHistory?.undo();
     if (restored == null) return;
 
@@ -1702,9 +1724,11 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
       draftBlueprint = restored;
       inspectorRevision++;
     });
+    scheduleAutosave();
   }
 
   void redoBlueprint() {
+    if (savingDraft) return;
     final restored = blueprintHistory?.redo();
     if (restored == null) return;
 
@@ -1712,6 +1736,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
       draftBlueprint = restored;
       inspectorRevision++;
     });
+    scheduleAutosave();
   }
 
   Map<String, dynamic>? selectedComponent(Map<String, dynamic> blueprint) {
@@ -1732,10 +1757,8 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   }
 
   // Edits are local preview-only. Never represent them as saved or approved.
-  void updateDraftComponent(
-    Map<String, dynamic> blueprint,
-    Map<String, dynamic> updated,
-  ) {
+  void updateDraftComponent(Map<String, dynamic> blueprint, Map<String, dynamic> updated) {
+    if (savingDraft) return;
     final id =
         (updated['componentInstanceId'] ?? updated['id'] ?? '').toString();
     if (id.isEmpty || id != selectedBlueprintComponentId) return;
@@ -1766,6 +1789,56 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     setState(() {
       draftBlueprint = history.current;
     });
+    scheduleAutosave();
+  }
+
+  Future<void> saveBlueprintDraft() async {
+    final nextBlueprint = draftBlueprint;
+    if (nextBlueprint == null || savingDraft || generating) return;
+
+    _autosaveTimer?.cancel();
+
+    setState(() {
+      savingDraft = true;
+      error = null;
+    });
+
+    try {
+      final version = await ref.read(workspaceRepositoryProvider).save(
+        widget.workspace.projectId,
+        'blueprint',
+        widget.workspace.version,
+        nextBlueprint,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        draftBlueprint = null;
+        blueprintHistory = null;
+        selectedBlueprintComponentId = null;
+        inspectorRevision++;
+      });
+
+      ref.invalidate(workspaceProvider(widget.workspace.projectId));
+      ref.invalidate(projectValidationProvider(widget.workspace.projectId));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Blueprint draft saved - v$version (not approved)'),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          error = 'Blueprint draft was not saved: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => savingDraft = false);
+      }
+    }
   }
 
   void generatePreview() {
@@ -1785,6 +1858,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   }
 
   Future<void> compileBlueprint() async {
+    _autosaveTimer?.cancel();
     setState(() {
       generating = true;
       error = null;
@@ -1846,13 +1920,41 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                 spacing: 10,
                 runSpacing: 10,
                 children: [
+                  FilterChip(
+                    key: const ValueKey('step07-autosave-toggle'),
+                    label: const Text('Autosave (2s)'),
+                    selected: autosaveEnabled,
+                    onSelected: savingDraft || generating
+                        ? null
+                        : (enabled) {
+                            setState(() => autosaveEnabled = enabled);
+                            if (enabled) {
+                              scheduleAutosave();
+                            } else {
+                              _autosaveTimer?.cancel();
+                            }
+                          },
+                  ),
                   OutlinedButton.icon(
                     onPressed: generating ? null : generatePreview,
                     icon: const Icon(Icons.visibility_outlined),
                     label: const Text('Generate Local Preview'),
                   ),
+                  if (draftBlueprint != null)
+                    FilledButton.icon(
+                      key: const ValueKey('step07-save-draft-button'),
+                      onPressed: savingDraft || generating
+                          ? null
+                          : saveBlueprintDraft,
+                      icon: const Icon(Icons.save_outlined),
+                      label: Text(
+                        savingDraft ? 'Saving Draft...' : 'Save Blueprint Draft',
+                      ),
+                    ),
                   FilledButton.icon(
-                    onPressed: generating ? null : compileBlueprint,
+                    onPressed: generating || savingDraft
+                        ? null
+                        : compileBlueprint,
                     icon: const Icon(Icons.auto_awesome),
                     label: Text(
                       generating
@@ -1968,6 +2070,8 @@ class _ValidationEditor extends ConsumerStatefulWidget {
 class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
   bool validating = false;
   bool exporting = false;
+  bool approving = false;
+  String? approvedRevisionId;
   Map<String, dynamic>? result;
   String? error;
 
@@ -1989,26 +2093,134 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
     }
   }
 
-  Future<void> exportDraft() async {
+  Future<void> exportOfficialRevision() async {
+    final revisionId = approvedRevisionId;
+
+    if (revisionId == null ||
+        revisionId.isEmpty ||
+        exporting ||
+        approving ||
+        validating) {
+      return;
+    }
+
     setState(() {
       exporting = true;
       error = null;
     });
+
     try {
-      final bytes = await ref
-          .read(workspaceRepositoryProvider)
-          .exportDraft(widget.workspace.projectId);
+      final repository = ref.read(workspaceRepositoryProvider);
+
+      final metadata = await repository.createOfficialExport(
+        widget.workspace.projectId,
+        revisionId,
+      );
+
+      final exportId = metadata['exportId'];
+
+      if (exportId is! String || exportId.isEmpty) {
+        throw StateError('Backend returned no official export ID.');
+      }
+
+      final bytes = await repository.downloadOfficialExport(
+        widget.workspace.projectId,
+        exportId,
+      );
+
+      if (bytes.length < 4 ||
+          bytes[0] != 80 ||
+          bytes[1] != 75 ||
+          !((bytes[2] == 3 && bytes[3] == 4) ||
+            (bytes[2] == 5 && bytes[3] == 6) ||
+            (bytes[2] == 7 && bytes[3] == 8))) {
+        throw StateError('Backend did not return a valid ZIP header.');
+      }
+
       if (!mounted) return;
+
       ref.read(downloadPortProvider).saveZip(
-          'reqviora-${widget.workspace.projectId}-draft-v${widget.workspace.version}.zip',
-          bytes);
+        'reqviora-${widget.workspace.projectId}-$revisionId.zip',
+        bytes,
+      );
     } catch (e) {
-      if (mounted) setState(() => error = e.toString());
+      if (mounted) {
+        setState(() => error = e.toString());
+      }
     } finally {
-      if (mounted) setState(() => exporting = false);
+      if (mounted) {
+        setState(() => exporting = false);
+      }
     }
   }
 
+  Future<void> approveValidated() async {
+    final validation = result;
+
+    if (validation?['passed'] != true ||
+        validation?['id'] is! String ||
+        (validation!['id'] as String).isEmpty ||
+        approving ||
+        approvedRevisionId != null) {
+      return;
+    }
+
+    final validationId = validation['id'] as String;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Approve Blueprint revision?'),
+        content: const Text(
+          'Approval creates an immutable revision of the validated draft. '
+          'Confirm only after reviewing the design and validation findings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Confirm Approval'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      approving = true;
+      error = null;
+    });
+
+    try {
+      final approved = await ref
+          .read(workspaceRepositoryProvider)
+          .approveValidatedDraft(
+            widget.workspace.projectId,
+            widget.workspace.version,
+            validationId,
+          );
+
+      final revisionId = approved['revisionId'];
+
+      if (revisionId is! String || revisionId.isEmpty) {
+        throw StateError('Backend returned no approved revision ID.');
+      }
+
+      if (mounted) {
+        setState(() => approvedRevisionId = revisionId);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => error = e.toString());
+      }
+    } finally {
+      if (mounted) setState(() => approving = false);
+    }
+  }
   @override
   Widget build(BuildContext context) {
     final current = result;
@@ -2018,6 +2230,16 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
         .toList();
     final blockers = current?['blockers'];
     final advisories = current?['advisories'];
+    final hasValidation = current != null;
+    final backendPassed = current?['passed'];
+    final validationId = current?['id'];
+    final hasBlockers = backendPassed == false ||
+        (backendPassed == null && blockers is num && blockers > 0);
+    final validationReady = backendPassed == true ||
+        (backendPassed == null &&
+            hasValidation &&
+            blockers is num &&
+            blockers == 0);
 
     return SurfaceCard(
       child: Column(
@@ -2044,6 +2266,15 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
               spacing: 10,
               runSpacing: 10,
               children: [
+                if (backendPassed is bool)
+                  SmallLabel(
+                    backendPassed
+                        ? 'Backend validation passed'
+                        : 'Backend validation failed',
+                    color: backendPassed
+                        ? AppColors.green
+                        : const Color(0xFFCA5161),
+                  ),
                 if (blockers is int)
                   SmallLabel('$blockers blockers',
                       color: blockers > 0
@@ -2054,6 +2285,22 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
                   SmallLabel("Draft v${current['draftVersion']}"),
               ],
             ),
+            const SizedBox(height: 12),
+            if (hasBlockers)
+              const Text(
+                'Validation blocked: resolve all blockers before approval.',
+                key: ValueKey('step08-validation-blocked'),
+              )
+            else if (validationReady)
+              const Text(
+                'Validation returned zero blockers. Approval is still required.',
+                key: ValueKey('step08-validation-ready'),
+              )
+            else
+              const Text(
+                'Validation result is incomplete. Approval readiness is unknown.',
+                key: ValueKey('step08-validation-incomplete'),
+              ),
             const SizedBox(height: 12),
             if (findings.isEmpty)
               const Text(
@@ -2073,20 +2320,55 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
                 subtitle: Text((finding['message'] ?? '').toString()),
               ),
           ],
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            key: const ValueKey('step08-approve-button'),
+            onPressed: backendPassed == true &&
+                    validationId is String &&
+                    validationId.isNotEmpty &&
+                    !validating &&
+                    !approving &&
+                    approvedRevisionId == null
+                ? approveValidated
+                : null,
+            icon: const Icon(Icons.verified_outlined),
+            label: Text(approving ? 'Approving...' : 'Approve Revision'),
+          ),
+          if (approvedRevisionId != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Approved revision: $approvedRevisionId',
+              key: const ValueKey('step08-approved-revision'),
+            ),
+          ],
+          if (approving) const LinearProgressIndicator(),          const SizedBox(height: 20),
           const Divider(),
           const SizedBox(height: 12),
-          const Text(
-            'Draft export only. Official export requires an approved revision. '
-            'A draft ZIP is not approval or a deployable application.',
-            style: TextStyle(color: AppColors.muted, fontSize: 12),
+          Text(
+            approvedRevisionId == null
+                ? 'Official ZIP export requires a successfully approved revision.'
+                : 'Download the official ZIP for the approved revision.',
+            key: const ValueKey('step08-export-unavailable'),
+            style: const TextStyle(
+              color: AppColors.muted,
+              fontSize: 12,
+            ),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: validating || exporting ? null : exportDraft,
+            key: const ValueKey('step08-export-disabled'),
+            onPressed: approvedRevisionId != null &&
+                    !validating &&
+                    !approving &&
+                    !exporting
+                ? exportOfficialRevision
+                : null,
             icon: const Icon(Icons.download_outlined),
-            label: Text(exporting ? 'Preparing ZIP...' : 'Download Draft ZIP'),
+            label: Text(
+              exporting ? 'Preparing Official ZIP...' : 'Download Official ZIP',
+            ),
           ),
+          if (exporting) const LinearProgressIndicator(),
           if (error != null) ...[
             const SizedBox(height: 12),
             InlineError(error!),
