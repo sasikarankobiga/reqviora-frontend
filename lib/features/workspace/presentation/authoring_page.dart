@@ -2356,7 +2356,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: validating || exporting ? null : runValidation,
+            onPressed: validating || exporting || approving || approvedRevisionId != null ? null : runValidation,
             icon: const Icon(Icons.fact_check_outlined),
             label:
                 Text(validating ? 'Validating...' : 'Run Backend Validation'),
