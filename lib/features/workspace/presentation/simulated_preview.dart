@@ -95,6 +95,13 @@ class _SafePreviewState extends State<SafePreview> {
         : 12;
   }
 
+  double boundedNumber(dynamic raw, double fallback, double min, double max) {
+    if (raw is! num || !raw.isFinite || raw < min || raw > max) {
+      return fallback;
+    }
+    return raw.toDouble();
+  }
+
   Color secondary() {
     final raw = (projectTokens['secondaryColor'] ?? '#2C8FCE').toString();
     if (!RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(raw)) {
@@ -199,10 +206,14 @@ class _SafePreviewState extends State<SafePreview> {
             width: double.infinity,
             child: Text(
               text,
-              textAlign: type == 'header' ? alignment : TextAlign.left,
+              textAlign: alignment,
               style: TextStyle(
-                fontSize:
-                    type == 'header' || props['variant'] == 'heading' ? 22 : 14,
+                fontSize: boundedNumber(
+                  props['fontSize'],
+                  type == 'header' || props['variant'] == 'heading' ? 22 : 14,
+                  8,
+                  96,
+                ),
                 fontWeight:
                     type == 'header' || props['variant'] == 'heading'
                         ? FontWeight.w900
@@ -261,6 +272,7 @@ class _SafePreviewState extends State<SafePreview> {
               style: FilledButton.styleFrom(backgroundColor: accent),
               onPressed:
                   props['disabled'] == true ||
+                          props['enabled'] == false ||
                           (runtimeState ?? widget.simulationState) == 'disabled'
                       ? null
                       : () {
@@ -285,6 +297,7 @@ class _SafePreviewState extends State<SafePreview> {
             key: ValueKey('preview-input-${screenId ?? ''}-${instanceId(c)}'),
             enabled:
                 props['disabled'] != true &&
+                props['enabled'] != false &&
                 (runtimeState ?? widget.simulationState) != 'disabled',
             onChanged: (v) {
               setState(() {
@@ -569,10 +582,10 @@ class _SafePreviewState extends State<SafePreview> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               const SmallLabel(
-                'SIMULATED · NO LIVE TRANSACTIONS',
+                'SIMULATED Â· NO LIVE TRANSACTIONS',
                 color: AppColors.purple,
               ),
-              for (final value in ['mobile', 'web', 'desktop'])
+              for (final value in ['mobile', 'tablet', 'web', 'desktop'])
                 ChoiceChip(
                   label: Text(value.toUpperCase()),
                   selected: mode == value,
@@ -580,6 +593,29 @@ class _SafePreviewState extends State<SafePreview> {
                 ),
             ],
           ),
+          if (screens.length > 1) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Select preview screen',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final item in screens)
+                  ChoiceChip(
+                    key: ValueKey('preview-screen-${item['screenId']}'),
+                    label: Text('Open ${item['name'] ?? item['screenId']}'),
+                    selected: item['screenId'] == selected,
+                    onSelected: (_) {
+                      navigate(item['screenId'].toString());
+                    },
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 18),
           Align(
             alignment: Alignment.center,
