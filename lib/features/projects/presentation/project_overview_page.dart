@@ -1,3 +1,4 @@
+import '../../mcp_integration/presentation/widgets/mcp_handoff_dialog.dart';
 import 'project_members_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -58,6 +59,8 @@ class _Contents extends StatelessWidget {
       ),
       const SizedBox(height: 20),
       ProjectMembersButton(projectId: draft.projectId),
+      const SizedBox(height: 10),
+      McpHandoffButton(projectId: draft.projectId),
       const SizedBox(height: 24),
       LayoutBuilder(
         builder: (context, size) {
