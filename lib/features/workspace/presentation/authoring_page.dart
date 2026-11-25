@@ -2093,23 +2093,64 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
     }
   }
 
-  Future<void> exportDraft() async {
+  Future<void> exportOfficialRevision() async {
+    final revisionId = approvedRevisionId;
+
+    if (revisionId == null ||
+        revisionId.isEmpty ||
+        exporting ||
+        approving ||
+        validating) {
+      return;
+    }
+
     setState(() {
       exporting = true;
       error = null;
     });
+
     try {
-      final bytes = await ref
-          .read(workspaceRepositoryProvider)
-          .exportDraft(widget.workspace.projectId);
+      final repository = ref.read(workspaceRepositoryProvider);
+
+      final metadata = await repository.createOfficialExport(
+        widget.workspace.projectId,
+        revisionId,
+      );
+
+      final exportId = metadata['exportId'];
+
+      if (exportId is! String || exportId.isEmpty) {
+        throw StateError('Backend returned no official export ID.');
+      }
+
+      final bytes = await repository.downloadOfficialExport(
+        widget.workspace.projectId,
+        exportId,
+      );
+
+      if (bytes.length < 4 ||
+          bytes[0] != 80 ||
+          bytes[1] != 75 ||
+          !((bytes[2] == 3 && bytes[3] == 4) ||
+            (bytes[2] == 5 && bytes[3] == 6) ||
+            (bytes[2] == 7 && bytes[3] == 8))) {
+        throw StateError('Backend did not return a valid ZIP header.');
+      }
+
       if (!mounted) return;
+
       ref.read(downloadPortProvider).saveZip(
-          'reqviora-${widget.workspace.projectId}-draft-v${widget.workspace.version}.zip',
-          bytes);
+        'reqviora-${widget.workspace.projectId}-$revisionId.zip',
+        bytes,
+      );
     } catch (e) {
-      if (mounted) setState(() => error = e.toString());
+      if (mounted) {
+        setState(() => error = e.toString());
+      }
     } finally {
-      if (mounted) setState(() => exporting = false);
+      if (mounted) {
+        setState(() => exporting = false);
+      }
     }
   }
 
@@ -2303,19 +2344,31 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
           if (approving) const LinearProgressIndicator(),          const SizedBox(height: 20),
           const Divider(),
           const SizedBox(height: 12),
-          const Text(
-            'ZIP export is unavailable in the current Backend API. '
-            'Official export requires an approved revision and export record.',
-            key: ValueKey('step08-export-unavailable'),
-            style: TextStyle(color: AppColors.muted, fontSize: 12),
+          Text(
+            approvedRevisionId == null
+                ? 'Official ZIP export requires a successfully approved revision.'
+                : 'Download the official ZIP for the approved revision.',
+            key: const ValueKey('step08-export-unavailable'),
+            style: const TextStyle(
+              color: AppColors.muted,
+              fontSize: 12,
+            ),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             key: const ValueKey('step08-export-disabled'),
-            onPressed: null,
+            onPressed: approvedRevisionId != null &&
+                    !validating &&
+                    !approving &&
+                    !exporting
+                ? exportOfficialRevision
+                : null,
             icon: const Icon(Icons.download_outlined),
-            label: const Text('ZIP Export Unavailable'),
+            label: Text(
+              exporting ? 'Preparing Official ZIP...' : 'Download Official ZIP',
+            ),
           ),
+          if (exporting) const LinearProgressIndicator(),
           if (error != null) ...[
             const SizedBox(height: 12),
             InlineError(error!),
