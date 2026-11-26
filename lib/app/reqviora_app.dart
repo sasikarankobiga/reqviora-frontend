@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../features/background_jobs/presentation/pages/ai_job_page.dart';
 import 'package:go_router/go_router.dart';
 import '../features/projects/presentation/projects_page.dart';
 import '../features/projects/presentation/create_project_page.dart';
@@ -124,6 +125,11 @@ final appRouter = GoRouter(
           ),
     ),
     GoRoute(path: '/account', builder: (_, _) => const AccountProfilePage()),
+    GoRoute(
+      path: '/ai-jobs',
+      redirect: (_, _) => isLocalDemo ? '/projects' : null,
+      builder: (_, _) => const AiJobPage(),
+    ),
     GoRoute(
       path: '/administration',
       redirect: (_, _) => isLocalDemo ? '/projects' : null,

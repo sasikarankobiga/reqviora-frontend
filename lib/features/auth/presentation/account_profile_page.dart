@@ -178,6 +178,19 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
                         if (authSession.authenticated) ...[
                           OutlinedButton.icon(
                             onPressed:
+                                _busy ? null : () => context.push('/ai-jobs'),
+                            icon: const Icon(Icons.auto_awesome),
+                            label: Text(
+                              uiText(
+                                context,
+                                'AI Job Monitor',
+                                'AI வேலை கண்காணிப்பு',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed:
                                 _busy
                                     ? null
                                     : () => context.push('/administration'),
