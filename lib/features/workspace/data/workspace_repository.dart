@@ -1,6 +1,7 @@
 import '../../../core/network/api_client.dart';
 import 'dart:typed_data';
 import '../domain/workspace.dart';
+import '../domain/local_preview_blueprint.dart';
 
 class WorkspaceRepository {
   const WorkspaceRepository(this.api);
@@ -284,10 +285,21 @@ class WorkspaceRepository {
   }
 
   Future<Map<String, dynamic>> compile(String id, int version) async {
-    throw UnsupportedError(
-      'Automatic Blueprint compilation is not available in the '
-      'current Backend API. Save the Builder draft first.',
-    );
+    final workspace = await load(id);
+
+    if (workspace.version != version) {
+      throw StateError('Workspace changed. Reload and retry.');
+    }
+
+    final blueprint = buildLocalPreviewBlueprint(workspace);
+    final savedVersion = await save(id, 'blueprint', version, blueprint);
+
+    return {
+      'draftVersion': savedVersion,
+      'generationMode': 'local-template',
+      'serverSaved': true,
+      'approved': false,
+    };
   }
 
   Future<Map<String, dynamic>> validate(String id) async {

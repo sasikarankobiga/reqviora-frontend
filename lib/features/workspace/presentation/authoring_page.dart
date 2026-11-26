@@ -1979,7 +1979,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Template Blueprint saved - v${response['draftVersion']}',
+            'Generated draft saved - v${response['draftVersion']}',
           ),
         ),
       );
@@ -2059,12 +2059,12 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                       ),
                     ),
                   FilledButton.icon(
-                    onPressed: null,
+                    onPressed: generating || savingDraft || draftBlueprint != null ? null : compileBlueprint,
                     icon: const Icon(Icons.auto_awesome),
                     label: Text(
                       generating
                           ? 'Compiling...'
-                          : 'Server Compilation Unavailable',
+                          : 'Generate & Save Blueprint Draft',
                     ),
                   ),
                 ],
@@ -2072,7 +2072,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
               const SizedBox(height: 10),
               const Text(
                 'Generate a local draft, edit it, then save using Save Blueprint Draft. '
-                'Server compilation is unavailable; a saved draft is not an approved revision.',
+                'Local generation saves through the Backend Draft API. Server compilation and approval remain separate.',
                 style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
               if (error != null) ...[
