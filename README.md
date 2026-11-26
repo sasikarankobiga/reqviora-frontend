@@ -27,7 +27,7 @@ flutter run -d chrome --web-port 5310 --dart-define=REQVIORA_LOCAL_DEMO=true --d
 
 First start the backend using its Visual Studio 2026 F5 launch profile. Browser URL: `http://localhost:5310`.
 
-To test real Identity account registration/login in local dev, set `REQVIORA_LOCAL_DEMO=false` and use the backend with demo mode disabled (default). Tokens live in memory and are discarded upon refresh/sign-out. Production refresh, MFA, verification and account recovery UX need further work.
+To test real Identity account registration/login in local dev, set `REQVIORA_LOCAL_DEMO=false` and use the backend with demo mode disabled (default). Access and refresh tokens live in memory and are discarded on browser refresh/sign-out. The frontend includes refresh/retry, OTP login, password recovery/reset, email verification and authenticator MFA setup; the connected backend must expose the matching `/api/auth`, `/api/account-security` and `/api/security/mfa` routes.
 
 ## Functional journey in this milestone
 
@@ -37,4 +37,4 @@ The appearance, responsive sidebar, cards and screens follow the approved REQVIO
 
 ## Pending product functionality
 
-Tamil/English STT, external AI, AI UI generation, graphical drag-and-drop navigation, approval/revision snapshot and complete permission invitations, supervised Super Admin, MCP handoff, final Design Studio fidelity and production deployment. They remain in approved/planned scope, not completed. See the combined package `IMPLEMENTED_VS_PENDING.md`.
+Tamil/English transcription, external AI, AI UI generation, revision history, complete permission invitations, MCP handoff and the remaining Super Admin mutations/monitoring require confirmed backend contracts. Browser-audio preview, a local graphical route canvas and a safe local documentation viewer are still frontend work; they are not described as backend-blocked. The component editor now includes theme tokens/modes, screen access roles, editable local Blueprint preview, nested draft preservation, autosave, accessibility and approval locks. See `docs/FRONTEND_COMPLETION_AUDIT.md` for package-level evidence and blockers.

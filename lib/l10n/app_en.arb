@@ -1,1 +1,21 @@
-{"@@locale":"en","appTitle":"REQVIORA"}
+{
+  "@@locale": "en",
+  "appTitle": "REQVIORA",
+  "accountSecurity": "REQVIORA Account Security",
+  "forgotPassword": "Forgot password",
+  "forgotPasswordDescription": "Request a secure password-reset link.",
+  "resetPassword": "Reset password",
+  "verifyEmail": "Verify your email",
+  "mfaSetup": "Authenticator setup",
+  "accountEmail": "Account email",
+  "sendResetLink": "Send reset link",
+  "returnToReqviora": "Return to REQVIORA",
+  "adminTitle": "REQVIORA Administration",
+  "workspace": "Workspace",
+  "adminRequiresAuthentication": "Administration requires real authentication.",
+  "verifyAdminAccess": "Verify administrator access",
+  "adminMetadataDescription": "Read-only platform metadata. Each request requires a fresh MFA code.",
+  "authenticatorCode": "Authenticator code",
+  "loadRefresh": "Load / refresh",
+  "verifyAccess": "Verify access"
+}

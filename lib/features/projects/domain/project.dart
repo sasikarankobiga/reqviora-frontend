@@ -73,10 +73,19 @@ class ProjectDraft {
 
     final raw = Map<String, dynamic>.from(json['draft'] as Map? ?? {});
 
+ feature/thikal-v4-frontend-development
+    final sections = raw['sections'];
+
+    final identity = Map<String, dynamic>.from(
+      sections is Map
+          ? (sections['identity'] as Map? ?? {})
+          : (raw['identity'] as Map? ?? {}),
+
     final sections = Map<String, dynamic>.from(raw['sections'] as Map? ?? raw);
 
     final identity = Map<String, dynamic>.from(
       sections['identity'] as Map? ?? {},
+ develop
     );
 
     final project = Map<String, dynamic>.from(json['project'] as Map? ?? {});

@@ -4,9 +4,12 @@ import 'package:go_router/go_router.dart';
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
+import '../../../l10n/language_settings.dart';
 import '../../workspace/application/workspace_providers.dart';
 import '../../workspace/domain/workspace.dart';
 import '../domain/review_summary.dart';
+import 'ai_extraction_panel.dart';
+import 'voice_input_panel.dart';
 import '../../workspace/domain/draft_conflict.dart';
 
 /// PB-05 Ã¢â‚¬â€ persisted text/manual source intake; file and voice services are
@@ -128,14 +131,14 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
 
   @override
   Widget build(BuildContext context) => AppShell(
-    pageTitle: 'Project / Input Studio',
+    pageTitle: localizedLabel(context, 'Project / Input Studio'),
     projectId: widget.projectId,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const PageIntro(
+        PageIntro(
           eyebrow: 'PB-05 Ã‚Â· Multi-input studio',
-          title: 'Turn ideas into clear requirements',
+          title: localizedLabel(context, 'Turn ideas into clear requirements'),
           subtitle:
               'Capture evidence, then review every suggested requirement before confirmation.',
         ),
@@ -168,8 +171,8 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                     (
                       Icons.mic_none_rounded,
                       'Voice',
-                      'Tamil / English STT Ã‚Â· pending provider',
-                      false,
+                      'Tamil / English audio transcription',
+                      true,
                     ),
                   ])
                     SizedBox(
@@ -181,9 +184,12 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                               : size.maxWidth,
                       child: FeatureTile(
                         icon: item.$1,
-                        title: item.$2,
+                        title: localizedLabel(context, item.$2),
                         subtitle: item.$3,
-                        label: item.$4 ? 'Available' : 'Not connected',
+                        label: localizedLabel(
+                          context,
+                          item.$4 ? 'Available' : 'Not connected',
+                        ),
                         active: item.$4,
                         onTap:
                             item.$2 == 'Manual'
@@ -216,8 +222,8 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const SectionTitle(
-                              'Add a text source',
+                            SectionTitle(
+                              localizedLabel(context, 'Add a text source'),
                               subtitle:
                                   'A stable source ID is saved with the current project version.',
                             ),
@@ -226,8 +232,11 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                               key: const ValueKey('source-title'),
                               controller: label,
                               textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                labelText: 'Source title',
+                              decoration: InputDecoration(
+                                labelText: localizedLabel(
+                                  context,
+                                  'Source title',
+                                ),
                               ),
                             ),
                             const SizedBox(height: 14),
@@ -236,8 +245,11 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                               controller: input,
                               minLines: 5,
                               maxLines: 9,
-                              decoration: const InputDecoration(
-                                labelText: 'Requirement source content',
+                              decoration: InputDecoration(
+                                labelText: localizedLabel(
+                                  context,
+                                  'Requirement source content',
+                                ),
                                 hintText:
                                     'Example: Our coffee shop needs menu browsing, mock ordering and table booking.',
                               ),
@@ -250,18 +262,28 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                                 OutlinedButton.icon(
                                   onPressed: busy ? null : () => uploadFile(w),
                                   icon: const Icon(Icons.upload_file_outlined),
-                                  label: const Text('Upload PDF / DOCX / TXT'),
+                                  label: Text(
+                                    localizedLabel(
+                                      context,
+                                      'Upload PDF / DOCX / TXT',
+                                    ),
+                                  ),
                                 ),
                                 FilledButton.icon(
                                   onPressed: busy ? null : () => saveText(w),
                                   icon: const Icon(Icons.save_outlined),
-                                  label: const Text('Save source'),
+                                  label: Text(
+                                    localizedLabel(context, 'Save source'),
+                                  ),
                                 ),
                                 OutlinedButton.icon(
                                   onPressed: busy ? null : () => suggest(w),
                                   icon: const Icon(Icons.rule),
-                                  label: const Text(
-                                    'Suggest using local rules',
+                                  label: Text(
+                                    localizedLabel(
+                                      context,
+                                      'Suggest using local rules',
+                                    ),
                                   ),
                                 ),
                                 OutlinedButton.icon(
@@ -270,7 +292,12 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                                         '/projects/${w.projectId}/review-input',
                                       ),
                                   icon: const Icon(Icons.fact_check_outlined),
-                                  label: const Text('Review suggestions'),
+                                  label: Text(
+                                    localizedLabel(
+                                      context,
+                                      'Review suggestions',
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -310,6 +337,18 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                         ),
                       ),
                       const SizedBox(height: 15),
+                      VoiceInputPanel(
+                        key: ValueKey('voice-${w.projectId}'),
+                        workspace: w,
+                        disabled: busy,
+                      ),
+                      const SizedBox(height: 15),
+                      AiExtractionPanel(
+                        key: ValueKey(w.projectId),
+                        workspace: w,
+                        disabled: busy,
+                      ),
+                      const SizedBox(height: 15),
                       SurfaceCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -321,8 +360,11 @@ class _InputStudioPageState extends ConsumerState<InputStudioPage> {
                             ),
                             const SizedBox(height: 13),
                             if (w.items('sources').isEmpty)
-                              const Text(
-                                'No saved sources yet.',
+                              Text(
+                                localizedLabel(
+                                  context,
+                                  'No saved sources yet.',
+                                ),
                                 style: TextStyle(color: AppColors.muted),
                               ),
                             for (final s in w.items('sources'))
@@ -413,7 +455,7 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
       context: context,
       builder:
           (c) => AlertDialog(
-            title: const Text('Edit & confirm suggestion'),
+            title: Text(localizedLabel(context, 'Edit & confirm suggestion')),
             content: SizedBox(
               width: 450,
               child: Column(
@@ -421,15 +463,17 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
                 children: [
                   TextField(
                     controller: name,
-                    decoration: const InputDecoration(
-                      labelText: 'Requirement name',
+                    decoration: InputDecoration(
+                      labelText: localizedLabel(context, 'Requirement name'),
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: description,
                     maxLines: 3,
-                    decoration: const InputDecoration(labelText: 'Description'),
+                    decoration: InputDecoration(
+                      labelText: localizedLabel(context, 'Description'),
+                    ),
                   ),
                 ],
               ),
@@ -437,11 +481,11 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(c, false),
-                child: const Text('Cancel'),
+                child: Text(localizedLabel(context, 'Cancel')),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(c, true),
-                child: const Text('Confirm'),
+                child: Text(localizedLabel(context, 'Confirm')),
               ),
             ],
           ),
@@ -475,14 +519,14 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
 
   @override
   Widget build(BuildContext context) => AppShell(
-    pageTitle: 'Requirements Review',
+    pageTitle: localizedLabel(context, 'Requirements Review'),
     projectId: widget.projectId,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const PageIntro(
+        PageIntro(
           eyebrow: 'PB-06 Ã‚Â· Human confirmation',
-          title: 'You are in control',
+          title: localizedLabel(context, 'You are in control'),
           subtitle:
               'Explicitly accept, reject or defer each proposed requirement.',
         ),
@@ -577,7 +621,9 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
                                     '/projects/${w.projectId}/sources',
                                   ),
                               icon: const Icon(Icons.arrow_back),
-                              label: const Text('Open Input Studio'),
+                              label: Text(
+                                localizedLabel(context, 'Open Input Studio'),
+                              ),
                             ),
                           ],
                         ),
@@ -635,14 +681,21 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
                                                   c['id'].toString(),
                                                   'accepted',
                                                 ),
-                                        child: const Text('Accept'),
+                                        child: Text(
+                                          localizedLabel(context, 'Accept'),
+                                        ),
                                       ),
                                       OutlinedButton(
                                         onPressed:
                                             pendingId != null
                                                 ? null
                                                 : () => editAndAccept(w, c),
-                                        child: const Text('Edit & Accept'),
+                                        child: Text(
+                                          localizedLabel(
+                                            context,
+                                            'Edit & Accept',
+                                          ),
+                                        ),
                                       ),
                                       OutlinedButton(
                                         onPressed:
@@ -653,7 +706,9 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
                                                   c['id'].toString(),
                                                   'rejected',
                                                 ),
-                                        child: const Text('Reject'),
+                                        child: Text(
+                                          localizedLabel(context, 'Reject'),
+                                        ),
                                       ),
                                       OutlinedButton(
                                         onPressed:
@@ -664,7 +719,9 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
                                                   c['id'].toString(),
                                                   'deferred',
                                                 ),
-                                        child: const Text('Defer'),
+                                        child: Text(
+                                          localizedLabel(context, 'Defer'),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -697,7 +754,9 @@ class _InputReviewPageState extends ConsumerState<InputReviewPage> {
                           () =>
                               context.go('/projects/${w.projectId}/builder/1'),
                       icon: const Icon(Icons.arrow_forward),
-                      label: const Text('Continue to Builder'),
+                      label: Text(
+                        localizedLabel(context, 'Continue to Builder'),
+                      ),
                     ),
                   ],
                 );

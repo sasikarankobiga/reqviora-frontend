@@ -53,6 +53,7 @@ class WorkspaceRepository {
       'projectName': (project['name'] ?? '').toString(),
       'designTargets': targets,
       'sections': sections,
+      'approvedRevisionId': response['approvedRevisionId'],
     });
   }
 
@@ -77,6 +78,10 @@ class WorkspaceRepository {
         'concurrencyToken': null,
         'draft': <String, dynamic>{},
       };
+    }
+
+    if (response['approvedRevisionId'] != null) {
+      throw const ApiException(409, 'Approved drafts cannot be edited.');
     }
 
     final latestVersion = (response['version'] as num?)?.toInt() ?? 0;

@@ -6,12 +6,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:reqviora_frontend/core/network/api_client.dart';
+import 'package:reqviora_frontend/core/auth/auth_session.dart';
 import 'package:reqviora_frontend/features/projects/application/projects_providers.dart';
 import 'package:reqviora_frontend/features/workspace/presentation/authoring_page.dart';
 
 void main() {
   const projectId = 'step08-test-project';
   const token = 'step08-concurrency-token';
+
+  setUp(() => authSession.signIn('step08-test-session'));
+  tearDown(authSession.signOut);
 
   http.Response reply(Object body, int status) => http.Response(
     jsonEncode(body),
@@ -303,6 +307,43 @@ void main() {
       findsOneWidget,
     );
     expect(tester.widget<FilledButton>(approve).onPressed, isNull);
+  });
+
+  testWidgets('Approved revision remains locked after returning to Step 08', (
+    tester,
+  ) async {
+    await openStep08(
+      tester,
+      validation: {'id': 'validation-approval', 'passed': true, 'findings': []},
+      onValidate: () {},
+    );
+    await validate(tester);
+    await tester.tap(find.byKey(const ValueKey('step08-approve-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirm Approval'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Approved revision: approved-revision-123'),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await openStep08(
+      tester,
+      validation: {'id': 'unused', 'passed': false, 'findings': []},
+      onValidate: () {},
+    );
+
+    expect(
+      find.text('Approved revision: approved-revision-123'),
+      findsOneWidget,
+    );
+    final validateButton = find.widgetWithText(
+      FilledButton,
+      'Run Backend Validation',
+    );
+    expect(tester.widget<FilledButton>(validateButton).onPressed, isNull);
   });
 
   testWidgets('Validation is disabled after approval', (tester) async {

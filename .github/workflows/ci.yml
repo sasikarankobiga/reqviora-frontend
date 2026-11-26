@@ -1,4 +1,4 @@
-﻿name: REQVIORA Frontend CI
+name: REQVIORA Frontend CI
 
 on: [push, pull_request]
 
@@ -15,7 +15,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.50.1'
+          flutter-version: '3.47.6'
           channel: stable
           cache: true
 
@@ -23,13 +23,13 @@ jobs:
         run: flutter pub get
 
       - name: Flutter static analysis
-        run: flutter analyze --no-pub --no-fatal-infos
+        run: flutter analyze --no-pub
 
       - name: Run tests
         run: flutter test --no-pub
 
       - name: Build Web
-        run: flutter build web --release --no-pub --dart-define=REQVIORA_API_BASE_URL=https://example.invalid --dart-define=REQVIORA_LOCAL_DEMO=false
+        run: flutter build web --release --no-pub --dart-define=REQVIORA_API_BASE_URL=https://api.example.invalid --dart-define=REQVIORA_LOCAL_DEMO=false
 
       - name: G1 contract fixture checks
         run: |

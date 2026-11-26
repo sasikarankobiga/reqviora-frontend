@@ -4,11 +4,13 @@ import 'package:go_router/go_router.dart';
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
+import '../../../l10n/language_settings.dart';
 import '../../../core/constants/builder_stages.dart';
 import '../../projects/application/projects_providers.dart';
 import '../../projects/domain/project.dart';
 import '../domain/identity_validation.dart';
 import '../../workspace/presentation/authoring_page.dart';
+import '../../workspace/presentation/project_write_gate.dart';
 
 class BuilderPage extends ConsumerWidget {
   const BuilderPage({super.key, required this.projectId, required this.step});
@@ -25,8 +27,15 @@ class BuilderPage extends ConsumerWidget {
         children: [
           PageIntro(
             eyebrow: '8-Step Builder · Step $number of 8',
-            title: builderStageNames[number - 1],
-            subtitle: builderStageDescriptions[number - 1],
+            title: localizedStageName(
+              context,
+              number - 1,
+              builderStageNames[number - 1],
+            ),
+            subtitle: localizedLabel(
+              context,
+              builderStageDescriptions[number - 1],
+            ),
           ),
           const SizedBox(height: 20),
           _StageBar(projectId: projectId, selected: number),
@@ -45,9 +54,12 @@ class BuilderPage extends ConsumerWidget {
                                 ref.invalidate(projectDraftProvider(projectId)),
                       ),
                   data:
-                      (draft) => IdentityEditor(
-                        key: ValueKey('$projectId-${draft.version}'),
-                        draft: draft,
+                      (draft) => ProjectWriteGate(
+                        projectId: projectId,
+                        child: IdentityEditor(
+                          key: ValueKey('$projectId-${draft.version}'),
+                          draft: draft,
+                        ),
                       ),
                 )
           else
@@ -71,7 +83,7 @@ class _StageBar extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                'Your workflow',
+                localizedLabel(context, 'Your workflow'),
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
@@ -112,7 +124,11 @@ class _StageBar extends StatelessWidget {
                       ),
                     ),
                     label: Text(
-                      builderStageNames[i - 1],
+                      localizedStageName(
+                        context,
+                        i - 1,
+                        builderStageNames[i - 1],
+                      ),
                       style: TextStyle(
                         fontSize: 11,
                         color: i == selected ? AppColors.purple : AppColors.ink,
@@ -190,7 +206,7 @@ class _IdentityEditorState extends ConsumerState<IdentityEditor> {
   }
 
   Future<void> save({bool proceed = false}) async {
-    if (!(keyForm.currentState?.validate() ?? false)) return;
+    if (saving || !(keyForm.currentState?.validate() ?? false)) return;
     setState(() {
       saving = true;
       error = null;
@@ -230,7 +246,7 @@ class _IdentityEditorState extends ConsumerState<IdentityEditor> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          fields[key]!,
+          localizedLabel(context, fields[key]!),
           style: const TextStyle(
             color: AppColors.ink,
             fontWeight: FontWeight.w800,
@@ -242,7 +258,11 @@ class _IdentityEditorState extends ConsumerState<IdentityEditor> {
           controller: inputs[key],
           maxLines: lines,
           decoration: InputDecoration(
-            hintText: 'Enter ${fields[key]!.replaceAll('*', '').toLowerCase()}',
+            hintText: uiText(
+              context,
+              'Enter ${fields[key]!.replaceAll('*', '').toLowerCase()}',
+              '${localizedLabel(context, fields[key]!).replaceAll('*', '').trim()} உள்ளிடவும்',
+            ),
           ),
           validator:
               key == 'name'
@@ -283,7 +303,7 @@ class _IdentityEditorState extends ConsumerState<IdentityEditor> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SectionTitle(
-                'Project identity',
+                localizedLabel(context, 'Project identity'),
                 subtitle: 'Name, purpose, category and target platform.',
               ),
               const SizedBox(height: 21),
@@ -324,8 +344,8 @@ class _IdentityEditorState extends ConsumerState<IdentityEditor> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SectionTitle(
-                'Purpose & audience',
+              SectionTitle(
+                localizedLabel(context, 'Purpose & audience'),
                 subtitle: 'Describe problems and intended users.',
               ),
               const SizedBox(height: 21),
@@ -342,8 +362,8 @@ class _IdentityEditorState extends ConsumerState<IdentityEditor> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SectionTitle(
-                'Scope & success',
+              SectionTitle(
+                localizedLabel(context, 'Scope & success'),
                 subtitle: 'Keep project boundaries and outcomes clear.',
               ),
               const SizedBox(height: 21),
@@ -352,7 +372,7 @@ class _IdentityEditorState extends ConsumerState<IdentityEditor> {
               input('constraints', lines: 2),
               input('successCriteria', lines: 2),
               const SmallLabel(
-                'Source references & AI suggestions: future service integration',
+                'Review source references in Input Studio.',
                 color: AppColors.muted,
               ),
             ],
@@ -393,17 +413,21 @@ class _IdentityEditorState extends ConsumerState<IdentityEditor> {
                       : () => context.go(
                         '/projects/${widget.draft.projectId}/overview',
                       ),
-              child: const Text('Back to overview'),
+              child: Text(localizedLabel(context, 'Back to overview')),
             ),
             OutlinedButton.icon(
               onPressed: saving ? null : () => save(),
               icon: const Icon(Icons.save_outlined),
-              label: const Text('Save Draft'),
+              label: Text(localizedLabel(context, 'Save Draft')),
             ),
             FilledButton.icon(
               onPressed: saving ? null : () => save(proceed: true),
               icon: Icon(saving ? Icons.hourglass_empty : Icons.arrow_forward),
-              label: Text(saving ? 'Saving…' : 'Save & Continue'),
+              label: Text(
+                saving
+                    ? localizedLabel(context, 'Saving…')
+                    : localizedLabel(context, 'Save & Continue'),
+              ),
             ),
           ],
         ),
