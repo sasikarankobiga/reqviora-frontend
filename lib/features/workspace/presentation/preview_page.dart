@@ -6,6 +6,7 @@ import '../../../app/app_shell.dart';
 import '../../../app/widgets.dart';
 import '../application/workspace_providers.dart';
 import 'simulated_preview.dart';
+import 'revision_history_panel.dart';
 
 class ProjectPreviewPage extends ConsumerWidget {
   const ProjectPreviewPage({super.key, required this.projectId});
@@ -22,6 +23,11 @@ class ProjectPreviewPage extends ConsumerWidget {
           title: 'Test your connected design',
           subtitle:
               'All interactions are simulated locally. No customer transactions are possible.',
+        ),
+        const SizedBox(height: 19),
+        RevisionHistoryPanel(
+          key: ValueKey('revision-history-$projectId'),
+          projectId: projectId,
         ),
         const SizedBox(height: 19),
         ref
