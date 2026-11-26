@@ -1,3 +1,4 @@
+import '../domain/zip_archive_check.dart';
 import '../../builder/domain/registry/component_registry.dart';
 import '../../builder/domain/registry/v4_component_layout.dart';
 import '../../builder/domain/registry/v4_interaction_rule_validator.dart';
@@ -2238,13 +2239,10 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
         exportId,
       );
 
-      if (bytes.length < 4 ||
-          bytes[0] != 80 ||
-          bytes[1] != 75 ||
-          !((bytes[2] == 3 && bytes[3] == 4) ||
-            (bytes[2] == 5 && bytes[3] == 6) ||
-            (bytes[2] == 7 && bytes[3] == 8))) {
-        throw StateError('Backend did not return a valid ZIP header.');
+      if (!isStructurallyValidZip(bytes)) {
+        throw StateError(
+          'Backend did not return a valid ZIP header or archive structure.',
+        );
       }
 
       if (!mounted) return;
