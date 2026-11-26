@@ -1944,6 +1944,9 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   }
 
   void generatePreview() {
+    if (generating || savingDraft || draftBlueprint != null) {
+      return;
+    }
     try {
       // Derived from server-loaded Workspace content, not hardcoded DB records.
       final preview = buildLocalPreviewBlueprint(widget.workspace);
@@ -2043,7 +2046,9 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                           },
                   ),
                   OutlinedButton.icon(
-                    onPressed: generating ? null : generatePreview,
+                    onPressed: generating || savingDraft || draftBlueprint != null
+                      ? null
+                      : generatePreview,
                     icon: const Icon(Icons.visibility_outlined),
                     label: const Text('Generate Local Preview'),
                   ),
