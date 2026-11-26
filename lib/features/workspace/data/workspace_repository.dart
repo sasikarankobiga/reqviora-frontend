@@ -302,6 +302,85 @@ class WorkspaceRepository {
     };
   }
 
+  /// Saves a complete Backend Blueprint v1 document.
+  ///
+  /// Unlike local preview saving, this uses the official Blueprint API.
+  /// It does not validate, approve or export the revision.
+  Future<int> saveBackendBlueprint(
+    String projectId,
+    int expectedVersion,
+    Map<String, dynamic> blueprint,
+  ) async {
+    if (blueprint['schemaVersion'] != '1.0.0' ||
+        blueprint['projectId'] != projectId ||
+        blueprint['lifecycle'] != 'draft' ||
+        blueprint['blueprintId'] is! String ||
+        !(blueprint['blueprintId'] as String).startsWith('BP-') ||
+        blueprint['revision'] is! int ||
+        (blueprint['revision'] as int) < 1) {
+      throw ArgumentError('A matching Backend Blueprint v1 draft is required.');
+    }
+
+    for (final field in [
+      'targetPlatforms',
+      'requirements',
+      'features',
+      'screens',
+      'components',
+      'actions',
+      'navigation',
+    ]) {
+      if (blueprint[field] is! List) {
+        throw ArgumentError('Invalid Blueprint v1 field: $field');
+      }
+    }
+
+    if ((blueprint['targetPlatforms'] as List).isEmpty) {
+      throw ArgumentError('At least one target platform is required.');
+    }
+
+    Map<String, dynamic> current;
+
+    try {
+      current = Map<String, dynamic>.from(
+        await api.get('/api/projects/$projectId/drafts/current') as Map,
+      );
+    } on ApiException catch (error) {
+      if (error.statusCode != 404) rethrow;
+      current = {
+        'version': 0,
+        'concurrencyToken': null,
+        'draft': <String, dynamic>{},
+      };
+    }
+
+    final version = (current['version'] as num?)?.toInt() ?? 0;
+    if (version != expectedVersion) {
+      throw StateError(
+        'Draft version changed. Reload before saving Blueprint v1.',
+      );
+    }
+
+    final draft = Map<String, dynamic>.from(
+      current['draft'] as Map? ?? {},
+    );
+
+    final saved = Map<String, dynamic>.from(
+      await api.put('/api/projects/$projectId/blueprints/current', {
+            'draft': draft,
+            'blueprint': blueprint,
+            'expectedConcurrencyToken': current['concurrencyToken'],
+          })
+          as Map,
+    );
+
+    final savedVersion = saved['version'];
+    if (savedVersion is! num) {
+      throw StateError('Backend returned no saved draft version.');
+    }
+
+    return savedVersion.toInt();
+  }
   Future<Map<String, dynamic>> validate(String id) async {
     final current = Map<String, dynamic>.from(
       await api.get('/api/projects/$id/drafts/current') as Map,
