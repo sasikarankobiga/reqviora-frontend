@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:reqviora_frontend/core/network/api_client.dart';
+import 'package:reqviora_frontend/core/auth/auth_session.dart';
 import 'package:reqviora_frontend/features/projects/application/projects_providers.dart';
 import 'package:reqviora_frontend/features/workspace/presentation/authoring_page.dart';
 
@@ -13,11 +14,14 @@ void main() {
   const projectId = 'step08-test-project';
   const token = 'step08-concurrency-token';
 
+  setUp(() => authSession.signIn('step08-test-session'));
+  tearDown(authSession.signOut);
+
   http.Response reply(Object body, int status) => http.Response(
-        jsonEncode(body),
-        status,
-        headers: {'content-type': 'application/json'},
-      );
+    jsonEncode(body),
+    status,
+    headers: {'content-type': 'application/json'},
+  );
 
   Future<void> openStep08(
     WidgetTester tester, {
@@ -28,8 +32,7 @@ void main() {
     final client = MockClient((request) async {
       final path = request.url.path;
 
-      if (request.method == 'GET' &&
-          path == '/api/projects/$projectId') {
+      if (request.method == 'GET' && path == '/api/projects/$projectId') {
         return reply({
           'id': projectId,
           'name': 'REQVIORA Step 08 Test',
@@ -67,9 +70,7 @@ void main() {
         expect(body['expectedConcurrencyToken'], token);
         expect(body['validationRunId'], 'validation-approval');
         onApprove?.call();
-        return reply({
-          'revisionId': 'approved-revision-123',
-        }, 201);
+        return reply({'revisionId': 'approved-revision-123'}, 201);
       }
 
       return reply({'error': 'Unexpected request: $path'}, 500);
@@ -82,16 +83,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          apiClientProvider.overrideWithValue(ApiClient(client)),
-        ],
+        overrides: [apiClientProvider.overrideWithValue(ApiClient(client))],
         child: const MaterialApp(
           home: Scaffold(
             body: SingleChildScrollView(
-              child: BuilderAuthoringPage(
-                projectId: projectId,
-                step: 8,
-              ),
+              child: BuilderAuthoringPage(projectId: projectId, step: 8),
             ),
           ),
         ),
@@ -132,15 +128,10 @@ void main() {
       find.byKey(const ValueKey('step08-validation-ready')),
       findsOneWidget,
     );
-    expect(
-      find.textContaining('Approval is still required'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Approval is still required'), findsOneWidget);
   });
 
-  testWidgets('Blockers prevent a ready validation message', (
-    tester,
-  ) async {
+  testWidgets('Blockers prevent a ready validation message', (tester) async {
     await openStep08(
       tester,
       validation: {
@@ -165,22 +156,13 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Screen mapping is missing'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('step08-validation-ready')),
-      findsNothing,
-    );
+    expect(find.byKey(const ValueKey('step08-validation-ready')), findsNothing);
   });
 
-  testWidgets('Missing blocker count is not considered ready', (
-    tester,
-  ) async {
+  testWidgets('Missing blocker count is not considered ready', (tester) async {
     await openStep08(
       tester,
-      validation: {
-        'draftVersion': 1,
-        'advisories': 0,
-        'findings': [],
-      },
+      validation: {'draftVersion': 1, 'advisories': 0, 'findings': []},
       onValidate: () {},
     );
 
@@ -192,9 +174,7 @@ void main() {
     );
   });
 
-  testWidgets('Real backend passed response shows readiness', (
-    tester,
-  ) async {
+  testWidgets('Real backend passed response shows readiness', (tester) async {
     var requests = 0;
 
     await openStep08(
@@ -219,9 +199,7 @@ void main() {
     );
   });
 
-  testWidgets('Real backend failed response blocks readiness', (
-    tester,
-  ) async {
+  testWidgets('Real backend failed response blocks readiness', (tester) async {
     await openStep08(
       tester,
       validation: {
@@ -248,33 +226,19 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Required screen is missing'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('step08-validation-ready')),
-      findsNothing,
-    );
+    expect(find.byKey(const ValueKey('step08-validation-ready')), findsNothing);
   });
-  testWidgets('Unsupported ZIP export remains disabled', (
-    tester,
-  ) async {
+  testWidgets('Unsupported ZIP export remains disabled', (tester) async {
     await openStep08(
       tester,
-      validation: {
-        'blockers': 0,
-        'advisories': 0,
-        'findings': [],
-      },
+      validation: {'blockers': 0, 'advisories': 0, 'findings': []},
       onValidate: () {},
     );
 
-    final exportButton = find.byKey(
-      const ValueKey('step08-export-disabled'),
-    );
+    final exportButton = find.byKey(const ValueKey('step08-export-disabled'));
 
     expect(exportButton, findsOneWidget);
-    expect(
-      tester.widget<OutlinedButton>(exportButton).onPressed,
-      isNull,
-    );
+    expect(tester.widget<OutlinedButton>(exportButton).onPressed, isNull);
     expect(
       find.byKey(const ValueKey('step08-export-unavailable')),
       findsOneWidget,
@@ -287,20 +251,14 @@ void main() {
 
     await openStep08(
       tester,
-      validation: {
-        'id': 'validation-approval',
-        'passed': true,
-        'findings': [],
-      },
+      validation: {'id': 'validation-approval', 'passed': true, 'findings': []},
       onValidate: () {},
       onApprove: () => approvals++,
     );
 
     await validate(tester);
 
-    final approve = find.byKey(
-      const ValueKey('step08-approve-button'),
-    );
+    final approve = find.byKey(const ValueKey('step08-approve-button'));
 
     await tester.ensureVisible(approve);
     await tester.tap(approve);
@@ -325,20 +283,14 @@ void main() {
 
     await openStep08(
       tester,
-      validation: {
-        'id': 'validation-approval',
-        'passed': true,
-        'findings': [],
-      },
+      validation: {'id': 'validation-approval', 'passed': true, 'findings': []},
       onValidate: () {},
       onApprove: () => approvals++,
     );
 
     await validate(tester);
 
-    final approve = find.byKey(
-      const ValueKey('step08-approve-button'),
-    );
+    final approve = find.byKey(const ValueKey('step08-approve-button'));
 
     await tester.ensureVisible(approve);
     await tester.tap(approve);
@@ -354,15 +306,77 @@ void main() {
       find.text('Approved revision: approved-revision-123'),
       findsOneWidget,
     );
-    expect(
-      tester.widget<FilledButton>(approve).onPressed,
-      isNull,
-    );
+    expect(tester.widget<FilledButton>(approve).onPressed, isNull);
   });
 
-  testWidgets('Failed backend validation disables approval', (
+  testWidgets('Approved revision remains locked after returning to Step 08', (
     tester,
   ) async {
+    await openStep08(
+      tester,
+      validation: {'id': 'validation-approval', 'passed': true, 'findings': []},
+      onValidate: () {},
+    );
+    await validate(tester);
+    await tester.tap(find.byKey(const ValueKey('step08-approve-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirm Approval'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Approved revision: approved-revision-123'),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await openStep08(
+      tester,
+      validation: {'id': 'unused', 'passed': false, 'findings': []},
+      onValidate: () {},
+    );
+
+    expect(
+      find.text('Approved revision: approved-revision-123'),
+      findsOneWidget,
+    );
+    final validateButton = find.widgetWithText(
+      FilledButton,
+      'Run Backend Validation',
+    );
+    expect(tester.widget<FilledButton>(validateButton).onPressed, isNull);
+  });
+
+  testWidgets('Validation is disabled after approval', (tester) async {
+    var approvals = 0;
+
+    await openStep08(
+      tester,
+      validation: {'id': 'validation-approval', 'passed': true, 'findings': []},
+      onValidate: () {},
+      onApprove: () => approvals++,
+    );
+
+    await validate(tester);
+
+    final approve = find.byKey(const ValueKey('step08-approve-button'));
+
+    await tester.ensureVisible(approve);
+    await tester.tap(approve);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Confirm Approval'));
+    await tester.pumpAndSettle();
+
+    expect(approvals, 1);
+
+    final validateButton = find.widgetWithText(
+      FilledButton,
+      'Run Backend Validation',
+    );
+
+    expect(tester.widget<FilledButton>(validateButton).onPressed, isNull);
+  });
+  testWidgets('Failed backend validation disables approval', (tester) async {
     var approvals = 0;
 
     await openStep08(
@@ -378,15 +392,9 @@ void main() {
 
     await validate(tester);
 
-    final approve = find.byKey(
-      const ValueKey('step08-approve-button'),
-    );
+    final approve = find.byKey(const ValueKey('step08-approve-button'));
 
-    expect(
-      tester.widget<FilledButton>(approve).onPressed,
-      isNull,
-    );
+    expect(tester.widget<FilledButton>(approve).onPressed, isNull);
     expect(approvals, 0);
   });
-
 }

@@ -27,7 +27,12 @@ Map<String, dynamic> buildLocalPreviewBlueprint(Workspace workspace) {
       throw StateError('Duplicate screen ID: $id');
     }
 
-    screens.add({'screenId': id, 'name': name});
+    screens.add({
+      'screenId': id,
+      'name': name,
+      if (screen['accessRoles'] is List)
+        'accessRoles': List<String>.from(screen['accessRoles'] as List),
+    });
   }
 
   const supportedTypes = {
@@ -67,13 +72,18 @@ Map<String, dynamic> buildLocalPreviewBlueprint(Workspace workspace) {
       throw StateError('Unsupported preview component: $type');
     }
 
-    final props = Map<String, dynamic>.from(component['props'] as Map? ?? {});
+    final props = <String, dynamic>{
+      ...Map<String, dynamic>.from(component['properties'] as Map? ?? {}),
+      ...Map<String, dynamic>.from(component['props'] as Map? ?? {}),
+    };
 
     props['label'] = component['label'] ?? props['label'] ?? '';
     props['text'] = component['text'] ?? props['text'] ?? '';
 
     instances.add({
       'componentInstanceId': id,
+      if (component['parentComponentId'] != null)
+        'parentComponentId': component['parentComponentId'],
       'screenId': screenId,
       'type': type,
       'order': i,

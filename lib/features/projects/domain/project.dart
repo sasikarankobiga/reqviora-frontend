@@ -66,12 +66,18 @@ class ProjectDraft {
         category: (project['category'] ?? '').toString(),
         targets: List<String>.from(project['designTargets'] as List? ?? []),
         identity: Map<String, dynamic>.from(project['identity'] as Map? ?? {}),
+        concurrencyToken: json['concurrencyToken']?.toString(),
+        rawDraft: Map<String, dynamic>.from(json['draft'] as Map? ?? {}),
       );
     }
 
     final raw = Map<String, dynamic>.from(json['draft'] as Map? ?? {});
 
-    final identity = Map<String, dynamic>.from(raw['identity'] as Map? ?? {});
+    final sections = Map<String, dynamic>.from(raw['sections'] as Map? ?? raw);
+
+    final identity = Map<String, dynamic>.from(
+      sections['identity'] as Map? ?? {},
+    );
 
     final project = Map<String, dynamic>.from(json['project'] as Map? ?? {});
 
