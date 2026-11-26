@@ -36,6 +36,11 @@ import '../domain/theme_accessibility.dart';
 import '../domain/theme_draft_tokens.dart';
 import 'simulated_preview.dart';
 import '../domain/local_preview_blueprint.dart';
+ feature/shayiny-v4-components-editor
+import '../domain/backend_blueprint_mapper.dart';
+import '../domain/v4_blueprint_history.dart';
+
+ develop
 
 /// Service-backed authoring for Builder steps 02-08. All writes are owner-scoped
 /// and carry a draft version. No fake AI/approval states are produced here.
@@ -2470,6 +2475,56 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     }
   }
 
+ feature/shayiny-v4-components-editor
+  /// Saves Backend Blueprint v1 without approving it.
+  Future<void> saveOfficialBlueprintV1() async {
+    if (generating || savingDraft || draftBlueprint != null) return;
+
+    _autosaveTimer?.cancel();
+
+    setState(() {
+      generating = true;
+      error = null;
+    });
+
+    try {
+      final blueprint = buildBackendBlueprintV1(widget.workspace);
+
+      final savedVersion = await ref
+          .read(workspaceRepositoryProvider)
+          .saveBackendBlueprint(
+            widget.workspace.projectId,
+            widget.workspace.version,
+            blueprint,
+          );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Official Blueprint v1 saved - v$savedVersion. '
+            'Validation and approval are still required.',
+          ),
+        ),
+      );
+
+      ref.invalidate(projectValidationProvider(widget.workspace.projectId));
+      ref.invalidate(workspaceProvider(widget.workspace.projectId));
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          error = 'Official Blueprint v1 was not saved: $e';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => generating = false);
+    }
+  }
+
+  Future<void> compileBlueprint() async {
+    _autosaveTimer?.cancel();
+
   Future<void> regenerateBlueprint() async {
     if (generating ||
         savingDraft ||
@@ -2482,6 +2537,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     final workspaceRepository = ref.read(workspaceRepositoryProvider);
     final repository = ref.read(aiIntelligenceRepositoryProvider);
 
+ develop
     setState(() {
       generating = true;
       error = null;
@@ -3103,6 +3159,14 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                         savingDraft ? 'Saving Draft...' : 'Save Visual Draft',
                       ),
                     ),
+                  OutlinedButton.icon(
+                    key: const ValueKey('step07-save-official-blueprint-v1'),
+                    onPressed: generating || savingDraft || draftBlueprint != null
+                        ? null
+                        : saveOfficialBlueprintV1,
+                    icon: const Icon(Icons.cloud_upload_outlined),
+                    label: const Text('Save Official Blueprint v1'),
+                  ),
                   FilledButton.icon(
                     onPressed:
                         generating || savingDraft || draftBlueprint != null
