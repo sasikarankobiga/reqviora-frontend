@@ -17,6 +17,7 @@ import '../../../core/network/api_client.dart';
 import '../domain/blueprint_proposal.dart';
 import '../../builder/domain/registry/component_registry.dart';
 import 'package:flutter/material.dart';
+import '../../second_brain/presentation/widgets/second_brain_viewer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
@@ -3602,6 +3603,8 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
             'Official Second Brain Exports',
             subtitle: 'Download archives created from approved revisions.',
           ),
+          const SizedBox(height: 12),
+          SecondBrainViewerButton(projectId: projectId),
 
           if (exports.isEmpty)
             const Padding(
