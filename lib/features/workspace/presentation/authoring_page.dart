@@ -1,3 +1,4 @@
+import '../domain/zip_archive_check.dart';
 import '../../builder/domain/registry/component_registry.dart';
 import '../../builder/domain/registry/v4_component_layout.dart';
 import '../../builder/domain/registry/v4_interaction_rule_validator.dart';
@@ -11,11 +12,14 @@ import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
 import '../application/workspace_providers.dart';
 import '../domain/workspace.dart';
+import '../domain/blueprint_recovery_store.dart';
 import '../domain/navigation_diagnostics.dart';
 import '../domain/draft_conflict.dart';
 import '../domain/feature_coverage.dart';
+import '../domain/screen_access_roles.dart';
 import '../domain/builder_quality_checks.dart';
 import '../domain/theme_accessibility.dart';
+import '../domain/theme_draft_tokens.dart';
 import 'simulated_preview.dart';
 import 'v4_blueprint_selection_panel.dart';
 import 'v4_blueprint_property_inspector.dart';
@@ -180,6 +184,27 @@ class _ContentState extends ConsumerState<_Content> {
   }
 }
 
+/// Testable Screen Editor entry point for Builder Step 02.
+class V4ScreensStudio extends StatelessWidget {
+  const V4ScreensStudio({
+    super.key,
+    required this.workspace,
+    required this.onSave,
+  });
+
+  final Workspace workspace;
+  final Future<void> Function(String section, dynamic data) onSave;
+
+  @override
+  Widget build(BuildContext context) => _ItemEditor(
+        workspace: workspace,
+        section: 'screens',
+        title: 'Screens & feature mapping',
+        icon: Icons.grid_view_rounded,
+        type: _ItemType.screen,
+        onSave: onSave,
+      );
+}
 /// Testable entry point for the original V4 Components Studio.
 class V4ComponentsStudio extends StatelessWidget {
   const V4ComponentsStudio({
@@ -802,6 +827,11 @@ class _ItemDialogState extends State<_ItemDialog> {
     screenId = item['screenId'] as String?;
     parentComponentId = item['parentComponentId']?.toString();
     featureIds = Set<String>.from(item['featureIds'] as List? ?? []);
+    fields['accessRoles'] = TextEditingController(
+      text: (item['accessRoles'] is List)
+          ? (item['accessRoles'] as List).map((role) => role.toString()).join(', ')
+          : '',
+    );
   }
 
   @override
@@ -872,6 +902,12 @@ class _ItemDialogState extends State<_ItemDialog> {
           input('name', 'Screen name', required: true),
           input('purpose', 'Screen purpose', lines: 2),
           const SizedBox(height: 8),
+          input('accessRoles', 'Access roles (comma-separated)'),
+          const Text(
+            'Leave empty for all roles. Example: Admin, Manager',
+            style: TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+          const SizedBox(height: 14),
           const Text('Map features to this screen',
               style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 9),
@@ -1310,7 +1346,8 @@ class _ItemDialogState extends State<_ItemDialog> {
                       'name': fields['name']!.text.trim(),
                       'purpose': fields['purpose']!.text.trim(),
                       'required': true,
-                      'featureIds': featureIds.toList()
+                      'featureIds': featureIds.toList(),
+                      'accessRoles': parseScreenAccessRoles(fields['accessRoles']!.text)
                     });
                     break;
                   case _ItemType.route:
@@ -1526,6 +1563,9 @@ class _ThemeEditorState extends State<_ThemeEditor> {
   final form = GlobalKey<FormState>();
   late final TextEditingController primary;
   late final TextEditingController secondary;
+  late final TextEditingController fontFamily;
+  late final TextEditingController baseSpacing;
+  late final TextEditingController borderRadius;
   late String mode;
   @override
   void initState() {
@@ -1535,6 +1575,12 @@ class _ThemeEditorState extends State<_ThemeEditor> {
         text: (values['primaryColor'] ?? '#6654E8').toString());
     secondary = TextEditingController(
         text: (values['secondaryColor'] ?? '#2C8FCE').toString());
+    fontFamily = TextEditingController(
+        text: (values['fontFamily'] ?? 'Roboto').toString());
+    baseSpacing = TextEditingController(
+        text: (values['baseSpacing'] ?? 8).toString());
+    borderRadius = TextEditingController(
+        text: (values['borderRadius'] ?? 12).toString());
     mode = (values['mode'] ?? 'light').toString();
   }
 
@@ -1542,6 +1588,9 @@ class _ThemeEditorState extends State<_ThemeEditor> {
   void dispose() {
     primary.dispose();
     secondary.dispose();
+    fontFamily.dispose();
+    baseSpacing.dispose();
+    borderRadius.dispose();
     super.dispose();
   }
 
@@ -1636,6 +1685,54 @@ class _ThemeEditorState extends State<_ThemeEditor> {
           },
         ),
         const SizedBox(height: 17),
+        const SizedBox(height: 20),
+        const SectionTitle(
+          'Typography & layout',
+          subtitle: 'Project-level design tokens for the generated UI.',
+        ),
+        const SizedBox(height: 14),
+        TextFormField(
+          controller: fontFamily,
+          decoration: const InputDecoration(
+            labelText: 'Font family',
+            hintText: 'Roboto',
+          ),
+          validator: (value) =>
+              (value ?? '').trim().isEmpty
+                  ? 'Enter a font family'
+                  : null,
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: baseSpacing,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Base spacing (px)',
+            hintText: '8',
+          ),
+          validator: (value) {
+            final number = int.tryParse((value ?? '').trim());
+            return number != null && number >= 4 && number <= 32
+                ? null
+                : 'Use a whole number from 4 to 32';
+          },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: borderRadius,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Border radius (px)',
+            hintText: '12',
+          ),
+          validator: (value) {
+            final number = int.tryParse((value ?? '').trim());
+            return number != null && number >= 0 && number <= 48
+                ? null
+                : 'Use a whole number from 0 to 48';
+          },
+        ),
+        const SizedBox(height: 17),
         DropdownButtonFormField<String>(
             initialValue: mode,
             decoration: const InputDecoration(labelText: 'Color mode'),
@@ -1647,11 +1744,18 @@ class _ThemeEditorState extends State<_ThemeEditor> {
         FilledButton.icon(
             onPressed: () async {
               if (!(form.currentState?.validate() ?? false)) return;
-              await widget.onSave('theme', {
-                'primaryColor': primary.text.trim(),
-                'secondaryColor': secondary.text.trim(),
-                'mode': mode
-              });
+              await widget.onSave(
+                'theme',
+                buildThemeDraftTokens(
+                  existing: widget.workspace.fields('theme'),
+                  primaryColor: primary.text.trim(),
+                  secondaryColor: secondary.text.trim(),
+                  mode: mode,
+                  fontFamily: fontFamily.text.trim(),
+                  baseSpacing: int.parse(baseSpacing.text.trim()),
+                  borderRadius: int.parse(borderRadius.text.trim()),
+                ),
+              );
             },
             icon: const Icon(Icons.save_outlined),
             label: const Text('Save Theme')),
@@ -1691,8 +1795,33 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   bool savingDraft = false;
   bool autosaveEnabled = false;
   Timer? _autosaveTimer;
+  final BlueprintRecoveryStore _recoveryStore = BlueprintRecoveryStore();
+
+  @override
+  void initState() {
+    super.initState();
+    final restored = _recoveryStore.restore(
+      widget.workspace.projectId,
+      widget.workspace.version,
+    );
+    if (restored != null) {
+      draftBlueprint = restored;
+      blueprintHistory = V4BlueprintHistory(restored);
+    }
+  }
+
+  void _persistRecovery() {
+    final draft = draftBlueprint;
+    if (draft == null) return;
+    _recoveryStore.save(
+      widget.workspace.projectId,
+      widget.workspace.version,
+      draft,
+    );
+  }
 
   void scheduleAutosave() {
+    _persistRecovery();
     _autosaveTimer?.cancel();
     if (!autosaveEnabled || draftBlueprint == null) return;
 
@@ -1813,6 +1942,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
 
       if (!mounted) return;
 
+      _recoveryStore.clear(widget.workspace.projectId);
       setState(() {
         draftBlueprint = null;
         blueprintHistory = null;
@@ -1842,13 +1972,21 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   }
 
   void generatePreview() {
+    if (generating || savingDraft || draftBlueprint != null) {
+      return;
+    }
     try {
       // Derived from server-loaded Workspace content, not hardcoded DB records.
       final preview = buildLocalPreviewBlueprint(widget.workspace);
       setState(() {
         localPreview = preview;
+        draftBlueprint = preview;
+        blueprintHistory = V4BlueprintHistory(preview);
+        selectedBlueprintComponentId = null;
+        inspectorRevision++;
         error = null;
       });
+      scheduleAutosave();
     } catch (e) {
       setState(() {
         localPreview = null;
@@ -1872,7 +2010,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Template Blueprint saved - v${response['draftVersion']}',
+            'Generated draft saved - v${response['draftVersion']}',
           ),
         ),
       );
@@ -1896,7 +2034,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   Widget build(BuildContext context) {
     final savedBlueprint = widget.workspace.fields('blueprint');
     final visibleBlueprint = draftBlueprint ?? savedBlueprint;
-    final hasCompiledBlueprint = savedBlueprint['screens'] is List;
+    final hasCompiledBlueprint = visibleBlueprint['screens'] is List;
     final interactionRules = widget.workspace.items('interactions');
 
     if (hasCompiledBlueprint) {
@@ -1936,7 +2074,9 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                           },
                   ),
                   OutlinedButton.icon(
-                    onPressed: generating ? null : generatePreview,
+                    onPressed: generating || savingDraft || draftBlueprint != null
+                      ? null
+                      : generatePreview,
                     icon: const Icon(Icons.visibility_outlined),
                     label: const Text('Generate Local Preview'),
                   ),
@@ -1952,22 +2092,20 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                       ),
                     ),
                   FilledButton.icon(
-                    onPressed: generating || savingDraft
-                        ? null
-                        : compileBlueprint,
+                    onPressed: generating || savingDraft || draftBlueprint != null ? null : compileBlueprint,
                     icon: const Icon(Icons.auto_awesome),
                     label: Text(
                       generating
                           ? 'Compiling...'
-                          : 'Compile & Save Template Blueprint',
+                          : 'Generate & Save Blueprint Draft',
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
               const Text(
-                'Local previews are temporary and are based on the loaded workspace. '
-                'Backend compilation does not mean approval or remote AI generation.',
+                'Generate a local draft, edit it, then save using Save Blueprint Draft. '
+                'Local generation saves through the Backend Draft API. Server compilation and approval remain separate.',
                 style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
               if (error != null) ...[
@@ -1977,7 +2115,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
             ],
           ),
         ),
-        if (localPreview != null) ...[
+        if (localPreview != null && draftBlueprint == null) ...[
           const SizedBox(height: 16),
           const SectionTitle('Local simulation - not validated'),
           const SizedBox(height: 8),
@@ -1988,7 +2126,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
           ),
         ],
         const SizedBox(height: 16),
-        const SectionTitle('Saved Blueprint'),
+        const SectionTitle('Blueprint Workspace'),
         const SizedBox(height: 8),
         if (hasCompiledBlueprint) ...[
           Wrap(
@@ -2050,7 +2188,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
         ] else
           const SurfaceCard(
             child: Text(
-              'No compiled Blueprint yet. Add features, screens and routes; then compile.',
+              'No Blueprint draft yet. Add screens and components, then generate a local preview.',
             ),
           ),
       ],
@@ -2128,13 +2266,10 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
         exportId,
       );
 
-      if (bytes.length < 4 ||
-          bytes[0] != 80 ||
-          bytes[1] != 75 ||
-          !((bytes[2] == 3 && bytes[3] == 4) ||
-            (bytes[2] == 5 && bytes[3] == 6) ||
-            (bytes[2] == 7 && bytes[3] == 8))) {
-        throw StateError('Backend did not return a valid ZIP header.');
+      if (!isStructurallyValidZip(bytes)) {
+        throw StateError(
+          'Backend did not return a valid ZIP header or archive structure.',
+        );
       }
 
       if (!mounted) return;
@@ -2251,7 +2386,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: validating || exporting ? null : runValidation,
+            onPressed: validating || exporting || approving || approvedRevisionId != null ? null : runValidation,
             icon: const Icon(Icons.fact_check_outlined),
             label:
                 Text(validating ? 'Validating...' : 'Run Backend Validation'),

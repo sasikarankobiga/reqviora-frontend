@@ -40,6 +40,58 @@ class _SafePreviewState extends State<SafePreview> {
     return Color(int.tryParse('FF$hex', radix: 16) ?? 0xFF6654E8);
   }
 
+  Map<String, dynamic> get projectTokens =>
+      obj(widget.blueprint['designTokens']);
+
+  String get projectFontFamily {
+    final font = projectTokens['fontFamily']?.toString().trim() ?? '';
+    return font.isEmpty ? 'Roboto' : font;
+  }
+
+  double get projectSpacing {
+    final raw = projectTokens['baseSpacing'];
+    final number = raw is num
+        ? raw.toDouble()
+        : double.tryParse(raw?.toString() ?? '');
+
+    return number != null &&
+            number.isFinite &&
+            number >= 4 &&
+            number <= 32
+        ? number
+        : 8;
+  }
+
+  double get projectRadius {
+    final raw = projectTokens['borderRadius'];
+    final number = raw is num
+        ? raw.toDouble()
+        : double.tryParse(raw?.toString() ?? '');
+
+    return number != null &&
+            number.isFinite &&
+            number >= 0 &&
+            number <= 48
+        ? number
+        : 12;
+  }
+  Color secondary() {
+    final raw = (projectTokens['secondaryColor'] ?? '#2C8FCE')
+        .toString();
+    if (!RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(raw)) {
+      return const Color(0xFF2C8FCE);
+    }
+    return Color(int.parse('FF${raw.substring(1)}', radix: 16));
+  }
+
+  bool get isProjectDark {
+    final value = (projectTokens['mode'] ?? 'light').toString();
+    if (value == 'dark') return true;
+    if (value == 'system') {
+      return MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    }
+    return false;
+  }
   void navigate(String id) => setState(() {
         screenId = id;
         inputs.clear();
@@ -117,7 +169,7 @@ class _SafePreviewState extends State<SafePreview> {
           _ => TextAlign.left,
         };
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: EdgeInsets.symmetric(vertical: projectSpacing),
           child: SizedBox(
             width: double.infinity,
             child: Text(
@@ -129,6 +181,8 @@ class _SafePreviewState extends State<SafePreview> {
                 fontWeight: type == 'header' || props['variant'] == 'heading'
                     ? FontWeight.w900
                     : FontWeight.w500,
+                fontFamily: projectFontFamily,
+                color: isProjectDark ? Colors.white : const Color(0xFF19213D),
               ),
             ),
           ),
@@ -144,10 +198,10 @@ class _SafePreviewState extends State<SafePreview> {
               'preview-parent-${c['componentInstanceId'] ?? c['id']}',
             ),
             width: double.infinity,
-            padding: const EdgeInsets.all(18),
+            padding: EdgeInsets.all(projectSpacing * 2),
             decoration: BoxDecoration(
-              color: const Color(0xFFF6F4FC),
-              borderRadius: BorderRadius.circular(15),
+              color: isProjectDark ? const Color(0xFF2B3345) : const Color(0xFFF6F4FC),
+              borderRadius: BorderRadius.circular(projectRadius),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,7 +209,10 @@ class _SafePreviewState extends State<SafePreview> {
                 if (text.isNotEmpty)
                   Text(
                     text,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isProjectDark ? Colors.white : const Color(0xFF19213D),
+                    ),
                   ),
                 ...children,
               ],
@@ -443,6 +500,8 @@ class _SafePreviewState extends State<SafePreview> {
         .where((r) => r['sourceScreenId'] == selected && r['enabled'] != false)
         .toList();
     final accent = primary();
+    final dark = isProjectDark;
+    final foreground = dark ? Colors.white : const Color(0xFF19213D);
     return SurfaceCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Wrap(
@@ -470,11 +529,12 @@ class _SafePreviewState extends State<SafePreview> {
                           : 790),
               child: Container(
                   width: double.infinity,
+                  key: const ValueKey('preview-canvas'),
                   constraints: const BoxConstraints(minHeight: 320),
-                  padding: const EdgeInsets.all(21),
+                  padding: EdgeInsets.all(projectSpacing * 2),
                   decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(21),
+                      color: dark ? const Color(0xFF1B2130) : Colors.white,
+                      borderRadius: BorderRadius.circular(projectRadius),
                       border: Border.all(color: AppColors.line),
                       boxShadow: [
                         BoxShadow(
@@ -488,20 +548,25 @@ class _SafePreviewState extends State<SafePreview> {
                           Icon(Icons.auto_awesome, color: accent),
                           const SizedBox(width: 10),
                           Text((screen['name'] ?? 'Screen').toString(),
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w900, fontSize: 17))
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w900, fontSize: 17,
+                                  color: foreground))
                         ]),
                         const Divider(height: 27),
                         for (final c in roots.isEmpty ? components : roots)
                           nestedComponent(c, accent, components, <String>{}),
                         const SizedBox(height: 18),
                         if (routes.isNotEmpty)
-                          const Text('Preview navigation',
-                              style: TextStyle(fontWeight: FontWeight.w800)),
+                          Text('Preview navigation',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: foreground)),
                         if (routes.isNotEmpty) const SizedBox(height: 9),
                         Wrap(spacing: 8, runSpacing: 8, children: [
                           for (final route in routes)
                             OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                    foregroundColor: secondary()),
                                 onPressed: () => navigate(
                                     route['targetScreenId'].toString()),
                                 icon: const Icon(Icons.arrow_forward, size: 15),
