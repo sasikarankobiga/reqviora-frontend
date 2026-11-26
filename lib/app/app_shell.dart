@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../core/config/app_config.dart';
+
 import '../core/auth/auth_session.dart';
+import '../core/config/app_config.dart';
+import '../features/auth/application/auth_providers.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -117,7 +120,7 @@ class _Brand extends StatelessWidget {
   );
 }
 
-class _Sidebar extends StatelessWidget {
+class _Sidebar extends ConsumerWidget {
   const _Sidebar({required this.projectId});
   final String? projectId;
   Widget link(BuildContext context, IconData icon, String label, String path) {
@@ -160,7 +163,7 @@ class _Sidebar extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context, WidgetRef ref) => Container(
     decoration: const BoxDecoration(
       color: Color(0xFFFBFAFF),
       border: Border(right: BorderSide(color: AppColors.line)),
@@ -277,7 +280,24 @@ class _Sidebar extends StatelessWidget {
               type: MaterialType.transparency,
               child: ListTile(
                 dense: true,
-                onTap: isLocalDemo ? null : () => authSession.signOut(),
+                onTap:
+                    isLocalDemo
+                        ? null
+                        : () async {
+                          try {
+                            await ref.read(authRepositoryProvider).logout();
+                          } catch (_) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'The server could not confirm sign-out. Local session data was cleared.',
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
                 leading: const CircleAvatar(
                   radius: 15,
                   backgroundColor: Color(0xFFE8DFFF),
@@ -287,6 +307,14 @@ class _Sidebar extends StatelessWidget {
                     color: AppColors.purple,
                   ),
                 ),
+                trailing:
+                    isLocalDemo
+                        ? null
+                        : IconButton(
+                          tooltip: 'Authenticator MFA setup',
+                          icon: const Icon(Icons.shield_outlined),
+                          onPressed: () => context.go('/security/mfa'),
+                        ),
                 title: Text(
                   isLocalDemo ? 'Local demo owner' : 'Account / Sign out',
                   style: const TextStyle(
@@ -342,6 +370,12 @@ class _Topbar extends StatelessWidget {
             tooltip: 'Project overview',
             onPressed: () => context.go('/projects/$projectId/overview'),
             icon: const Icon(Icons.home_outlined),
+          ),
+        if (!isLocalDemo && authSession.authenticated)
+          IconButton(
+            tooltip: 'Administration (authorized accounts only)',
+            onPressed: () => context.go('/admin'),
+            icon: const Icon(Icons.admin_panel_settings_outlined),
           ),
         const CircleAvatar(
           radius: 17,

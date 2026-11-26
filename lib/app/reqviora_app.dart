@@ -1,29 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../features/projects/presentation/projects_page.dart';
 import '../features/projects/presentation/create_project_page.dart';
 import '../features/projects/presentation/project_overview_page.dart';
 import '../features/builder/presentation/builder_page.dart';
 import '../features/prebuilder/presentation/prebuilder_pages.dart';
 import 'theme.dart';
+import '../features/administration/presentation/pages/admin_page.dart';
 import '../core/auth/auth_session.dart';
 import '../core/config/app_config.dart';
 import '../features/auth/presentation/auth_page.dart';
+import '../features/auth/presentation/account_security_pages.dart';
 import '../features/workspace/presentation/preview_page.dart';
+import '../l10n/app_localizations.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/projects',
   refreshListenable: authSession,
   redirect: (_, state) {
-    if (isLocalDemo) return null;
-    final publicAuth =
+    if (isLocalDemo) {
+      if (state.matchedLocation == '/admin') return '/projects';
+      return null;
+    }
+    final signInPages =
         state.matchedLocation == '/login' ||
         state.matchedLocation == '/register';
+    final publicAuth =
+        signInPages ||
+        state.matchedLocation == '/forgot-password' ||
+        state.matchedLocation == '/reset-password' ||
+        state.matchedLocation == '/verify-email';
     if (!authSession.authenticated && !publicAuth) return '/login';
-    if (authSession.authenticated && publicAuth) return '/projects';
+    if (authSession.authenticated && signInPages) return '/projects';
     return null;
   },
   routes: [
+    GoRoute(path: '/admin', builder: (_, _) => const AdminPage()),
     GoRoute(path: '/projects', builder: (_, _) => const ProjectsPage()),
     GoRoute(
       path: '/projects/new',
@@ -71,6 +84,33 @@ final appRouter = GoRouter(
       path: '/register',
       builder: (_, _) => const AuthPage(register: true),
     ),
+    GoRoute(
+      path: '/forgot-password',
+      builder:
+          (_, _) =>
+              const AccountSecurityPage(action: AccountAction.forgotPassword),
+    ),
+    GoRoute(
+      path: '/reset-password',
+      builder:
+          (_, state) => AccountSecurityPage(
+            action: AccountAction.resetPassword,
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
+    ),
+    GoRoute(
+      path: '/verify-email',
+      builder:
+          (_, state) => AccountSecurityPage(
+            action: AccountAction.verifyEmail,
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
+    ),
+    GoRoute(
+      path: '/security/mfa',
+      builder:
+          (_, _) => const AccountSecurityPage(action: AccountAction.setupMfa),
+    ),
   ],
 );
 
@@ -81,6 +121,8 @@ class ReqvioraApp extends StatelessWidget {
     title: 'REQVIORA · Design Workspace',
     debugShowCheckedModeBanner: false,
     theme: appTheme(),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
     routerConfig: appRouter,
   );
 }

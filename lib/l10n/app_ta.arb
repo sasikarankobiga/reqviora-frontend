@@ -1,1 +1,21 @@
-{"@@locale":"ta","appTitle":"REQVIORA"}
+{
+  "@@locale": "ta",
+  "appTitle": "REQVIORA",
+  "accountSecurity": "REQVIORA கணக்கு பாதுகாப்பு",
+  "forgotPassword": "கடவுச்சொல்லை மறந்துவிட்டீர்களா",
+  "forgotPasswordDescription": "பாதுகாப்பான கடவுச்சொல் மீட்டமைப்பு இணைப்பைக் கோருங்கள்.",
+  "resetPassword": "கடவுச்சொல்லை மீட்டமை",
+  "verifyEmail": "மின்னஞ்சலை உறுதிப்படுத்துங்கள்",
+  "mfaSetup": "அங்கீகார செயலி அமைப்பு",
+  "accountEmail": "கணக்கு மின்னஞ்சல்",
+  "sendResetLink": "மீட்டமைப்பு இணைப்பை அனுப்பு",
+  "returnToReqviora": "REQVIORA-க்கு திரும்பு",
+  "adminTitle": "REQVIORA நிர்வாகம்",
+  "workspace": "பணிப்பகுதி",
+  "adminRequiresAuthentication": "நிர்வாகத்திற்கு உண்மையான உள்நுழைவு தேவை.",
+  "verifyAdminAccess": "நிர்வாக அணுகலை உறுதிப்படுத்துங்கள்",
+  "adminMetadataDescription": "வாசிப்பு மட்டும் தளத் தகவல். ஒவ்வொரு கோரிக்கைக்கும் புதிய MFA குறியீடு தேவை.",
+  "authenticatorCode": "அங்கீகார குறியீடு",
+  "loadRefresh": "ஏற்று / புதுப்பி",
+  "verifyAccess": "அணுகலை உறுதிப்படுத்து"
+}
