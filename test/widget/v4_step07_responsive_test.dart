@@ -5,8 +5,8 @@ import 'package:reqviora_frontend/features/workspace/domain/workspace.dart';
 import 'package:reqviora_frontend/features/workspace/presentation/authoring_page.dart';
 
 void main() {
-  Workspace workspace() => Workspace(
-    projectId: 'project-1',
+  Workspace workspace(String projectId) => Workspace(
+    projectId: projectId,
     draftId: 'draft-1',
     version: 1,
     projectName: 'REQVIORA Responsive Test',
@@ -41,7 +41,11 @@ void main() {
         child: MaterialApp(
           home: Scaffold(
             body: SingleChildScrollView(
-              child: V4BlueprintStudio(workspace: workspace()),
+              child: V4BlueprintStudio(
+                workspace: workspace(
+                  'responsive-test-${screenSize.width.toInt()}',
+                ),
+              ),
             ),
           ),
         ),

@@ -1,3 +1,4 @@
+import '../domain/zip_archive_check.dart';
 import '../../builder/domain/registry/component_registry.dart';
 import '../../builder/domain/registry/v4_component_layout.dart';
 import '../../builder/domain/registry/v4_interaction_rule_validator.dart';
@@ -12,6 +13,7 @@ import '../../../app/widgets.dart';
 import '../application/workspace_providers.dart';
 import '../data/workspace_repository.dart';
 import '../domain/workspace.dart';
+import '../domain/blueprint_recovery_store.dart';
 import '../domain/navigation_diagnostics.dart';
 import '../domain/draft_conflict.dart';
 import '../domain/feature_coverage.dart';
@@ -92,7 +94,7 @@ class _ContentState extends ConsumerState<_Content> {
       ref.invalidate(projectValidationProvider(widget.workspace.projectId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$section saved ┬╖ next version created')),
+          SnackBar(content: Text('$section saved · next version created')),
         );
       }
     } catch (e) {
@@ -123,7 +125,7 @@ class _ContentState extends ConsumerState<_Content> {
               SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Real server-backed draft editor ┬╖ Owner-controlled ┬╖ Saved content stays after refresh.',
+                  'Real server-backed draft editor · Owner-controlled · Saved content stays after refresh.',
                   style: TextStyle(fontSize: 12, height: 1.45),
                 ),
               ),
@@ -334,7 +336,7 @@ class _ItemEditorState extends State<_ItemEditor> {
       final lookup = {
         for (final s in widget.workspace.items('screens')) s['id']: s['name'],
       };
-      return '${lookup[row['fromScreenId']] ?? 'Missing source'} ΓåÆ ${lookup[row['toScreenId']] ?? 'Missing target'}';
+      return '${lookup[row['fromScreenId']] ?? 'Missing source'} → ${lookup[row['toScreenId']] ?? 'Missing target'}';
     }
     return (row['description'] ??
             row['purpose'] ??
@@ -1805,7 +1807,7 @@ class _ThemeEditorState extends State<_ThemeEditor> {
               final passes = meetsNormalTextContrast(color, '#FFFFFF');
 
               return Text(
-                'Primary color on white: ${ratio.toStringAsFixed(2)}:1 ΓÇö '
+                'Primary color on white: ${ratio.toStringAsFixed(2)}:1 — '
                 '${passes ? 'WCAG AA normal-text contrast passed' : 'Low contrast: use a darker primary color'}',
                 style: TextStyle(
                   color:
@@ -1830,7 +1832,7 @@ class _ThemeEditorState extends State<_ThemeEditor> {
               final passes = meetsNormalTextContrast(color, '#FFFFFF');
 
               return Text(
-                'Secondary color on white: ${ratio.toStringAsFixed(2)}:1 ΓÇö '
+                'Secondary color on white: ${ratio.toStringAsFixed(2)}:1 — '
                 '${passes ? 'WCAG AA normal-text contrast passed' : 'Low contrast: use a darker secondary color'}',
               );
             },
@@ -1950,14 +1952,34 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   bool autosaveEnabled = false;
   Timer? _autosaveTimer;
   late final WorkspaceRepository _repository;
+  final BlueprintRecoveryStore _recoveryStore = BlueprintRecoveryStore();
 
   @override
   void initState() {
     super.initState();
     _repository = ref.read(workspaceRepositoryProvider);
+    final restored = _recoveryStore.restore(
+      widget.workspace.projectId,
+      widget.workspace.version,
+    );
+    if (restored != null) {
+      draftBlueprint = restored;
+      blueprintHistory = V4BlueprintHistory(restored);
+    }
+  }
+
+  void _persistRecovery() {
+    final draft = draftBlueprint;
+    if (draft == null) return;
+    _recoveryStore.save(
+      widget.workspace.projectId,
+      widget.workspace.version,
+      draft,
+    );
   }
 
   void scheduleAutosave() {
+    _persistRecovery();
     _autosaveTimer?.cancel();
     if (!autosaveEnabled || draftBlueprint == null) return;
 
@@ -2105,6 +2127,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
 
       if (!mounted) return;
 
+      _recoveryStore.clear(widget.workspace.projectId);
       setState(() {
         draftBlueprint = null;
         blueprintHistory = null;
@@ -2161,7 +2184,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
               ],
             ),
       );
-      if (replace != true || !mounted) return;
+      if (replace != true || !mounted || savingDraft || generating) return;
     }
     try {
       // Derived from server-loaded Workspace content, not hardcoded DB records.
@@ -2185,40 +2208,6 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
         localPreview = null;
         error = e.toString();
       });
-    }
-  }
-
-  Future<void> compileBlueprint() async {
-    _autosaveTimer?.cancel();
-    setState(() {
-      generating = true;
-      error = null;
-    });
-    try {
-      final response = await ref
-          .read(workspaceRepositoryProvider)
-          .compile(widget.workspace.projectId, widget.workspace.version);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Template Blueprint saved - v${response['draftVersion']}',
-          ),
-        ),
-      );
-      setState(() {
-        // Only compiled server state is authoritative after a successful save.
-        draftBlueprint = null;
-        selectedBlueprintComponentId = null;
-        blueprintHistory = null;
-        inspectorRevision++;
-      });
-      ref.invalidate(projectValidationProvider(widget.workspace.projectId));
-      ref.invalidate(workspaceProvider(widget.workspace.projectId));
-    } catch (e) {
-      if (mounted) setState(() => error = e.toString());
-    } finally {
-      if (mounted) setState(() => generating = false);
     }
   }
 
@@ -2267,7 +2256,9 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                             },
                   ),
                   OutlinedButton.icon(
-                    onPressed: generating ? null : generatePreview,
+                    onPressed: generating || savingDraft || draftBlueprint != null
+                      ? null
+                      : generatePreview,
                     icon: const Icon(Icons.visibility_outlined),
                     label: const Text('Generate Local Preview'),
                   ),
@@ -2480,13 +2471,10 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
         exportId,
       );
 
-      if (bytes.length < 4 ||
-          bytes[0] != 80 ||
-          bytes[1] != 75 ||
-          !((bytes[2] == 3 && bytes[3] == 4) ||
-              (bytes[2] == 5 && bytes[3] == 6) ||
-              (bytes[2] == 7 && bytes[3] == 8))) {
-        throw StateError('Backend did not return a valid ZIP header.');
+      if (!isStructurallyValidZip(bytes)) {
+        throw StateError(
+          'Backend did not return a valid ZIP header or archive structure.',
+        );
       }
 
       if (!mounted) return;
