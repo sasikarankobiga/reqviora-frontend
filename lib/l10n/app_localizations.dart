@@ -103,6 +103,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'REQVIORA'**
   String get appTitle;
+
+  /// No description provided for @accountSecurity.
+  ///
+  /// In en, this message translates to:
+  /// **'REQVIORA Account Security'**
+  String get accountSecurity;
+
+  /// No description provided for @forgotPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Forgot password'**
+  String get forgotPassword;
+
+  /// No description provided for @forgotPasswordDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Request a secure password-reset link.'**
+  String get forgotPasswordDescription;
+
+  /// No description provided for @resetPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset password'**
+  String get resetPassword;
+
+  /// No description provided for @verifyEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify your email'**
+  String get verifyEmail;
+
+  /// No description provided for @mfaSetup.
+  ///
+  /// In en, this message translates to:
+  /// **'Authenticator setup'**
+  String get mfaSetup;
+
+  /// No description provided for @accountEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Account email'**
+  String get accountEmail;
+
+  /// No description provided for @sendResetLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Send reset link'**
+  String get sendResetLink;
+
+  /// No description provided for @returnToReqviora.
+  ///
+  /// In en, this message translates to:
+  /// **'Return to REQVIORA'**
+  String get returnToReqviora;
+
+  /// No description provided for @adminTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'REQVIORA Administration'**
+  String get adminTitle;
+
+  /// No description provided for @workspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace'**
+  String get workspace;
+
+  /// No description provided for @adminRequiresAuthentication.
+  ///
+  /// In en, this message translates to:
+  /// **'Administration requires real authentication.'**
+  String get adminRequiresAuthentication;
+
+  /// No description provided for @verifyAdminAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify administrator access'**
+  String get verifyAdminAccess;
+
+  /// No description provided for @adminMetadataDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Read-only platform metadata. Each request requires a fresh MFA code.'**
+  String get adminMetadataDescription;
+
+  /// No description provided for @authenticatorCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Authenticator code'**
+  String get authenticatorCode;
+
+  /// No description provided for @loadRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Load / refresh'**
+  String get loadRefresh;
+
+  /// No description provided for @verifyAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify access'**
+  String get verifyAccess;
 }
 
 class _AppLocalizationsDelegate

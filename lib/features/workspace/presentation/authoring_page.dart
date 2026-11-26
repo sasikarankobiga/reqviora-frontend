@@ -15,6 +15,7 @@ import '../../builder/domain/registry/v4_component_layout.dart';
 import 'navigation_graph_editor.dart';
 import '../../../core/network/api_client.dart';
 import '../domain/blueprint_proposal.dart';
+import '../domain/zip_archive_check.dart';
 import '../../builder/domain/registry/component_registry.dart';
 import 'package:flutter/material.dart';
 import '../../second_brain/presentation/widgets/second_brain_viewer.dart';
@@ -24,12 +25,15 @@ import 'package:uuid/uuid.dart';
 import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
 import '../application/workspace_providers.dart';
+import '../data/workspace_repository.dart';
 import '../domain/workspace.dart';
+import '../domain/blueprint_recovery_store.dart';
 import '../domain/navigation_diagnostics.dart';
 import '../domain/draft_conflict.dart';
 import '../domain/feature_coverage.dart';
 import '../domain/builder_quality_checks.dart';
 import '../domain/theme_accessibility.dart';
+import '../domain/theme_draft_tokens.dart';
 import 'simulated_preview.dart';
 import '../domain/local_preview_blueprint.dart';
 
@@ -366,7 +370,7 @@ class _ContentState extends ConsumerState<_Content> {
   }
 }
 
-/// Testable entry point for the original V4 Components Studio.
+/// Testable Screen Editor entry point for Builder Step 02.
 class V4ScreensStudio extends StatelessWidget {
   const V4ScreensStudio({
     super.key,
@@ -477,7 +481,7 @@ class _ItemEditorState extends State<_ItemEditor> {
       final lookup = {
         for (final s in widget.workspace.items('screens')) s['id']: s['name'],
       };
-      return '${lookup[row['fromScreenId']] ?? 'Missing source'} ΓåÆ ${lookup[row['toScreenId']] ?? 'Missing target'}';
+      return '${lookup[row['fromScreenId']] ?? 'Missing source'} → ${lookup[row['toScreenId']] ?? 'Missing target'}';
     }
     return (row['description'] ??
             row['purpose'] ??
@@ -1884,6 +1888,9 @@ class _ThemeEditorState extends State<_ThemeEditor> {
   final form = GlobalKey<FormState>();
   late final TextEditingController primary;
   late final TextEditingController secondary;
+  late final TextEditingController fontFamily;
+  late final TextEditingController baseSpacing;
+  late final TextEditingController borderRadius;
   late String mode;
   @override
   void initState() {
@@ -1895,6 +1902,15 @@ class _ThemeEditorState extends State<_ThemeEditor> {
     secondary = TextEditingController(
       text: (values['secondaryColor'] ?? '#2C8FCE').toString(),
     );
+    fontFamily = TextEditingController(
+      text: (values['fontFamily'] ?? 'Roboto').toString(),
+    );
+    baseSpacing = TextEditingController(
+      text: (values['baseSpacing'] ?? 8).toString(),
+    );
+    borderRadius = TextEditingController(
+      text: (values['borderRadius'] ?? 12).toString(),
+    );
     mode = (values['mode'] ?? 'light').toString();
   }
 
@@ -1902,6 +1918,9 @@ class _ThemeEditorState extends State<_ThemeEditor> {
   void dispose() {
     primary.dispose();
     secondary.dispose();
+    fontFamily.dispose();
+    baseSpacing.dispose();
+    borderRadius.dispose();
     super.dispose();
   }
 
@@ -2004,6 +2023,53 @@ class _ThemeEditorState extends State<_ThemeEditor> {
             },
           ),
           const SizedBox(height: 17),
+          const SizedBox(height: 20),
+          const SectionTitle(
+            'Typography & layout',
+            subtitle: 'Project-level design tokens for the generated UI.',
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: fontFamily,
+            decoration: const InputDecoration(
+              labelText: 'Font family',
+              hintText: 'Roboto',
+            ),
+            validator:
+                (value) =>
+                    (value ?? '').trim().isEmpty ? 'Enter a font family' : null,
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: baseSpacing,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Base spacing (px)',
+              hintText: '8',
+            ),
+            validator: (value) {
+              final number = int.tryParse((value ?? '').trim());
+              return number != null && number >= 4 && number <= 32
+                  ? null
+                  : 'Use a whole number from 4 to 32';
+            },
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: borderRadius,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Border radius (px)',
+              hintText: '12',
+            ),
+            validator: (value) {
+              final number = int.tryParse((value ?? '').trim());
+              return number != null && number >= 0 && number <= 48
+                  ? null
+                  : 'Use a whole number from 0 to 48';
+            },
+          ),
+          const SizedBox(height: 17),
           DropdownButtonFormField<String>(
             initialValue: mode,
             decoration: InputDecoration(
@@ -2019,11 +2085,18 @@ class _ThemeEditorState extends State<_ThemeEditor> {
           FilledButton.icon(
             onPressed: () async {
               if (!(form.currentState?.validate() ?? false)) return;
-              await widget.onSave('theme', {
-                'primaryColor': primary.text.trim(),
-                'secondaryColor': secondary.text.trim(),
-                'mode': mode,
-              });
+              await widget.onSave(
+                'theme',
+                buildThemeDraftTokens(
+                  existing: widget.workspace.fields('theme'),
+                  primaryColor: primary.text.trim(),
+                  secondaryColor: secondary.text.trim(),
+                  mode: mode,
+                  fontFamily: fontFamily.text.trim(),
+                  baseSpacing: int.parse(baseSpacing.text.trim()),
+                  borderRadius: int.parse(borderRadius.text.trim()),
+                ),
+              );
             },
             icon: const Icon(Icons.save_outlined),
             label: const LocalizedUiText('Save Theme'),
@@ -2039,6 +2112,7 @@ final projectValidationProvider =
       (ref, id) => ref.watch(workspaceRepositoryProvider).validate(id),
     );
 
+/// Testable Step 07 Blueprint studio.
 class V4BlueprintStudio extends StatelessWidget {
   const V4BlueprintStudio({super.key, required this.workspace});
 
@@ -2068,11 +2142,43 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   int? _savedVersion;
   Map<String, dynamic>? _savedSnapshot;
   bool _versionConflict = false;
+  final BlueprintRecoveryStore _recoveryStore = BlueprintRecoveryStore();
+  late final int _sessionGeneration;
+  late final String? _recoveryKey;
 
   @override
   void initState() {
     super.initState();
     _editingVersion = widget.workspace.version;
+    _sessionGeneration = authSession.generation;
+    final actorId = projectMemberActorId(authSession.token);
+    _recoveryKey = isLocalDemo
+        ? 'demo:${widget.workspace.projectId}'
+        : actorId == null
+            ? null
+            : '$actorId:$_sessionGeneration:${widget.workspace.projectId}';
+    final key = _recoveryKey;
+    if (key != null) {
+      final restored = _recoveryStore.restore(key, _editingVersion);
+      if (restored != null) {
+        draftBlueprint = restored;
+        blueprintHistory = V4BlueprintHistory(restored);
+      }
+    }
+  }
+
+  void _persistRecovery() {
+    final key = _recoveryKey;
+    final draft = draftBlueprint;
+    if (key != null && draft != null &&
+        authSession.generation == _sessionGeneration && !_versionConflict) {
+      _recoveryStore.save(key, _editingVersion, draft);
+    }
+  }
+
+  void _clearRecovery() {
+    final key = _recoveryKey;
+    if (key != null) _recoveryStore.clear(key);
   }
 
   @override
@@ -2111,11 +2217,13 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   Timer? _autosaveTimer;
 
   void scheduleAutosave() {
+    _persistRecovery();
     _autosaveTimer?.cancel();
     if (!autosaveEnabled || draftBlueprint == null || _versionConflict) return;
 
     _autosaveTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted && !savingDraft && !generating) {
+      if (mounted && !savingDraft && !generating &&
+          authSession.generation == _sessionGeneration) {
         saveBlueprintDraft();
       }
     });
@@ -2252,6 +2360,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
       return;
     }
 
+    _clearRecovery();
     setState(() {
       draftBlueprint = null;
       localPreview = null;
@@ -2274,7 +2383,8 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     if (nextBlueprint == null ||
         savingDraft ||
         generating ||
-        _versionConflict) {
+        _versionConflict ||
+        authSession.generation != _sessionGeneration) {
       return;
     }
 
@@ -2298,6 +2408,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
 
       if (!mounted) return;
 
+      _clearRecovery();
       setState(() {
         _editingVersion = version;
         _savedVersion = version;
@@ -3445,6 +3556,10 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
       throw const FormatException('Archive size mismatch');
     }
 
+    if (!isStructurallyValidZip(bytes)) {
+      throw const FormatException('Invalid ZIP archive structure');
+    }
+
     if (!mounted) return;
 
     ref.read(downloadPortProvider).saveZip('reqviora-$exportId.zip', bytes);
@@ -3478,12 +3593,14 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
             runSpacing: 10,
             children: [
               FilledButton.icon(
+                key: const ValueKey('step08-validation-button'),
                 onPressed:
                     busy || widget.workspace.isApproved ? null : runValidation,
                 icon: const Icon(Icons.fact_check_outlined),
                 label: const LocalizedUiText('Run Backend Validation'),
               ),
               FilledButton.icon(
+                key: const ValueKey('step08-approve-button'),
                 onPressed:
                     busy ||
                             widget.workspace.isApproved ||
@@ -3523,11 +3640,25 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
             ),
             Text('Validation ID: ${current['id']}'),
             Text('Validated at: ${current['validatedAt']}'),
+            if (current['blockers'] is int)
+              Text('${current['blockers']} blockers'),
+            if (current['advisories'] is int)
+              Text('${current['advisories']} advisories'),
+            Text(
+              passed
+                  ? 'Validation passed. Approval is still required.'
+                  : 'Validation blocked: resolve findings before approval.',
+              key: ValueKey(passed
+                  ? 'step08-validation-ready'
+                  : 'step08-validation-blocked'),
+            ),
+            if (findings.isEmpty)
+              const Text('No validation findings returned.'),
 
             for (final finding in findings)
               ListTile(
                 leading: const Icon(Icons.info_outline),
-                title: Text((finding['code'] ?? 'Finding').toString()),
+                title: Text((finding['ruleId'] ?? finding['code'] ?? 'Finding').toString()),
                 subtitle: Text(
                   '${finding['message'] ?? ''}\n'
                   '${finding['path'] ?? ''}',

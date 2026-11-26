@@ -1,3 +1,7 @@
+ feature/thikal-v4-frontend-development
+
+import 'dart:async';
+ develop
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -36,6 +40,34 @@ void main() {
     expect(authSession.authenticated, isTrue);
   });
 
+ feature/thikal-v4-frontend-development
+
+  test(
+    'Login rejects non-string token fields without starting a session',
+    () async {
+      final api = ApiClient(
+        MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'accessToken': {'value': 'not-a-token'},
+              'refreshToken': 'refresh-1',
+              'accessTokenExpiresAt': '2027-01-01T00:00:00Z',
+            }),
+            200,
+          ),
+        ),
+      );
+      addTearDown(api.dispose);
+
+      await expectLater(
+        AuthRepository(api).signIn('demo@example.com', 'password'),
+        throwsStateError,
+      );
+      expect(authSession.authenticated, isFalse);
+    },
+  );
+
+ develop
   test('401 triggers one refresh and retries protected GET', () async {
     var getCount = 0;
     var refreshCount = 0;
@@ -161,6 +193,27 @@ void main() {
     expect(calls, 2);
   });
 
+ feature/thikal-v4-frontend-development
+=======
+  test('MFA provisioning rejects malformed recovery codes', () async {
+    authSession.signIn('session-token');
+    final api = ApiClient(
+      MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'uri': 'otpauth://totp/test',
+            'recoveryCodes': 'not-a-list',
+          }),
+          200,
+        ),
+      ),
+    );
+    addTearDown(api.dispose);
+
+    await expectLater(AuthRepository(api).provisionMfa(), throwsStateError);
+  });
+
+ develop
   test('Logout revokes refresh token and clears in-memory session', () async {
     authSession.startSession(
       accessToken: 'live',
@@ -199,6 +252,7 @@ void main() {
     expect(authSession.authenticated, isFalse);
   });
 
+feature/thikal-v4-frontend-development
   test('Successful reset clears the current session', () async {
     authSession.startSession(
       accessToken: 'old-access',
@@ -289,5 +343,88 @@ void main() {
       AuthRepository(api).resetPassword('   ', 'NewStrongPassword123'),
       throwsArgumentError,
     );
+
+  test('staggered 401 responses reuse one token rotation', () async {
+    authSession.startSession(
+      accessToken: 'expired',
+      refreshToken: 'old-refresh',
+      accessExpiresAt: DateTime.utc(2025),
+    );
+    final releaseSecond401 = Completer<void>();
+    var expiredRequests = 0;
+    var refreshedRequests = 0;
+    var refreshRequests = 0;
+    final api = ApiClient(
+      MockClient((request) async {
+        if (request.url.path == '/api/auth/refresh') {
+          refreshRequests++;
+          return http.Response(
+            jsonEncode({
+              'accessToken': 'fresh',
+              'refreshToken': 'new-refresh',
+              'accessTokenExpiresAt': '2027-01-01T00:00:00Z',
+            }),
+            200,
+          );
+        }
+        if (request.headers['Authorization'] == 'Bearer expired') {
+          expiredRequests++;
+          if (expiredRequests == 2) await releaseSecond401.future;
+          return http.Response('{"title":"Expired"}', 401);
+        }
+        expect(request.headers['Authorization'], 'Bearer fresh');
+        refreshedRequests++;
+        return http.Response('[]', 200);
+      }),
+    );
+    addTearDown(api.dispose);
+
+    final first = api.get('/api/projects');
+    final second = api.get('/api/projects');
+    await first;
+    releaseSecond401.complete();
+    await second;
+
+    expect(expiredRequests, 2);
+    expect(refreshedRequests, 2);
+    expect(refreshRequests, 1);
+  });
+
+  test('request from an old session is never replayed as a new user', () async {
+    authSession.startSession(
+      accessToken: 'old-user',
+      refreshToken: 'old-refresh',
+      accessExpiresAt: DateTime.utc(2027),
+    );
+    final releaseResponse = Completer<void>();
+    var protectedWrites = 0;
+    var refreshRequests = 0;
+    final api = ApiClient(
+      MockClient((request) async {
+        if (request.url.path == '/api/auth/refresh') {
+          refreshRequests++;
+          return http.Response('{}', 500);
+        }
+        protectedWrites++;
+        expect(request.headers['Authorization'], 'Bearer old-user');
+        await releaseResponse.future;
+        return http.Response('{"title":"Expired"}', 401);
+      }),
+    );
+    addTearDown(api.dispose);
+
+    final pending = api.post('/api/projects/action', {'value': 1});
+    authSession.signOut();
+    authSession.startSession(
+      accessToken: 'new-user',
+      refreshToken: 'new-refresh',
+      accessExpiresAt: DateTime.utc(2027),
+    );
+    releaseResponse.complete();
+
+    await expectLater(pending, throwsA(isA<ApiException>()));
+    expect(protectedWrites, 1);
+    expect(refreshRequests, 0);
+develop
   });
 }

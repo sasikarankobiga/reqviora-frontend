@@ -1,5 +1,6 @@
 import '../data/approval_export_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/auth/auth_session_provider.dart';
 import '../../projects/application/projects_providers.dart';
 import '../domain/workspace.dart';
 import '../data/workspace_repository.dart';
@@ -16,9 +17,10 @@ import '../data/browser_download_stub.dart'
 final workspaceRepositoryProvider = Provider<WorkspaceRepository>(
   (ref) => WorkspaceRepository(ref.watch(apiClientProvider)),
 );
-final workspaceProvider = FutureProvider.family<Workspace, String>(
-  (ref, id) => ref.watch(workspaceRepositoryProvider).load(id),
-);
+final workspaceProvider = FutureProvider.family<Workspace, String>((ref, id) {
+  ref.watch(authSessionGenerationProvider);
+  return ref.watch(workspaceRepositoryProvider).load(id);
+});
 
 final sourcePickerProvider = Provider<SourcePicker>(
   (ref) => platform_picker.createSourcePicker(),

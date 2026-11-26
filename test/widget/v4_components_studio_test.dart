@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reqviora_frontend/features/workspace/domain/workspace.dart';
@@ -457,7 +458,7 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is DropdownButtonFormField<String> &&
-            widget.decoration.labelText == "Component type",
+            widget.decoration.labelText == 'Component type',
       ),
     );
     await tester.pumpAndSettle();
@@ -554,7 +555,7 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is DropdownButtonFormField<String> &&
-            widget.decoration.labelText == "Component type",
+            widget.decoration.labelText == 'Component type',
       ),
     );
     await tester.pumpAndSettle();
@@ -780,7 +781,7 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is DropdownButtonFormField<String> &&
-            widget.decoration.labelText == "Component type",
+            widget.decoration.labelText == 'Component type',
       ),
     );
     await tester.pumpAndSettle();
@@ -979,7 +980,7 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is DropdownButtonFormField<String> &&
-            widget.decoration.labelText == "Component type",
+            widget.decoration.labelText == 'Component type',
       ),
     );
     await tester.pumpAndSettle();
@@ -1118,7 +1119,7 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is DropdownButtonFormField<String> &&
-            widget.decoration.labelText == "Component type",
+            widget.decoration.labelText == 'Component type',
       ),
     );
     await tester.pumpAndSettle();
@@ -1195,7 +1196,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final elevationSlider = find.byWidgetPredicate(
-      (widget) => widget is Slider && widget.max == 24.0,
+      (widget) => widget is Slider && widget.min == 0 && widget.max == 24,
     );
 
     expect(elevationSlider, findsOneWidget);
@@ -1229,5 +1230,662 @@ void main() {
     expect(properties['elevation'], 12);
     expect(properties['variant'], 'outlined');
     expect(properties['borderRadius'], 12);
+  });
+
+  testWidgets(
+    'reorders components and preserves their data',
+    (tester) async {
+      final workspace = Workspace(
+        projectId: 'project-1',
+        draftId: 'draft-1',
+        version: 1,
+        projectName: 'Test Project',
+        designTargets: const ['web'],
+        sections: {
+          'screens': [
+            {'id': 'screen-1', 'name': 'Dashboard'},
+          ],
+          'components': [
+            {
+              'id': 'component-a',
+              'screenId': 'screen-1',
+              'type': 'text',
+              'label': 'First Component',
+              'text': 'First',
+              'properties': {'fontSize': 18},
+            },
+            {
+              'id': 'component-b',
+              'screenId': 'screen-1',
+              'type': 'button',
+              'label': 'Second Component',
+              'text': 'Second',
+              'properties': {'enabled': true},
+            },
+            {
+              'id': 'component-c',
+              'screenId': 'screen-1',
+              'type': 'card',
+              'label': 'Third Component',
+              'text': 'Third',
+              'properties': {'elevation': 4},
+            },
+          ],
+        },
+      );
+
+      List<Map<String, dynamic>>? savedItems;
+      var saveCalls = 0;
+
+      await openStudio(tester, (section, data) async {
+        expect(section, 'components');
+        saveCalls++;
+        savedItems = (data as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      }, workspace: workspace);
+
+      final reorderList = find.byType(ReorderableListView);
+
+      expect(reorderList, findsOneWidget);
+
+      final list = tester.widget<ReorderableListView>(reorderList);
+
+      // Move first component to the final position.
+      list.onReorderItem!(0, 2);
+      await tester.pumpAndSettle();
+
+      expect(saveCalls, 1);
+      expect(savedItems, isNotNull);
+      expect(savedItems, hasLength(3));
+
+      expect(
+        savedItems!.map((item) => item['id']).toList(),
+        ['component-b', 'component-c', 'component-a'],
+      );
+
+      // Component identities and mappings must stay unchanged.
+      expect(savedItems![0]['screenId'], 'screen-1');
+      expect(savedItems![1]['screenId'], 'screen-1');
+      expect(savedItems![2]['screenId'], 'screen-1');
+
+      expect(
+        (savedItems![0]['properties'] as Map)['enabled'],
+        isTrue,
+      );
+      expect(
+        (savedItems![1]['properties'] as Map)['elevation'],
+        4,
+      );
+      expect(
+        (savedItems![2]['properties'] as Map)['fontSize'],
+        18,
+      );
+
+      // Confirm the visible list also uses the saved order.
+      final visibleLabels = tester
+          .widgetList<ListTile>(find.byType(ListTile))
+          .map((tile) => (tile.title as Text).data)
+          .toList();
+
+      expect(
+        visibleLabels,
+        ['Second Component', 'Third Component', 'First Component'],
+      );
+    },
+  );
+
+  testWidgets(
+    'keeps component order until reorder save completes',
+    (tester) async {
+      final workspace = Workspace(
+        projectId: 'project-1',
+        draftId: 'draft-1',
+        version: 1,
+        projectName: 'Test Project',
+        designTargets: const ['web'],
+        sections: {
+          'screens': [
+            {'id': 'screen-1', 'name': 'Dashboard'},
+          ],
+          'components': [
+            {
+              'id': 'component-a',
+              'screenId': 'screen-1',
+              'type': 'text',
+              'label': 'First',
+              'properties': {'fontSize': 18},
+            },
+            {
+              'id': 'component-b',
+              'screenId': 'screen-1',
+              'type': 'button',
+              'label': 'Second',
+              'properties': {'enabled': true},
+            },
+          ],
+        },
+      );
+
+      final saveCompleter = Completer<void>();
+      var saveCalls = 0;
+
+      await openStudio(tester, (section, data) async {
+        expect(section, 'components');
+        saveCalls++;
+
+        final next = (data as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+
+        expect(
+          next.map((item) => item['id']).toList(),
+          ['component-b', 'component-a'],
+        );
+
+        await saveCompleter.future;
+      }, workspace: workspace);
+
+      List<String?> visibleOrder() => tester
+          .widgetList<ListTile>(find.byType(ListTile))
+          .map((tile) => (tile.title as Text).data)
+          .toList();
+
+      expect(visibleOrder(), ['First', 'Second']);
+
+      final reorderList = tester.widget<ReorderableListView>(
+        find.byType(ReorderableListView),
+      );
+
+      reorderList.onReorderItem!(0, 1);
+      await tester.pump();
+
+      expect(saveCalls, 1);
+      expect(visibleOrder(), ['First', 'Second']);
+
+      saveCompleter.complete();
+      await tester.pumpAndSettle();
+
+      expect(visibleOrder(), ['Second', 'First']);
+    },
+  );
+
+  for (final type in ['card', 'container', 'section']) {
+    testWidgets(
+      '$type preserves data when editing layout padding',
+      (tester) async {
+        final workspace = Workspace(
+          projectId: 'project-1',
+          draftId: 'draft-1',
+          version: 1,
+          projectName: 'Test Project',
+          designTargets: const ['web'],
+          sections: {
+            'screens': [
+              {'id': 'screen-1', 'name': 'Dashboard'},
+            ],
+            'components': [
+              {
+                'id': 'component-layout-123',
+                'screenId': 'screen-1',
+                'type': type,
+                'label': 'Layout Component',
+                'text': 'Original Content',
+                'properties': {
+                  'padding': 8,
+                  'customToken': 'preserve-me',
+                  if (type == 'card') 'elevation': 4,
+                },
+              },
+            ],
+          },
+        );
+
+        List<Map<String, dynamic>>? savedItems;
+
+        await openStudio(tester, (section, data) async {
+          expect(section, 'components');
+          savedItems = (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+        }, workspace: workspace);
+
+        await tester.tap(find.byTooltip('Edit'));
+        await tester.pumpAndSettle();
+
+        final paddingSlider = find.byWidgetPredicate(
+          (widget) => widget is Slider && widget.min == 0 && widget.max == 64,
+        );
+
+        expect(paddingSlider, findsOneWidget);
+
+        expect(
+          tester.widget<Slider>(paddingSlider).value,
+          8,
+        );
+
+        tester.widget<Slider>(paddingSlider).onChanged!(32);
+        await tester.pumpAndSettle();
+
+        expect(
+          tester.widget<Slider>(paddingSlider).value,
+          32,
+        );
+
+        await tester.ensureVisible(find.text('Save').last);
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Save').last);
+        await tester.pumpAndSettle();
+
+        expect(savedItems, isNotNull);
+        expect(savedItems, hasLength(1));
+
+        final saved = savedItems!.single;
+        final properties =
+            Map<String, dynamic>.from(saved['properties'] as Map);
+
+        expect(saved['id'], 'component-layout-123');
+        expect(saved['screenId'], 'screen-1');
+        expect(saved['type'], type);
+        expect(saved['label'], 'Layout Component');
+        expect(saved['text'], 'Original Content');
+
+        expect(properties['padding'], 32);
+        expect(properties['customToken'], 'preserve-me');
+
+        if (type == 'card') {
+          expect(properties['elevation'], 4);
+        }
+      },
+    );
+  }
+
+  for (final type in ['image', 'header', 'list', 'table']) {
+    testWidgets(
+      '$type preserves advanced inspector properties on edit',
+      (tester) async {
+        final initialProperties = <String, dynamic>{
+          'customToken': 'preserve-me',
+          if (type == 'image') ...{
+            'src': 'https://example.com/old.png',
+            'alt': 'Old image',
+          },
+          if (type == 'header') 'alignment': 'left',
+          if (type == 'list') 'dense': false,
+          if (type == 'table') 'stripedRows': false,
+        };
+
+        final workspace = Workspace(
+          projectId: 'project-1',
+          draftId: 'draft-1',
+          version: 1,
+          projectName: 'Test Project',
+          designTargets: const ['web'],
+          sections: {
+            'screens': [
+              {'id': 'screen-1', 'name': 'Dashboard'},
+            ],
+            'components': [
+              {
+                'id': 'component-advanced-123',
+                'screenId': 'screen-1',
+                'type': type,
+                'label': 'Advanced Component',
+                'text': 'Original Content',
+                'properties': initialProperties,
+              },
+            ],
+          },
+        );
+
+        List<Map<String, dynamic>>? savedItems;
+
+        await openStudio(tester, (section, data) async {
+          expect(section, 'components');
+          savedItems = (data as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+        }, workspace: workspace);
+
+        await tester.tap(find.byTooltip('Edit'));
+        await tester.pumpAndSettle();
+
+        if (type == 'image') {
+          final sourceField = find.byWidgetPredicate(
+            (widget) =>
+                widget is TextField &&
+                widget.decoration?.labelText == 'Image URL',
+          );
+
+          final altField = find.byWidgetPredicate(
+            (widget) =>
+                widget is TextField &&
+                widget.decoration?.labelText == 'Alt text',
+          );
+
+          expect(sourceField, findsOneWidget);
+          expect(altField, findsOneWidget);
+
+          await tester.enterText(
+            sourceField,
+            'https://example.com/new.png',
+          );
+          await tester.enterText(altField, 'New accessible image');
+        }
+
+        if (type == 'header') {
+          final alignmentField = find.byWidgetPredicate(
+            (widget) =>
+                widget is DropdownButtonFormField<String> &&
+                widget.decoration.labelText == 'Header alignment',
+          );
+
+          expect(alignmentField, findsOneWidget);
+          await tester.ensureVisible(alignmentField);
+          await tester.tap(alignmentField);
+          await tester.pumpAndSettle();
+
+          await tester.tap(find.text('Right').last);
+          await tester.pumpAndSettle();
+        }
+
+        if (type == 'list' || type == 'table') {
+          final title = type == 'list' ? 'Dense layout' : 'Striped rows';
+
+          final toggle = find.widgetWithText(SwitchListTile, title);
+          expect(toggle, findsOneWidget);
+
+          await tester.ensureVisible(toggle);
+          await tester.pumpAndSettle();
+          await tester.tap(toggle);
+          await tester.pumpAndSettle();
+        }
+
+        final saveButton = find.text('Save').last;
+        await tester.ensureVisible(saveButton);
+        await tester.pumpAndSettle();
+        await tester.tap(saveButton);
+        await tester.pumpAndSettle();
+
+        expect(savedItems, isNotNull);
+        expect(savedItems, hasLength(1));
+
+        final saved = savedItems!.single;
+        final properties =
+            Map<String, dynamic>.from(saved['properties'] as Map);
+
+        expect(saved['id'], 'component-advanced-123');
+        expect(saved['screenId'], 'screen-1');
+        expect(saved['type'], type);
+        expect(saved['label'], 'Advanced Component');
+        expect(saved['text'], 'Original Content');
+        expect(properties['customToken'], 'preserve-me');
+
+        if (type == 'image') {
+          expect(properties['src'], 'https://example.com/new.png');
+          expect(properties['alt'], 'New accessible image');
+        }
+
+        if (type == 'header') {
+          expect(properties['alignment'], 'right');
+        }
+
+        if (type == 'list') {
+          expect(properties['dense'], true);
+        }
+
+        if (type == 'table') {
+          expect(properties['stripedRows'], true);
+        }
+      },
+    );
+  }
+
+  testWidgets('V4 reuse creates a separate component on another screen',
+      (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+          {'id': 'screen-2', 'name': 'Settings'},
+        ],
+        'components': [
+          {
+            'id': 'original-card',
+            'screenId': 'screen-1',
+            'type': 'card',
+            'label': 'Profile Card',
+            'text': 'Profile details',
+            'properties': {'padding': 16, 'elevation': 4},
+          },
+        ],
+      },
+    );
+
+    List<Map<String, dynamic>>? saved;
+
+    await openStudio(tester, (section, data) async {
+      expect(section, 'components');
+      saved = (data as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    }, workspace: workspace);
+
+    await tester.tap(find.byTooltip('Reuse'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reuse component on screen'), findsOneWidget);
+
+    final screenDropdown = find.byWidgetPredicate(
+      (widget) =>
+          widget is DropdownButtonFormField<String> &&
+          widget.decoration.labelText == 'Target screen',
+    );
+
+    await tester.tap(screenDropdown);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Settings').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Reuse').last);
+    await tester.pumpAndSettle();
+
+    expect(saved, isNotNull);
+    expect(saved, hasLength(2));
+
+    final original = saved!.first;
+    final reused = saved!.last;
+
+    expect(original['id'], 'original-card');
+    expect(original['screenId'], 'screen-1');
+    expect(reused['id'], isNot('original-card'));
+    expect(reused['screenId'], 'screen-2');
+    expect(reused['templateSourceId'], 'original-card');
+    expect(reused['label'], 'Profile Card');
+    expect(reused['properties'], original['properties']);
+  });
+
+  testWidgets('V4 parent selector saves valid nested component',
+      (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'parent-card',
+            'screenId': 'screen-1',
+            'type': 'card',
+            'label': 'Parent Card',
+            'text': 'Container content',
+          },
+          {
+            'id': 'child-text',
+            'screenId': 'screen-1',
+            'type': 'text',
+            'label': 'Child Text',
+            'text': 'Nested text',
+          },
+        ],
+      },
+    );
+
+    List<Map<String, dynamic>>? saved;
+
+    await openStudio(tester, (section, data) async {
+      saved = (data as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    }, workspace: workspace);
+
+    await tester.tap(find.byTooltip('Edit').last);
+    await tester.pumpAndSettle();
+
+    final parentDropdown = find.byWidgetPredicate(
+      (widget) =>
+          widget is DropdownButtonFormField<String> &&
+          widget.decoration.labelText == 'Parent component',
+    );
+
+    await tester.ensureVisible(parentDropdown);
+    await tester.tap(parentDropdown);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Parent Card').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Save').last);
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
+
+    expect(saved, isNotNull);
+    expect(saved, hasLength(2));
+    expect(saved!.last['id'], 'child-text');
+    expect(saved!.last['parentComponentId'], 'parent-card');
+    expect(saved!.last['screenId'], 'screen-1');
+    expect(saved!.first['id'], 'parent-card');
+  });
+
+  testWidgets('V4 prevents circular nesting before saving', (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'card-a',
+            'screenId': 'screen-1',
+            'type': 'card',
+            'label': 'Card A',
+            'parentComponentId': 'card-b',
+          },
+          {
+            'id': 'card-b',
+            'screenId': 'screen-1',
+            'type': 'card',
+            'label': 'Card B',
+          },
+        ],
+      },
+    );
+
+    var saveCalls = 0;
+
+    await openStudio(tester, (_, _) async {
+      saveCalls++;
+    }, workspace: workspace);
+
+    await tester.tap(find.byTooltip('Edit').last);
+    await tester.pumpAndSettle();
+
+    final parentDropdown = find.byWidgetPredicate(
+      (widget) =>
+          widget is DropdownButtonFormField<String> &&
+          widget.decoration.labelText == 'Parent component',
+    );
+
+    await tester.ensureVisible(parentDropdown);
+    await tester.tap(parentDropdown);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Card A').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Save').last);
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
+
+    expect(saveCalls, 0);
+    expect(find.textContaining('Circular component hierarchy'), findsWidgets);
+  });
+
+  testWidgets('V4 protects a parent with children from deletion',
+      (tester) async {
+    final workspace = Workspace(
+      projectId: 'project-1',
+      draftId: 'draft-1',
+      version: 1,
+      projectName: 'Test Project',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'screen-1', 'name': 'Dashboard'},
+        ],
+        'components': [
+          {
+            'id': 'parent-card',
+            'screenId': 'screen-1',
+            'type': 'card',
+            'label': 'Parent Card',
+          },
+          {
+            'id': 'child-text',
+            'screenId': 'screen-1',
+            'type': 'text',
+            'label': 'Child Text',
+            'parentComponentId': 'parent-card',
+          },
+        ],
+      },
+    );
+
+    var saveCalls = 0;
+
+    await openStudio(tester, (_, _) async {
+      saveCalls++;
+    }, workspace: workspace);
+
+    await tester.tap(find.byTooltip('Remove').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Remove this item?'), findsOneWidget);
+
+    await tester.tap(find.text('Remove').last);
+    await tester.pumpAndSettle();
+
+    expect(saveCalls, 0);
+    expect(
+      find.text('Remove or reassign child components first'),
+      findsWidgets,
+    );
   });
 }

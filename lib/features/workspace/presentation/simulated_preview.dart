@@ -60,10 +60,8 @@ class _SafePreviewState extends State<SafePreview> {
 
   Color primary() {
     final tokens = obj(widget.blueprint['designTokens']);
-    final hex = (tokens['primaryColor'] ?? '#6654E8').toString().replaceAll(
-      '#',
-      '',
-    );
+    final hex =
+        (tokens['primaryColor'] ?? '#6654E8').toString().replaceAll('#', '');
     return Color(int.tryParse('FF$hex', radix: 16) ?? 0xFF6654E8);
   }
 
@@ -290,6 +288,7 @@ class _SafePreviewState extends State<SafePreview> {
             ),
           ),
         );
+
       case 'input':
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 7),
@@ -424,9 +423,8 @@ class _SafePreviewState extends State<SafePreview> {
         );
       case 'dialog':
         return ListTile(
-          leading: Icon(Icons.info_outline, color: accent),
-          title: Text(label),
-        );
+            leading: Icon(Icons.info_outline, color: accent),
+            title: Text(label));
       case 'image':
         final alt = (props['alt'] ?? '').toString();
 
@@ -454,12 +452,9 @@ class _SafePreviewState extends State<SafePreview> {
 
       default:
         return Container(
-          padding: const EdgeInsets.all(12),
-          child: Text(
-            'Unsupported component: $type',
-            style: const TextStyle(color: Color(0xFFBA435A)),
-          ),
-        );
+            padding: const EdgeInsets.all(12),
+            child: Text('Unsupported component: $type',
+                style: const TextStyle(color: Color(0xFFBA435A))));
     }
   }
 
@@ -485,10 +480,9 @@ class _SafePreviewState extends State<SafePreview> {
     final props = obj(item['props'] ?? item['properties']);
     final rawVisibility = props['visibility'];
 
-    final visibility =
-        rawVisibility is Map
-            ? Map<String, dynamic>.from(rawVisibility)
-            : rawVisibility == null
+    final visibility = rawVisibility is Map
+        ? Map<String, dynamic>.from(rawVisibility)
+        : rawVisibility == null
             ? null
             : <String, dynamic>{};
 
@@ -509,17 +503,15 @@ class _SafePreviewState extends State<SafePreview> {
 
     final path = {...ancestors, id};
 
-    final children =
-        components
-            .where(
-              (candidate) =>
-                  parentId(candidate) == id && instanceId(candidate) != id,
-            )
-            .map(
-              (candidate) =>
-                  nestedComponent(candidate, accent, components, path),
-            )
-            .toList();
+    final children = components
+        .where(
+          (candidate) =>
+              parentId(candidate) == id && instanceId(candidate) != id,
+        )
+        .map(
+          (candidate) => nestedComponent(candidate, accent, components, path),
+        )
+        .toList();
 
     return component(item, accent, children: children);
   }
@@ -528,12 +520,13 @@ class _SafePreviewState extends State<SafePreview> {
   Widget build(BuildContext context) {
     final screens = availableScreens();
     if (screens.isEmpty) {
-      return const SurfaceCard(child: Text('No screens in blueprint'));
+      return const SurfaceCard(
+        child: Text('No screens in blueprint'),
+      );
     }
-    final selected =
-        screens.any((e) => e['screenId'] == screenId)
-            ? screenId!
-            : screens.first['screenId'].toString();
+    final selected = screens.any((e) => e['screenId'] == screenId)
+        ? screenId!
+        : screens.first['screenId'].toString();
     final screen = screens.firstWhere((e) => e['screenId'] == selected);
     final components =
         array(
@@ -582,7 +575,7 @@ class _SafePreviewState extends State<SafePreview> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               const SmallLabel(
-                'SIMULATED Â· NO LIVE TRANSACTIONS',
+                'SIMULATED · NO LIVE TRANSACTIONS',
                 color: AppColors.purple,
               ),
               for (final value in ['mobile', 'tablet', 'web', 'desktop'])
@@ -621,13 +614,11 @@ class _SafePreviewState extends State<SafePreview> {
             alignment: Alignment.center,
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth:
-                    mode == 'mobile'
-                        ? 390
-                        : mode == 'web'
-                        ? 1000
-                        : 790,
-              ),
+                  maxWidth: mode == 'mobile'
+                      ? 390
+                      : mode == 'web'
+                          ? 1000
+                          : 790),
               child: Container(
                 width: double.infinity,
                 key: const ValueKey('preview-canvas'),
