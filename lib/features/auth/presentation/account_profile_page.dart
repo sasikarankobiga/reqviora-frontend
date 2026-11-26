@@ -31,15 +31,40 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
   String? _error;
   String? _notice;
   Map<String, dynamic>? _profile;
+  int _generation = authSession.generation;
+
+  @override
+  void initState() {
+    super.initState();
+    authSession.addListener(_sessionChanged);
+  }
+
+  void _sessionChanged() {
+    if (!mounted || _generation == authSession.generation) return;
+
+    _generation = authSession.generation;
+
+    if (widget.confirmChange) return;
+
+    _email.clear();
+
+    setState(() {
+      _profile = null;
+      _error = null;
+      _notice = null;
+      _busy = false;
+    });
+  }
 
   @override
   void dispose() {
+    authSession.removeListener(_sessionChanged);
     _email.dispose();
     super.dispose();
   }
 
   Future<void> _loadProfile() async {
-    if (_busy) return;
+    if (_busy || !authSession.authenticated) return;
 
     setState(() {
       _busy = true;
@@ -56,16 +81,24 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
 
       setState(() => _profile = result);
     } catch (error) {
-      if (mounted) {
+      if (mounted && generation == authSession.generation) {
         setState(() => _error = authErrorMessage(error));
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && generation == authSession.generation) {
+        setState(() => _busy = false);
+      }
     }
   }
 
   Future<void> _submit() async {
     if (_busy || _confirmed) return;
+
+    if (!widget.confirmChange && !authSession.authenticated) {
+      return;
+    }
+
+    final generation = authSession.generation;
 
     if (!widget.confirmChange && !(_form.currentState?.validate() ?? false)) {
       return;
@@ -92,7 +125,7 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
       } else {
         await repository.requestEmailChange(_email.text);
 
-        if (!mounted) return;
+        if (!mounted || generation != authSession.generation) return;
 
         setState(() {
           _notice =
@@ -101,11 +134,15 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
         });
       }
     } catch (error) {
-      if (mounted) {
+      if (mounted &&
+          (widget.confirmChange || generation == authSession.generation)) {
         setState(() => _error = authErrorMessage(error));
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted &&
+          (widget.confirmChange || generation == authSession.generation)) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -150,7 +187,10 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
                           const SizedBox(height: 12),
                         ],
                         OutlinedButton.icon(
-                          onPressed: _busy ? null : _loadProfile,
+                          onPressed:
+                              _busy || !authSession.authenticated
+                                  ? null
+                                  : _loadProfile,
                           icon: const Icon(Icons.refresh),
                           label: const LocalizedUiText('Load account profile'),
                         ),

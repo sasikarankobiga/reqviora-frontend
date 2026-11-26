@@ -229,10 +229,22 @@ class AuthRepository {
   }
 
   Future<void> resetPassword(String token, String newPassword) async {
+    if (token.trim().isEmpty) {
+      throw ArgumentError('Password reset token is required.');
+    }
+
+    final generation = authSession.generation;
+
     await api.post('/api/account-security/password/reset', {
       'token': token,
       'newPassword': newPassword,
     });
+
+    // The server revokes existing refresh sessions on successful reset.
+    // Never clear a newer session established by another login.
+    if (authSession.generation == generation) {
+      signOut();
+    }
   }
 
   Future<void> requestEmailVerification() async {

@@ -33,9 +33,40 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
   String? _error;
   String? _notice;
   Map<String, dynamic>? _mfaProvision;
+  int _generation = authSession.generation;
+
+  bool get _protectedAction =>
+      widget.action == AccountAction.setupMfa ||
+      (widget.action == AccountAction.verifyEmail && widget.token.isEmpty);
+
+  @override
+  void initState() {
+    super.initState();
+    authSession.addListener(_sessionChanged);
+  }
+
+  void _sessionChanged() {
+    if (!mounted || _generation == authSession.generation) return;
+
+    _generation = authSession.generation;
+
+    if (!_protectedAction) return;
+
+    _otp.clear();
+
+    setState(() {
+      _mfaProvision = null;
+      _mfaCompleted = false;
+      _busy = false;
+      _error = null;
+      _notice = null;
+    });
+  }
 
   @override
   void dispose() {
+    authSession.removeListener(_sessionChanged);
+    _mfaProvision = null;
     _email.dispose();
     _password.dispose();
     _confirm.dispose();
@@ -90,6 +121,9 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
   };
 
   Future<void> _submit() async {
+    if (_protectedAction && !authSession.authenticated) return;
+
+    final generation = authSession.generation;
     if (_busy || _mfaCompleted || !(_form.currentState?.validate() ?? false)) {
       return;
     }
@@ -120,6 +154,10 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
               throw StateError('Sign in to request a verification email.');
             }
             await repository.requestEmailVerification();
+
+            if (!mounted || generation != authSession.generation) {
+              return;
+            }
             _notice =
                 'If verification is pending, a link will be emailed to you.';
           }
@@ -128,7 +166,9 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
           if (_mfaProvision == null) {
             final provision = await repository.provisionMfa();
 
-            if (!mounted) return;
+            if (!mounted || generation != authSession.generation) {
+              return;
+            }
 
             final secret = provision['secret'];
             final uri = provision['uri'];
@@ -156,7 +196,9 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
           } else {
             await repository.verifyMfa(_otp.text.trim());
 
-            if (!mounted) return;
+            if (!mounted || generation != authSession.generation) {
+              return;
+            }
 
             _otp.clear();
             _mfaProvision = null;
@@ -167,9 +209,15 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
           break;
       }
     } catch (error) {
-      _error = authErrorMessage(error);
+      if (mounted &&
+          (!_protectedAction || generation == authSession.generation)) {
+        _error = authErrorMessage(error);
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted &&
+          (!_protectedAction || generation == authSession.generation)) {
+        setState(() => _busy = false);
+      }
     }
   }
 
