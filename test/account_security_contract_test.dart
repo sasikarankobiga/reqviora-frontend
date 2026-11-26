@@ -1,4 +1,7 @@
+ feature/thikal-v4-frontend-development
+
 import 'dart:async';
+ develop
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -37,6 +40,8 @@ void main() {
     expect(authSession.authenticated, isTrue);
   });
 
+ feature/thikal-v4-frontend-development
+
   test(
     'Login rejects non-string token fields without starting a session',
     () async {
@@ -62,6 +67,7 @@ void main() {
     },
   );
 
+ develop
   test('401 triggers one refresh and retries protected GET', () async {
     var getCount = 0;
     var refreshCount = 0;
@@ -187,6 +193,8 @@ void main() {
     expect(calls, 2);
   });
 
+ feature/thikal-v4-frontend-development
+=======
   test('MFA provisioning rejects malformed recovery codes', () async {
     authSession.signIn('session-token');
     final api = ApiClient(
@@ -205,6 +213,7 @@ void main() {
     await expectLater(AuthRepository(api).provisionMfa(), throwsStateError);
   });
 
+ develop
   test('Logout revokes refresh token and clears in-memory session', () async {
     authSession.startSession(
       accessToken: 'live',
@@ -242,6 +251,98 @@ void main() {
     await expectLater(api.get('/api/projects'), throwsA(isA<ApiException>()));
     expect(authSession.authenticated, isFalse);
   });
+
+feature/thikal-v4-frontend-development
+  test('Successful reset clears the current session', () async {
+    authSession.startSession(
+      accessToken: 'old-access',
+      refreshToken: 'old-refresh',
+      accessExpiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+    );
+
+    final api = ApiClient(
+      MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/api/account-security/password/reset');
+        expect(jsonDecode(request.body)['token'], 'reset-token');
+
+        return http.Response('', 204);
+      }),
+    );
+
+    addTearDown(api.dispose);
+
+    await AuthRepository(
+      api,
+    ).resetPassword('reset-token', 'NewStrongPassword123');
+
+    expect(authSession.authenticated, isFalse);
+    expect(authSession.token, isNull);
+    expect(authSession.refreshToken, isNull);
+  });
+
+  test('Rejected password reset preserves the current session', () async {
+    authSession.signIn('existing-session');
+
+    final generation = authSession.generation;
+
+    final api = ApiClient(
+      MockClient((request) async {
+        return http.Response('{"title":"Invalid or expired reset token"}', 400);
+      }),
+    );
+
+    addTearDown(api.dispose);
+
+    await expectLater(
+      AuthRepository(
+        api,
+      ).resetPassword('expired-token', 'NewStrongPassword123'),
+      throwsA(isA<ApiException>()),
+    );
+
+    expect(authSession.token, 'existing-session');
+    expect(authSession.generation, generation);
+  });
+
+  test('Stale password reset cannot clear a newer session', () async {
+    authSession.signIn('old-session');
+
+    final api = ApiClient(
+      MockClient((request) async {
+        authSession.signIn('new-session');
+
+        return http.Response('', 204);
+      }),
+    );
+
+    addTearDown(api.dispose);
+
+    try {
+      await AuthRepository(
+        api,
+      ).resetPassword('reset-token', 'NewStrongPassword123');
+    } on ApiException {
+      // ApiClient may reject a response belonging to an old session.
+    }
+
+    expect(authSession.authenticated, isTrue);
+    expect(authSession.token, 'new-session');
+  });
+
+  test('Empty password reset token never reaches the API', () async {
+    final api = ApiClient(
+      MockClient((request) async {
+        fail('Invalid reset token must not reach the API');
+      }),
+    );
+
+    addTearDown(api.dispose);
+
+    await expectLater(
+      AuthRepository(api).resetPassword('   ', 'NewStrongPassword123'),
+      throwsArgumentError,
+    );
 
   test('staggered 401 responses reuse one token rotation', () async {
     authSession.startSession(
@@ -324,5 +425,6 @@ void main() {
     await expectLater(pending, throwsA(isA<ApiException>()));
     expect(protectedWrites, 1);
     expect(refreshRequests, 0);
+develop
   });
 }

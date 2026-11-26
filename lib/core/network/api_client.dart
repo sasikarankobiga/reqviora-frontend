@@ -1,15 +1,19 @@
-import 'package:http_parser/http_parser.dart';
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+
 import '../config/app_config.dart';
 import '../auth/auth_session.dart';
 
 class ApiException implements Exception {
   const ApiException(this.statusCode, this.message);
+
   final int statusCode;
   final String message;
+
   @override
   String toString() => message;
 }
@@ -27,18 +31,72 @@ class _SessionSnapshot {
 }
 
 class ApiClient {
-  ApiClient(this._http);
+  ApiClient(
+    this._http, {
+    this.requestTimeout = const Duration(seconds: 60),
+  });
+
   final http.Client _http;
+  final Duration requestTimeout;
+
   Future<bool>? _refreshInFlight;
   int? _refreshGeneration;
+
+  Future<T> _network<T>(
+    Future<T> Function() send,
+  ) async {
+    try {
+      return await send().timeout(requestTimeout);
+    } on TimeoutException {
+      throw const ApiException(
+        0,
+        'The request timed out. Check the current status before retrying.',
+      );
+    } on http.ClientException {
+      throw const ApiException(
+        0,
+        'Cannot connect to backend. Please check your connection.',
+      );
+    }
+  }
+
   Uri _uri(String path) {
-    final base = Uri.parse(apiBaseUrl);
-    if (kReleaseMode && (isLocalDemo || base.scheme != 'https')) {
+    final base = Uri.tryParse(apiBaseUrl);
+    final target = Uri.tryParse(path);
+
+    if (base == null ||
+        !['http', 'https'].contains(base.scheme) ||
+        base.host.isEmpty ||
+        base.userInfo.isNotEmpty ||
+        base.hasFragment ||
+        base.hasQuery) {
+      throw const ApiException(
+        0,
+        'Invalid backend configuration.',
+      );
+    }
+
+    if (target == null ||
+        target.hasScheme ||
+        target.hasAuthority ||
+        target.hasFragment ||
+        !path.startsWith('/api/') ||
+        path.contains('\\') ||
+        !target.path.startsWith('/api/')) {
+      throw const ApiException(
+        0,
+        'Invalid API request path.',
+      );
+    }
+
+    if (kReleaseMode &&
+        (isLocalDemo || base.scheme != 'https')) {
       throw const ApiException(
         0,
         'Production mode requires HTTPS and real authentication.',
       );
     }
+
     return base.resolve(path);
   }
 
@@ -48,14 +106,40 @@ class ApiClient {
     refreshToken: authSession.refreshToken,
   );
 
-  Map<String, String> _headersFor(String? accessToken) => {
+  Map<String, String> _headersFor(
+    String? accessToken,
+  ) => {
     'Accept': 'application/json',
     'Content-Type': 'application/json',
-    if (accessToken != null) 'Authorization': 'Bearer $accessToken',
-    if (isLocalDemo && !kReleaseMode) 'X-Reqviora-Local-Demo': 'true',
+    if (accessToken != null)
+      'Authorization': 'Bearer $accessToken',
+    if (isLocalDemo && !kReleaseMode)
+      'X-Reqviora-Local-Demo': 'true',
   };
 
-  bool _canRefresh(String path, _SessionSnapshot snapshot) =>
+  Map<String, String> _multipartHeadersFor(
+    String? accessToken,
+  ) => {
+    'Accept': 'application/json',
+    if (accessToken != null)
+      'Authorization': 'Bearer $accessToken',
+    if (isLocalDemo && !kReleaseMode)
+      'X-Reqviora-Local-Demo': 'true',
+  };
+
+  void _ensureSession(int generation) {
+    if (authSession.generation != generation) {
+      throw const ApiException(
+        401,
+        'The authentication session changed. Please retry.',
+      );
+    }
+  }
+
+  bool _canRefresh(
+    String path,
+    _SessionSnapshot snapshot,
+  ) =>
       !path.startsWith('/api/auth/') &&
       authSession.generation == snapshot.generation &&
       authSession.authenticated &&
@@ -65,20 +149,52 @@ class ApiClient {
     String path,
     _SessionSnapshot snapshot,
   ) async {
-    if (!_canRefresh(path, snapshot)) return false;
-    if (authSession.token != snapshot.accessToken) return true;
-    if (authSession.refreshToken != snapshot.refreshToken) return false;
-    return _refreshOnce(snapshot);
+    _ensureSession(snapshot.generation);
+
+    if (!_canRefresh(path, snapshot)) {
+      return false;
+    }
+
+    if (authSession.token != snapshot.accessToken) {
+      return authSession.authenticated;
+    }
+
+    if (authSession.refreshToken != snapshot.refreshToken) {
+      return false;
+    }
+
+    final refreshed = await _refreshOnce(snapshot);
+
+    _ensureSession(snapshot.generation);
+
+    return refreshed;
   }
 
-  Future<bool> _refreshOnce(_SessionSnapshot snapshot) async {
+  Future<bool> _refreshOnce(
+    _SessionSnapshot snapshot,
+  ) async {
+    if (authSession.generation != snapshot.generation ||
+        !authSession.authenticated ||
+        snapshot.refreshToken == null) {
+      return false;
+    }
+
+    if (authSession.refreshToken != snapshot.refreshToken) {
+      return authSession.token != snapshot.accessToken;
+    }
+
     final pending = _refreshInFlight;
-    if (pending != null && _refreshGeneration == snapshot.generation) {
+
+    if (pending != null &&
+        _refreshGeneration == snapshot.generation) {
       return pending;
     }
+
     final result = _exchangeRefresh(snapshot);
+
     _refreshInFlight = result;
     _refreshGeneration = snapshot.generation;
+
     try {
       return await result;
     } finally {
@@ -89,152 +205,222 @@ class ApiClient {
     }
   }
 
-  Future<bool> _exchangeRefresh(_SessionSnapshot snapshot) async {
+  Future<bool> _exchangeRefresh(
+    _SessionSnapshot snapshot,
+  ) async {
     final currentToken = snapshot.refreshToken;
-    if (currentToken == null) return false;
+
+    if (currentToken == null) {
+      return false;
+    }
+
     try {
-      final response = await _http.post(
-        _uri('/api/auth/refresh'),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'refreshToken': currentToken}),
+      final response = await _network(
+        () => _http.post(
+          _uri('/api/auth/refresh'),
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'refreshToken': currentToken,
+          }),
+        ),
       );
-      if (authSession.generation != snapshot.generation) return false;
-      if (response.statusCode == 401 || response.statusCode == 403) {
-        if (authSession.refreshToken == currentToken) {
-          authSession.signOut();
-        }
+
+      if (authSession.generation != snapshot.generation) {
         return false;
       }
-      if (response.statusCode < 200 || response.statusCode >= 300) return false;
-      final data = jsonDecode(response.body);
-      if (data is! Map) return false;
-      final access = data['accessToken'];
-      final refresh = data['refreshToken'];
-      final expires = DateTime.tryParse(
-        data['accessTokenExpiresAt'] is String
-            ? data['accessTokenExpiresAt'] as String
-            : '',
-      );
-      if (access is! String ||
-          access.isEmpty ||
-          refresh is! String ||
-          refresh.isEmpty ||
-          expires == null) {
-        return false;
-      }
+
       if (authSession.refreshToken != currentToken) {
-        return authSession.generation == snapshot.generation &&
+        return authSession.authenticated &&
             authSession.token != snapshot.accessToken;
       }
-      return authSession.refreshSession(
+
+      if (response.statusCode == 401 ||
+          response.statusCode == 403) {
+        authSession.signOut();
+        return false;
+      }
+
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300) {
+        return false;
+      }
+
+      final data = jsonDecode(response.body);
+
+      if (data is! Map) {
+        return false;
+      }
+
+      final access = data['accessToken'];
+      final refresh = data['refreshToken'];
+      final expiresValue = data['accessTokenExpiresAt'];
+
+      if (access is! String ||
+          refresh is! String ||
+          expiresValue is! String ||
+          access.trim().isEmpty ||
+          refresh.trim().isEmpty) {
+        return false;
+      }
+
+      final expires = DateTime.tryParse(expiresValue);
+
+      if (expires == null ||
+          !expires.isAfter(DateTime.now().toUtc())) {
+        return false;
+      }
+
+      return authSession.replaceRefreshedSession(
         expectedGeneration: snapshot.generation,
+        expectedRefreshToken: currentToken,
         accessToken: access,
         refreshToken: refresh,
         accessExpiresAt: expires,
       );
     } on Exception {
-      // Temporary network errors do not discard a potentially valid session.
+      // Temporary network errors do not discard
+      // a potentially valid authentication session.
       return false;
     }
   }
 
+  Future<http.Response> _sendAuthenticated(
+    String path,
+    Future<http.Response> Function(String? accessToken) send,
+  ) async {
+    final snapshot = _snapshot();
+
+    _ensureSession(snapshot.generation);
+
+    var response = await _network(
+      () => send(snapshot.accessToken),
+    );
+
+    _ensureSession(snapshot.generation);
+
+    if (response.statusCode == 401 &&
+        await _recoverUnauthorized(path, snapshot)) {
+      _ensureSession(snapshot.generation);
+
+      response = await _network(
+        () => send(authSession.token),
+      );
+    }
+
+    _ensureSession(snapshot.generation);
+
+    return response;
+  }
+
   dynamic _parse(http.Response response) {
     dynamic data;
+
     try {
-      data = response.body.isEmpty ? null : jsonDecode(response.body);
+      data = response.body.isEmpty
+          ? null
+          : jsonDecode(response.body);
     } on FormatException {
-      throw ApiException(response.statusCode, 'Invalid response from server');
+      if (response.statusCode >= 200 &&
+          response.statusCode < 300) {
+        throw ApiException(
+          response.statusCode,
+          'Invalid response from server',
+        );
+      }
+
+      data = null;
     }
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final message =
-          data is Map
-              ? (data['code'] ?? data['title'] ?? 'Request failed')
-              : 'Request failed';
+
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300) {
+      final message = data is Map
+          ? (data['code'] ??
+                data['title'] ??
+                'Request failed')
+          : 'Request failed';
+
       throw ApiException(
         response.statusCode,
         '$message (HTTP ${response.statusCode})',
       );
     }
+
     return data;
   }
 
+  // GET request.
   Future<dynamic> get(String path) async {
-    try {
-      final snapshot = _snapshot();
-      var response = await _http.get(
+    final response = await _sendAuthenticated(
+      path,
+      (accessToken) => _http.get(
         _uri(path),
-        headers: _headersFor(snapshot.accessToken),
-      );
-      if (response.statusCode == 401 &&
-          await _recoverUnauthorized(path, snapshot)) {
-        if (authSession.generation != snapshot.generation) {
-          return _parse(response);
-        }
-        response = await _http.get(
-          _uri(path),
-          headers: _headersFor(authSession.token),
-        );
-      }
-      return _parse(response);
-    } on http.ClientException catch (e) {
-      throw ApiException(0, 'Cannot connect to backend: $e');
-    }
+        headers: _headersFor(accessToken),
+      ),
+    );
+
+    return _parse(response);
   }
 
+  // POST request with optional idempotency key.
   Future<dynamic> post(
     String path,
     Map<String, dynamic> data, {
     String? key,
   }) async {
-    try {
-      final snapshot = _snapshot();
-      Future<http.Response> send(String? accessToken) => _http.post(
+    final body = jsonEncode(data);
+
+    final response = await _sendAuthenticated(
+      path,
+      (accessToken) => _http.post(
         _uri(path),
         headers: {
           ..._headersFor(accessToken),
-          if (key != null) 'Idempotency-Key': key,
+          if (key != null)
+            'Idempotency-Key': key,
         },
-        body: jsonEncode(data),
-      );
-      var response = await send(snapshot.accessToken);
-      if (response.statusCode == 401 &&
-          await _recoverUnauthorized(path, snapshot)) {
-        if (authSession.generation != snapshot.generation) {
-          return _parse(response);
-        }
-        response = await send(authSession.token);
-      }
-      return _parse(response);
-    } on http.ClientException catch (e) {
-      throw ApiException(0, 'Cannot connect to backend: $e');
-    }
+        body: body,
+      ),
+    );
+
+    return _parse(response);
   }
 
-  Future<dynamic> put(String path, Map<String, dynamic> data) async {
-    try {
-      final snapshot = _snapshot();
-      Future<http.Response> send(String? accessToken) => _http.put(
+  // PUT request.
+  Future<dynamic> put(
+    String path,
+    Map<String, dynamic> data,
+  ) async {
+    final body = jsonEncode(data);
+
+    final response = await _sendAuthenticated(
+      path,
+      (accessToken) => _http.put(
         _uri(path),
         headers: _headersFor(accessToken),
-        body: jsonEncode(data),
-      );
-      var response = await send(snapshot.accessToken);
-      if (response.statusCode == 401 &&
-          await _recoverUnauthorized(path, snapshot)) {
-        if (authSession.generation != snapshot.generation) {
-          return _parse(response);
-        }
-        response = await send(authSession.token);
-      }
-      return _parse(response);
-    } on http.ClientException catch (e) {
-      throw ApiException(0, 'Cannot connect to backend: $e');
-    }
+        body: body,
+      ),
+    );
+
+    return _parse(response);
   }
 
+  // DELETE request.
+  Future<void> delete(String path) async {
+    final response = await _sendAuthenticated(
+      path,
+      (accessToken) => _http.delete(
+        _uri(path),
+        headers: _headersFor(accessToken),
+      ),
+    );
+
+    _parse(response);
+  }
+
+  // Document source upload.
   Future<Map<String, dynamic>> uploadSource(
     String projectId,
     int expectedVersion,
@@ -252,45 +438,57 @@ class ApiClient {
     final extension = name.split('.').last.toLowerCase();
 
     final mediaType = switch (extension) {
-      'pdf' => MediaType('application', 'pdf'),
+      'pdf' => MediaType(
+        'application',
+        'pdf',
+      ),
       'docx' => MediaType(
         'application',
         'vnd.openxmlformats-officedocument.wordprocessingml.document',
       ),
-      'txt' => MediaType('text', 'plain'),
-      _ =>
-        throw ArgumentError.value(
-          name,
-          'name',
-          'Only PDF, DOCX and TXT files are supported',
-        ),
+      'txt' => MediaType(
+        'text',
+        'plain',
+      ),
+      _ => throw ArgumentError.value(
+        name,
+        'name',
+        'Only PDF, DOCX and TXT files are supported',
+      ),
     };
 
+    final path = '/api/projects/$projectId/documents';
+
     var snapshot = _snapshot();
+
+    final generation = snapshot.generation;
+
     final expires = authSession.accessExpiresAt;
+
     if (expires != null &&
         expires.isBefore(
-          DateTime.now().toUtc().add(const Duration(seconds: 30)),
+          DateTime.now().toUtc().add(
+            const Duration(seconds: 30),
+          ),
         ) &&
-        _canRefresh('/api/projects/$projectId/documents', snapshot)) {
+        _canRefresh(path, snapshot)) {
       await _refreshOnce(snapshot);
-      if (authSession.generation != snapshot.generation) {
-        throw const ApiException(401, 'Session changed before upload.');
-      }
+
+      _ensureSession(generation);
+
       snapshot = _snapshot();
     }
 
+    _ensureSession(generation);
+
     final request = http.MultipartRequest(
       'POST',
-      _uri('/api/projects/$projectId/documents'),
+      _uri(path),
     );
 
-    request.headers.addAll({
-      'Accept': 'application/json',
-      if (snapshot.accessToken != null)
-        'Authorization': 'Bearer ${snapshot.accessToken}',
-      if (isLocalDemo && !kReleaseMode) 'X-Reqviora-Local-Demo': 'true',
-    });
+    request.headers.addAll(
+      _multipartHeadersFor(snapshot.accessToken),
+    );
 
     request.files.add(
       http.MultipartFile.fromBytes(
@@ -301,36 +499,202 @@ class ApiClient {
       ),
     );
 
-    final response = await _http.send(request);
-    final received = await http.Response.fromStream(response);
+    final received = await _network(() async {
+      final response = await _http.send(request);
 
-    return Map<String, dynamic>.from(_parse(received) as Map);
+      return http.Response.fromStream(response);
+    });
+
+    _ensureSession(generation);
+
+    final result = _parse(received);
+
+    if (result is! Map) {
+      throw ApiException(
+        received.statusCode,
+        'Invalid document upload response.',
+      );
+    }
+
+    return Map<String, dynamic>.from(result);
   }
 
+  // Binary file and ZIP download.
   Future<List<int>> getBytes(String path) async {
-    try {
-      final snapshot = _snapshot();
-      var response = await _http.get(
+    final response = await _sendAuthenticated(
+      path,
+      (accessToken) => _http.get(
         _uri(path),
-        headers: _headersFor(snapshot.accessToken),
+        headers: _headersFor(accessToken),
+      ),
+    );
+
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300) {
+      _parse(response);
+
+      throw ApiException(
+        response.statusCode,
+        'Download failed',
       );
-      if (response.statusCode == 401 &&
-          await _recoverUnauthorized(path, snapshot)) {
-        if (authSession.generation != snapshot.generation) {
-          _parse(response);
-        }
-        response = await _http.get(
-          _uri(path),
-          headers: _headersFor(authSession.token),
-        );
-      }
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        _parse(response);
-        throw ApiException(response.statusCode, 'Download failed');
-      }
-      return response.bodyBytes;
-    } on http.ClientException catch (e) {
-      throw ApiException(0, 'Cannot connect to backend: $e');
+    }
+
+    return response.bodyBytes;
+  }
+
+  // Voice transcription.
+  Future<Map<String, dynamic>> transcribeAudio({
+    required String projectId,
+    required String filename,
+    required Uint8List bytes,
+    required String languageCode,
+    required int durationSeconds,
+    required bool consentGranted,
+  }) async {
+    if (!consentGranted) {
+      throw ArgumentError(
+        'Voice processing consent is required',
+      );
+    }
+
+    if (![
+      'en',
+      'ta',
+      'en-LK',
+      'ta-LK',
+    ].contains(languageCode)) {
+      throw ArgumentError(
+        'Unsupported language',
+      );
+    }
+
+    if (bytes.isEmpty || bytes.length > 25000000) {
+      throw ArgumentError(
+        'Audio must be between 1 byte and 25 MB',
+      );
+    }
+
+    if (durationSeconds < 1 ||
+        durationSeconds > 1800) {
+      throw ArgumentError(
+        'Audio duration must be 1 to 1800 seconds',
+      );
+    }
+
+    final mediaType = switch (
+      filename.split('.').last.toLowerCase()
+    ) {
+      'wav' => MediaType(
+        'audio',
+        'wav',
+      ),
+      'mp3' => MediaType(
+        'audio',
+        'mpeg',
+      ),
+      'm4a' || 'mp4' => MediaType(
+        'audio',
+        'mp4',
+      ),
+      'webm' => MediaType(
+        'audio',
+        'webm',
+      ),
+      _ => throw ArgumentError(
+        'Unsupported audio format',
+      ),
+    };
+
+    final path =
+        '/api/projects/$projectId/input-intelligence/voice/transcribe';
+
+    Future<http.Response> send(
+      String? accessToken,
+    ) async {
+      final request = http.MultipartRequest(
+        'POST',
+        _uri(path),
+      );
+
+      request.headers.addAll(
+        _multipartHeadersFor(accessToken),
+      );
+
+      request.fields.addAll({
+        'LanguageCode': languageCode,
+        'DurationSeconds': durationSeconds.toString(),
+        'ConsentGranted': consentGranted.toString(),
+      });
+
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'Audio',
+          bytes,
+          filename: filename,
+          contentType: mediaType,
+        ),
+      );
+
+      final response = await _http.send(request);
+
+      return http.Response.fromStream(response);
+    }
+
+    final response = await _sendAuthenticated(
+      path,
+      send,
+    );
+
+    final result = _parse(response);
+
+    if (result is! Map) {
+      throw const FormatException(
+        'Invalid transcript response',
+      );
+    }
+
+    return Map<String, dynamic>.from(result);
+  }
+
+  // Registration email verification.
+  Future<void> requestRegistrationVerification(
+    String accessToken,
+  ) async {
+    if (accessToken.trim().isEmpty) {
+      throw const ApiException(
+        401,
+        'Missing registration credential.',
+      );
+    }
+
+    final generation = authSession.generation;
+
+    final response = await _network(
+      () => _http.post(
+        _uri(
+          '/api/account-security/email-verification/request',
+        ),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: jsonEncode(
+          <String, dynamic>{},
+        ),
+      ),
+    );
+
+    _ensureSession(generation);
+
+    _parse(response);
+
+    if (response.statusCode != 202 &&
+        response.statusCode != 204) {
+      throw const ApiException(
+        502,
+        'Unexpected email verification response.',
+      );
     }
   }
 

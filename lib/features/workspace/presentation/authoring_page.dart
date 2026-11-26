@@ -1,10 +1,24 @@
+import 'package:reqviora_frontend/l10n/language_settings.dart';
+import 'v4_blueprint_property_inspector.dart';
+import 'v4_blueprint_selection_panel.dart';
+import '../domain/v4_blueprint_history.dart';
+import 'dart:async';
+import '../../../core/auth/auth_session.dart';
+import '../../../core/config/app_config.dart';
+import '../../projects/data/project_members_repository.dart';
+import '../../projects/presentation/project_members_dialog.dart';
+import '../domain/project_edit_policy.dart';
+import '../domain/screen_access_roles.dart';
+import '../../builder/domain/registry/v4_visibility_rules.dart';
+import '../../builder/domain/registry/v4_interaction_rule_validator.dart';
+import '../../builder/domain/registry/v4_component_layout.dart';
+import 'navigation_graph_editor.dart';
+import '../../../core/network/api_client.dart';
+import '../domain/blueprint_proposal.dart';
 import '../domain/zip_archive_check.dart';
 import '../../builder/domain/registry/component_registry.dart';
-import '../../builder/domain/registry/v4_component_layout.dart';
-import '../../builder/domain/registry/v4_interaction_rule_validator.dart';
-import '../../builder/domain/registry/v4_visibility_rules.dart';
-import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../second_brain/presentation/widgets/second_brain_viewer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
@@ -17,50 +31,181 @@ import '../domain/blueprint_recovery_store.dart';
 import '../domain/navigation_diagnostics.dart';
 import '../domain/draft_conflict.dart';
 import '../domain/feature_coverage.dart';
-import '../domain/screen_access_roles.dart';
 import '../domain/builder_quality_checks.dart';
 import '../domain/theme_accessibility.dart';
 import '../domain/theme_draft_tokens.dart';
 import 'simulated_preview.dart';
-import 'v4_blueprint_selection_panel.dart';
-import 'v4_blueprint_property_inspector.dart';
 import '../domain/local_preview_blueprint.dart';
-import '../domain/v4_blueprint_history.dart';
-import '../domain/approved_revision_session.dart';
 
 /// Service-backed authoring for Builder steps 02-08. All writes are owner-scoped
 /// and carry a draft version. No fake AI/approval states are produced here.
+final builderMemberRoleProvider = FutureProvider.autoDispose
+    .family<ProjectMemberRole?, String>((ref, projectId) async {
+      final actorId = projectMemberActorId(authSession.token);
+
+      if (actorId == null) return null;
+
+      final members = await ref
+          .watch(projectMembersRepositoryProvider)
+          .getMembers(projectId);
+
+      for (final member in members) {
+        if (member.userId.toLowerCase() == actorId.toLowerCase()) {
+          return member.role;
+        }
+      }
+
+      return null;
+    });
+
+class _ReadOnlyBuilder extends StatelessWidget {
+  const _ReadOnlyBuilder({
+    required this.workspace,
+    required this.step,
+    required this.reason,
+  });
+
+  final Workspace workspace;
+  final int step;
+  final String reason;
+
+  @override
+  Widget build(BuildContext context) {
+    final visual = workspace.fields('visualEditorDraft');
+    final canonical = workspace.fields('blueprint');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SurfaceCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const LocalizedSectionTitle('Read-only workspace'),
+              const SizedBox(height: 12),
+              Text(reason),
+              const SizedBox(height: 12),
+              Text('Project: ${workspace.projectName}'),
+              Text('Draft version: ${workspace.version}'),
+              Text('Features: ${workspace.items('features').length}'),
+              Text('Screens: ${workspace.items('screens').length}'),
+              Text('Components: ${workspace.items('components').length}'),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed:
+                    () =>
+                        context.go('/projects/${workspace.projectId}/overview'),
+                icon: const Icon(Icons.arrow_back),
+                label: const LocalizedUiText('Project overview'),
+              ),
+              if (step < 8)
+                OutlinedButton(
+                  onPressed:
+                      () => context.go(
+                        '/projects/${workspace.projectId}/builder/${step + 1}',
+                      ),
+                  child: const LocalizedUiText('Next step'),
+                ),
+            ],
+          ),
+        ),
+        if (visual['screens'] is List) ...[
+          const SizedBox(height: 16),
+          const LocalizedSectionTitle('Saved visual draft'),
+          SafePreview(
+            blueprint: visual,
+            interactionRules: workspace.items('interactions'),
+          ),
+        ] else if (canonical['screens'] is List) ...[
+          const SizedBox(height: 16),
+          const LocalizedSectionTitle('Canonical Blueprint'),
+          SafePreview(blueprint: canonical),
+        ],
+      ],
+    );
+  }
+}
+
 class BuilderAuthoringPage extends ConsumerWidget {
   const BuilderAuthoringPage({
     super.key,
     required this.projectId,
     required this.step,
   });
+
   final String projectId;
   final int step;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ref
-      .watch(workspaceProvider(projectId))
-      .when(
-        loading:
-            () => const Center(
-              child: Padding(
-                padding: EdgeInsets.all(50),
-                child: CircularProgressIndicator(),
-              ),
-            ),
-        error:
-            (e, _) => InlineError(
-              '$e',
-              onRetry: () => ref.invalidate(workspaceProvider(projectId)),
-            ),
-        data:
-            (workspace) => _Content(
-              key: ValueKey('$projectId-$step'),
-              workspace: workspace,
-              step: step,
-            ),
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (step < 2 || step > 8) {
+      return const InlineError('Unsupported Builder step.');
+    }
+
+    final role =
+        isLocalDemo
+            ? const AsyncData<ProjectMemberRole?>(ProjectMemberRole.owner)
+            : ref.watch(builderMemberRoleProvider(projectId));
+
+    return role.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error:
+          (error, stack) => InlineError(
+            'Unable to verify project permissions.',
+            onRetry: () => ref.invalidate(builderMemberRoleProvider(projectId)),
+          ),
+      data: (memberRole) {
+        if (memberRole == null) {
+          return const InlineError('Project membership could not be verified.');
+        }
+
+        return ref
+            .watch(workspaceProvider(projectId))
+            .when(
+              loading:
+                  () => const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(50),
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+              error:
+                  (error, stack) => InlineError(
+                    '$error',
+                    onRetry: () => ref.invalidate(workspaceProvider(projectId)),
+                  ),
+              data: (workspace) {
+                final policy = ProjectEditPolicy(
+                  role: memberRole,
+                  approved: workspace.isApproved,
+                );
+
+                if (!policy.canEditStep(step) &&
+                    !(step == 8 && policy.canAccessReviewHistory)) {
+                  return _ReadOnlyBuilder(
+                    workspace: workspace,
+                    step: step,
+                    reason:
+                        workspace.isApproved
+                            ? 'This draft is approved and cannot be edited.'
+                            : 'Your project role does not allow editing this step.',
+                  );
+                }
+
+                return _Content(
+                  key: ValueKey(
+                    step == 7
+                        ? '$projectId-$step'
+                        : '$projectId-$step-${workspace.version}',
+                  ),
+                  workspace: workspace,
+                  step: step,
+                );
+              },
+            );
+      },
+    );
+  }
 }
 
 class _Content extends ConsumerStatefulWidget {
@@ -208,7 +353,7 @@ class _ContentState extends ConsumerState<_Content> {
               onPressed:
                   () => context.go('/projects/${w.projectId}/builder/${n - 1}'),
               icon: const Icon(Icons.arrow_back),
-              label: const Text('Previous'),
+              label: const LocalizedUiText('Previous'),
             ),
             if (n < 8)
               FilledButton.icon(
@@ -395,9 +540,9 @@ class _ItemEditorState extends State<_ItemEditor> {
     final screens = widget.workspace.items('screens');
 
     if (screens.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Add a screen first')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: LocalizedUiText('Add a screen first')),
+      );
       return;
     }
 
@@ -409,14 +554,18 @@ class _ItemEditorState extends State<_ItemEditor> {
           (dialogContext) => StatefulBuilder(
             builder:
                 (dialogContext, updateDialog) => AlertDialog(
-                  title: const Text('Reuse component on screen'),
+                  title: const LocalizedUiText('Reuse component on screen'),
                   content: DropdownButtonFormField<String>(
                     initialValue:
                         screens.any((screen) => screen['id'] == targetScreenId)
                             ? targetScreenId
                             : null,
-                    decoration: const InputDecoration(
-                      labelText: 'Target screen',
+                    decoration: InputDecoration(
+                      labelText: uiText(
+                        context,
+                        'Target screen',
+                        'இலக்குத் திரை',
+                      ),
                     ),
                     isExpanded: true,
                     items: [
@@ -435,7 +584,7 @@ class _ItemEditorState extends State<_ItemEditor> {
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(dialogContext),
-                      child: const Text('Cancel'),
+                      child: const LocalizedUiText('Cancel'),
                     ),
                     FilledButton(
                       onPressed:
@@ -443,7 +592,7 @@ class _ItemEditorState extends State<_ItemEditor> {
                               ? null
                               : () =>
                                   Navigator.pop(dialogContext, targetScreenId),
-                      child: const Text('Reuse'),
+                      child: const LocalizedUiText('Reuse'),
                     ),
                   ],
                 ),
@@ -486,11 +635,6 @@ class _ItemEditorState extends State<_ItemEditor> {
 
     // Persist first; keep the existing order if saving fails.
     await widget.onSave(widget.section, reordered);
-
-    if (!mounted) return;
-    setState(() {
-      items = reordered;
-    });
   }
 
   Future<void> remove(Map<String, dynamic> item) async {
@@ -498,18 +642,18 @@ class _ItemEditorState extends State<_ItemEditor> {
       context: context,
       builder:
           (c) => AlertDialog(
-            title: const Text('Remove this item?'),
+            title: const LocalizedUiText('Remove this item?'),
             content: const Text(
               'Linked screens/routes/components may become invalid. Validation will flag dependencies.',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(c, false),
-                child: const Text('Cancel'),
+                child: const LocalizedUiText('Cancel'),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(c, true),
-                child: const Text('Remove'),
+                child: const LocalizedUiText('Remove'),
               ),
             ],
           ),
@@ -555,7 +699,7 @@ class _ItemEditorState extends State<_ItemEditor> {
             FilledButton.icon(
               onPressed: () => edit(),
               icon: const Icon(Icons.add, size: 17),
-              label: const Text('Add'),
+              label: const LocalizedUiText('Add'),
             ),
           ],
         ),
@@ -616,6 +760,11 @@ class _ItemEditorState extends State<_ItemEditor> {
           const SizedBox(height: 12),
         ],
         if (widget.type == _ItemType.route) ...[
+          NavigationGraphEditor(
+            key: ValueKey(widget.workspace.projectId),
+            workspace: widget.workspace,
+          ),
+          const SizedBox(height: 16),
           Builder(
             builder: (context) {
               final screens = widget.workspace.items('screens');
@@ -994,7 +1143,9 @@ class _ItemDialogState extends State<_ItemDialog> {
           input('description', 'Description', lines: 3),
           DropdownButtonFormField<String>(
             initialValue: priority,
-            decoration: const InputDecoration(labelText: 'Priority'),
+            decoration: InputDecoration(
+              labelText: uiText(context, 'Priority', 'முன்னுரிமை'),
+            ),
             items:
                 ['Must', 'Should', 'Could', "Won't"]
                     .map((v) => DropdownMenuItem(value: v, child: Text(v)))
@@ -1068,7 +1219,9 @@ class _ItemDialogState extends State<_ItemDialog> {
           ),
           DropdownButtonFormField<String>(
             initialValue: componentType,
-            decoration: const InputDecoration(labelText: 'Component type'),
+            decoration: InputDecoration(
+              labelText: uiText(context, 'Component type', 'கூறின் வகை'),
+            ),
             items:
                 ComponentRegistry.v4ComponentTypes
                     .map((v) => DropdownMenuItem(value: v, child: Text(v)))
@@ -1103,8 +1256,12 @@ class _ItemDialogState extends State<_ItemDialog> {
                   key: ValueKey('parent-$screenId-$validParent'),
                   initialValue: validParent ?? '',
                   isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Parent component',
+                  decoration: InputDecoration(
+                    labelText: uiText(
+                      context,
+                      'Parent component',
+                      'முதன்மைக் கூறு',
+                    ),
                   ),
                   items: [
                     const DropdownMenuItem<String>(
@@ -1134,8 +1291,8 @@ class _ItemDialogState extends State<_ItemDialog> {
             input('placeholder', 'Placeholder'),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Required'),
-              subtitle: const Text('Require a value for this input'),
+              title: const LocalizedUiText('Required'),
+              subtitle: const LocalizedUiText('Require a value for this input'),
               value: componentRequired,
               onChanged: (value) => setState(() => componentRequired = value),
             ),
@@ -1201,7 +1358,13 @@ class _ItemDialogState extends State<_ItemDialog> {
             DropdownButtonFormField<String>(
               key: ValueKey('header-alignment-$componentHeaderAlignment'),
               initialValue: componentHeaderAlignment,
-              decoration: const InputDecoration(labelText: 'Header alignment'),
+              decoration: InputDecoration(
+                labelText: uiText(
+                  context,
+                  'Header alignment',
+                  'தலைப்பு சீரமைப்பு',
+                ),
+              ),
               items: const [
                 DropdownMenuItem(value: 'left', child: Text('Left')),
                 DropdownMenuItem(value: 'center', child: Text('Center')),
@@ -1215,14 +1378,14 @@ class _ItemDialogState extends State<_ItemDialog> {
           if (componentType == 'list')
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Dense layout'),
+              title: const LocalizedUiText('Dense layout'),
               value: componentListDense,
               onChanged: (value) => setState(() => componentListDense = value),
             ),
           if (componentType == 'table')
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Striped rows'),
+              title: const LocalizedUiText('Striped rows'),
               value: componentTableStriped,
               onChanged:
                   (value) => setState(() => componentTableStriped = value),
@@ -1230,8 +1393,8 @@ class _ItemDialogState extends State<_ItemDialog> {
           if (componentType == 'button')
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Enabled'),
-              subtitle: const Text('Allow button interaction'),
+              title: const LocalizedUiText('Enabled'),
+              subtitle: const LocalizedUiText('Allow button interaction'),
               value: componentEnabled,
               onChanged: (value) => setState(() => componentEnabled = value),
             ),
@@ -1244,8 +1407,12 @@ class _ItemDialogState extends State<_ItemDialog> {
           DropdownButtonFormField<String>(
             key: const ValueKey('visibility-mode-selector'),
             initialValue: visibilityMode,
-            decoration: const InputDecoration(
-              labelText: 'Visibility Condition',
+            decoration: InputDecoration(
+              labelText: uiText(
+                context,
+                'Visibility Condition',
+                'காட்சிக்கான நிபந்தனை',
+              ),
             ),
             items: const [
               DropdownMenuItem(value: 'always', child: Text('Always visible')),
@@ -1266,7 +1433,13 @@ class _ItemDialogState extends State<_ItemDialog> {
             DropdownButtonFormField<String>(
               key: const ValueKey('visibility-state-selector'),
               initialValue: visibilityState,
-              decoration: const InputDecoration(labelText: 'Required UI State'),
+              decoration: InputDecoration(
+                labelText: uiText(
+                  context,
+                  'Required UI State',
+                  'தேவையான UI நிலை',
+                ),
+              ),
               items: [
                 for (final value in V4VisibilityRules.states)
                   DropdownMenuItem(value: value, child: Text(value)),
@@ -1308,7 +1481,9 @@ class _ItemDialogState extends State<_ItemDialog> {
                       ? interactionComponentId
                       : null,
               isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Source Component'),
+              decoration: InputDecoration(
+                labelText: uiText(context, 'Source Component', 'மூலக் கூறு'),
+              ),
               items: [
                 const DropdownMenuItem<String>(
                   value: '',
@@ -1341,7 +1516,9 @@ class _ItemDialogState extends State<_ItemDialog> {
                     availableTriggers.contains(interactionTrigger)
                         ? interactionTrigger
                         : null,
-                decoration: const InputDecoration(labelText: 'Trigger'),
+                decoration: InputDecoration(
+                  labelText: uiText(context, 'Trigger', 'தூண்டுதல்'),
+                ),
                 items: [
                   for (final trigger in availableTriggers)
                     DropdownMenuItem(value: trigger, child: Text(trigger)),
@@ -1358,7 +1535,9 @@ class _ItemDialogState extends State<_ItemDialog> {
                         )
                         ? interactionAction
                         : 'navigate',
-                decoration: const InputDecoration(labelText: 'Action'),
+                decoration: InputDecoration(
+                  labelText: uiText(context, 'Action', 'செயல்'),
+                ),
                 items: [
                   for (final action in [
                     'navigate',
@@ -1384,8 +1563,12 @@ class _ItemDialogState extends State<_ItemDialog> {
               if (interactionAction == 'set-state')
                 DropdownButtonFormField<String>(
                   initialValue: interactionTargetState,
-                  decoration: const InputDecoration(
-                    labelText: 'Target UI State',
+                  decoration: InputDecoration(
+                    labelText: uiText(
+                      context,
+                      'Target UI State',
+                      'இலக்கு UI நிலை',
+                    ),
                   ),
                   items: [
                     for (final target in [
@@ -1409,7 +1592,9 @@ class _ItemDialogState extends State<_ItemDialog> {
           ],
           DropdownButtonFormField<String>(
             initialValue: state,
-            decoration: const InputDecoration(labelText: 'UI State'),
+            decoration: InputDecoration(
+              labelText: uiText(context, 'UI State', 'UI நிலை'),
+            ),
             items:
                 [
                       'default',
@@ -1449,7 +1634,7 @@ class _ItemDialogState extends State<_ItemDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: const LocalizedUiText('Cancel'),
         ),
         FilledButton(
           onPressed: () {
@@ -1684,7 +1869,7 @@ class _ItemDialogState extends State<_ItemDialog> {
             }
             Navigator.pop(context, result);
           },
-          child: const Text('Save'),
+          child: const LocalizedUiText('Save'),
         ),
       ],
     );
@@ -1749,7 +1934,7 @@ class _ThemeEditorState extends State<_ThemeEditor> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionTitle(
+          const LocalizedSectionTitle(
             'Brand & theme',
             subtitle: 'Persistent design tokens used by the template renderer.',
           ),
@@ -1887,7 +2072,9 @@ class _ThemeEditorState extends State<_ThemeEditor> {
           const SizedBox(height: 17),
           DropdownButtonFormField<String>(
             initialValue: mode,
-            decoration: const InputDecoration(labelText: 'Color mode'),
+            decoration: InputDecoration(
+              labelText: uiText(context, 'Color mode', 'நிற முறை'),
+            ),
             items:
                 ['light', 'dark', 'system']
                     .map((v) => DropdownMenuItem(value: v, child: Text(v)))
@@ -1912,7 +2099,7 @@ class _ThemeEditorState extends State<_ThemeEditor> {
               );
             },
             icon: const Icon(Icons.save_outlined),
-            label: const Text('Save Theme'),
+            label: const LocalizedUiText('Save Theme'),
           ),
         ],
       ),
@@ -1950,41 +2137,93 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   bool generating = false;
   bool savingDraft = false;
   bool autosaveEnabled = false;
-  Timer? _autosaveTimer;
-  late final WorkspaceRepository _repository;
+
+  late int _editingVersion;
+  int? _savedVersion;
+  Map<String, dynamic>? _savedSnapshot;
+  bool _versionConflict = false;
   final BlueprintRecoveryStore _recoveryStore = BlueprintRecoveryStore();
+  late final int _sessionGeneration;
+  late final String? _recoveryKey;
 
   @override
   void initState() {
     super.initState();
-    _repository = ref.read(workspaceRepositoryProvider);
-    final restored = _recoveryStore.restore(
-      widget.workspace.projectId,
-      widget.workspace.version,
-    );
-    if (restored != null) {
-      draftBlueprint = restored;
-      blueprintHistory = V4BlueprintHistory(restored);
+    _editingVersion = widget.workspace.version;
+    _sessionGeneration = authSession.generation;
+    final actorId = projectMemberActorId(authSession.token);
+    _recoveryKey = isLocalDemo
+        ? 'demo:${widget.workspace.projectId}'
+        : actorId == null
+            ? null
+            : '$actorId:$_sessionGeneration:${widget.workspace.projectId}';
+    final key = _recoveryKey;
+    if (key != null) {
+      final restored = _recoveryStore.restore(key, _editingVersion);
+      if (restored != null) {
+        draftBlueprint = restored;
+        blueprintHistory = V4BlueprintHistory(restored);
+      }
     }
   }
 
   void _persistRecovery() {
+    final key = _recoveryKey;
     final draft = draftBlueprint;
-    if (draft == null) return;
-    _recoveryStore.save(
-      widget.workspace.projectId,
-      widget.workspace.version,
-      draft,
-    );
+    if (key != null && draft != null &&
+        authSession.generation == _sessionGeneration && !_versionConflict) {
+      _recoveryStore.save(key, _editingVersion, draft);
+    }
   }
+
+  void _clearRecovery() {
+    final key = _recoveryKey;
+    if (key != null) _recoveryStore.clear(key);
+  }
+
+  @override
+  void didUpdateWidget(covariant _BlueprintEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final version = widget.workspace.version;
+
+    if (version == oldWidget.workspace.version) return;
+
+    if (version == _savedVersion) {
+      _editingVersion = version;
+      _savedVersion = null;
+      _savedSnapshot = null;
+      return;
+    }
+
+    if (draftBlueprint != null || savingDraft) {
+      _autosaveTimer?.cancel();
+      _versionConflict = true;
+      error =
+          'The workspace changed. Discard local changes and reload before editing.';
+      return;
+    }
+
+    _editingVersion = version;
+    _savedVersion = null;
+    _savedSnapshot = null;
+    _versionConflict = false;
+    blueprintHistory = null;
+    localPreview = null;
+    selectedBlueprintComponentId = null;
+    inspectorRevision++;
+  }
+
+  Timer? _autosaveTimer;
 
   void scheduleAutosave() {
     _persistRecovery();
     _autosaveTimer?.cancel();
-    if (!autosaveEnabled || draftBlueprint == null) return;
+    if (!autosaveEnabled || draftBlueprint == null || _versionConflict) return;
 
     _autosaveTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted && !savingDraft && !generating) {
+      if (mounted && !savingDraft && !generating &&
+          authSession.generation == _sessionGeneration) {
         saveBlueprintDraft();
       }
     });
@@ -1993,23 +2232,6 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   @override
   void dispose() {
     _autosaveTimer?.cancel();
-    final pendingBlueprint = draftBlueprint;
-    if (autosaveEnabled &&
-        pendingBlueprint != null &&
-        !savingDraft &&
-        !generating) {
-      unawaited(
-        _repository
-            .save(
-              widget.workspace.projectId,
-              'blueprint',
-              widget.workspace.version,
-              pendingBlueprint,
-            )
-            .then<void>((_) {})
-            .catchError((Object _) {}),
-      );
-    }
     super.dispose();
   }
 
@@ -2021,7 +2243,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   int inspectorRevision = 0;
 
   void undoBlueprint() {
-    if (savingDraft) return;
+    if (savingDraft || generating || _versionConflict) return;
     final restored = blueprintHistory?.undo();
     if (restored == null) return;
 
@@ -2033,7 +2255,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   }
 
   void redoBlueprint() {
-    if (savingDraft) return;
+    if (savingDraft || generating || _versionConflict) return;
     final restored = blueprintHistory?.redo();
     if (restored == null) return;
 
@@ -2067,7 +2289,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     Map<String, dynamic> blueprint,
     Map<String, dynamic> updated,
   ) {
-    if (savingDraft) return;
+    if (savingDraft || generating || _versionConflict) return;
     final id =
         (updated['componentInstanceId'] ?? updated['id'] ?? '').toString();
     if (id.isEmpty || id != selectedBlueprintComponentId) return;
@@ -2093,7 +2315,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     nextBlueprint['componentInstances'] = components;
     final history =
         blueprintHistory ??= V4BlueprintHistory(
-          widget.workspace.fields('blueprint'),
+          widget.workspace.fields('visualEditorDraft'),
         );
 
     if (!history.record(nextBlueprint)) return;
@@ -2104,11 +2326,70 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     scheduleAutosave();
   }
 
-  Future<void> saveBlueprintDraft() async {
-    final nextBlueprint = draftBlueprint;
-    if (nextBlueprint == null || savingDraft || generating) return;
+  Future<void> discardVisualChanges() async {
+    if (savingDraft || generating || draftBlueprint == null) return;
 
     _autosaveTimer?.cancel();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const LocalizedUiText('Discard unsaved visual changes?'),
+            content: const LocalizedUiText(
+              'Your last saved visual draft will remain unchanged.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const LocalizedUiText('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const LocalizedUiText('Discard changes'),
+              ),
+            ],
+          ),
+    );
+
+    if (!mounted) return;
+
+    if (confirmed != true) {
+      scheduleAutosave();
+      return;
+    }
+
+    _clearRecovery();
+    setState(() {
+      draftBlueprint = null;
+      localPreview = null;
+      blueprintHistory = null;
+      selectedBlueprintComponentId = null;
+      inspectorRevision++;
+      _editingVersion = widget.workspace.version;
+      _savedSnapshot = null;
+      _savedVersion = null;
+      _versionConflict = false;
+      error = null;
+    });
+
+    ref.invalidate(workspaceProvider(widget.workspace.projectId));
+  }
+
+  Future<void> saveBlueprintDraft() async {
+    final nextBlueprint = draftBlueprint;
+
+    if (nextBlueprint == null ||
+        savingDraft ||
+        generating ||
+        _versionConflict ||
+        authSession.generation != _sessionGeneration) {
+      return;
+    }
+
+    _autosaveTimer?.cancel();
+    FocusManager.instance.primaryFocus?.unfocus();
 
     setState(() {
       savingDraft = true;
@@ -2120,19 +2401,20 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
           .read(workspaceRepositoryProvider)
           .save(
             widget.workspace.projectId,
-            'blueprint',
-            widget.workspace.version,
+            'visualEditorDraft',
+            _editingVersion,
             nextBlueprint,
           );
 
       if (!mounted) return;
 
-      _recoveryStore.clear(widget.workspace.projectId);
+      _clearRecovery();
       setState(() {
+        _editingVersion = version;
+        _savedVersion = version;
+        _savedSnapshot = nextBlueprint;
         draftBlueprint = null;
-        blueprintHistory = null;
-        selectedBlueprintComponentId = null;
-        inspectorRevision++;
+        localPreview = null;
       });
 
       ref.invalidate(workspaceProvider(widget.workspace.projectId));
@@ -2140,13 +2422,18 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Blueprint draft saved - v$version (not approved)'),
+          content: Text('Visual editor draft saved - v$version (not approved)'),
         ),
       );
-    } catch (e) {
+    } catch (failure) {
       if (mounted) {
         setState(() {
-          error = 'Blueprint draft was not saved: $e';
+          error = 'Visual editor draft was not saved: $failure';
+
+          if (failure is StateError ||
+              (failure is ApiException && failure.statusCode == 409)) {
+            _versionConflict = true;
+          }
         });
       }
     } finally {
@@ -2156,48 +2443,20 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     }
   }
 
-  Future<void> generatePreview() async {
-    if (savingDraft || generating) return;
-    final currentBlueprint =
-        draftBlueprint ?? widget.workspace.fields('blueprint');
-    final hasExistingDesign =
-        currentBlueprint['screens'] is List &&
-        (currentBlueprint['screens'] as List).isNotEmpty;
-    if (hasExistingDesign) {
-      final replace = await showDialog<bool>(
-        context: context,
-        builder:
-            (dialogContext) => AlertDialog(
-              title: const Text('Replace the current Blueprint draft?'),
-              content: const Text(
-                'Generating again replaces the working preview. You can undo the replacement until it is saved.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('Keep Current'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(true),
-                  child: const Text('Replace Draft'),
-                ),
-              ],
-            ),
-      );
-      if (replace != true || !mounted || savingDraft || generating) return;
+  void generatePreview() {
+    if (savingDraft ||
+        generating ||
+        draftBlueprint != null ||
+        _versionConflict) {
+      return;
     }
     try {
       // Derived from server-loaded Workspace content, not hardcoded DB records.
       final preview = buildLocalPreviewBlueprint(widget.workspace);
-      final history =
-          hasExistingDesign
-              ? (blueprintHistory ?? V4BlueprintHistory(currentBlueprint))
-              : V4BlueprintHistory(preview);
-      if (hasExistingDesign) history.record(preview);
       setState(() {
         localPreview = preview;
-        blueprintHistory = history;
-        draftBlueprint = history.current;
+        draftBlueprint = preview;
+        blueprintHistory = V4BlueprintHistory(preview);
         selectedBlueprintComponentId = null;
         inspectorRevision++;
         error = null;
@@ -2211,15 +2470,576 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     }
   }
 
+  Future<void> regenerateBlueprint() async {
+    if (generating ||
+        savingDraft ||
+        draftBlueprint != null ||
+        _versionConflict) {
+      return;
+    }
+
+    final projectId = widget.workspace.projectId;
+    final workspaceRepository = ref.read(workspaceRepositoryProvider);
+    final repository = ref.read(aiIntelligenceRepositoryProvider);
+
+    setState(() {
+      generating = true;
+      error = null;
+    });
+
+    try {
+      final current = Map<String, dynamic>.from(
+        await workspaceRepository.api.get(
+              '/api/projects/$projectId/drafts/current',
+            )
+            as Map,
+      );
+
+      if (!mounted) return;
+
+      if (current['version'] != widget.workspace.version) {
+        throw StateError('Workspace changed. Reload and retry.');
+      }
+
+      final token = current['concurrencyToken'];
+
+      final saved = Map<String, dynamic>.from(
+        await workspaceRepository.api.get(
+              '/api/projects/$projectId/blueprints/current',
+            )
+            as Map,
+      );
+
+      if (!mounted) return;
+
+      if (saved['version'] != current['version']) {
+        throw StateError('Blueprint version changed. Reload and retry.');
+      }
+
+      final blueprint = saved['blueprint'];
+
+      if (blueprint is! Map || blueprint.isEmpty) {
+        throw StateError('Generate a saved Blueprint first.');
+      }
+
+      final revision = blueprint['revision'];
+
+      if (token is! String ||
+          token.isEmpty ||
+          revision is! int ||
+          revision < 1) {
+        throw StateError('Invalid saved Blueprint revision.');
+      }
+
+      List<String> ids(String section) {
+        final rows = blueprint[section];
+
+        if (rows is! List) {
+          throw StateError('Missing Blueprint section: $section');
+        }
+
+        return rows.map((row) {
+          if (row is! Map ||
+              row['id'] is! String ||
+              (row['id'] as String).isEmpty) {
+            throw StateError('Invalid protected $section identifier');
+          }
+
+          return row['id'] as String;
+        }).toList();
+      }
+
+      final featureIds = ids('features');
+      final screenIds = ids('screens');
+      final componentIds = ids('components');
+
+      var instructions = '';
+      var language = 'en';
+      var consent = false;
+
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder:
+            (dialogContext) => StatefulBuilder(
+              builder:
+                  (context, update) => AlertDialog(
+                    title: const LocalizedUiText('Safe AI Regeneration'),
+                    content: SizedBox(
+                      width: 520,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Current Blueprint revision: $revision'),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Protected: ${featureIds.length} features, '
+                              '${screenIds.length} screens and '
+                              '${componentIds.length} components.',
+                            ),
+                            const SizedBox(height: 12),
+                            DropdownButtonFormField<String>(
+                              initialValue: language,
+                              decoration: InputDecoration(
+                                labelText: uiText(
+                                  context,
+                                  'AI instruction language',
+                                  'AI வழிமுறை மொழி',
+                                ),
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'en',
+                                  child: Text('English'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'ta',
+                                  child: Text('Tamil'),
+                                ),
+                              ],
+                              onChanged:
+                                  (value) => update(() {
+                                    language = value ?? 'en';
+                                    consent = false;
+                                  }),
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              maxLength: 4000,
+                              minLines: 3,
+                              maxLines: 6,
+                              onChanged:
+                                  (value) => update(() {
+                                    instructions = value;
+                                  }),
+                              decoration: InputDecoration(
+                                labelText: uiText(
+                                  context,
+                                  'Regeneration instructions',
+                                  'மீள் உருவாக்க வழிமுறைகள்',
+                                ),
+                                hintText:
+                                    'Describe the requested design improvements',
+                              ),
+                            ),
+                            CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              value: consent,
+                              onChanged:
+                                  (value) => update(() {
+                                    consent = value ?? false;
+                                  }),
+                              title: const LocalizedUiText(
+                                'I consent to AI processing of this Blueprint.',
+                              ),
+                            ),
+                            const Text(
+                              'The server validates the regenerated draft. '
+                              'This action does not approve the design.',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        child: const LocalizedUiText('Cancel'),
+                      ),
+                      FilledButton(
+                        onPressed:
+                            !consent || instructions.trim().isEmpty
+                                ? null
+                                : () => Navigator.pop(dialogContext, true),
+                        child: const LocalizedUiText('Regenerate'),
+                      ),
+                    ],
+                  ),
+            ),
+      );
+
+      if (!mounted || accepted != true) return;
+
+      final response = await repository.regenerateBlueprint(
+        projectId: projectId,
+        expectedConcurrencyToken: token,
+        expectedRevision: revision,
+        languageCode: language,
+        instructions: instructions.trim(),
+        consentGranted: consent,
+        protectedFeatureIds: featureIds,
+        protectedScreenIds: screenIds,
+        protectedComponentIds: componentIds,
+      );
+
+      if (!mounted) return;
+
+      if (response['applied'] == false) {
+        setState(() {
+          error =
+              'Regeneration was not applied: '
+              '${response['reason'] ?? 'Server validation rejected the proposal'}';
+        });
+        return;
+      }
+
+      if (response['applied'] != true || response['blueprint'] is! Map) {
+        throw const FormatException('Invalid regeneration response.');
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Regenerated Blueprint saved - '
+            'draft v${response['draftVersion']}',
+          ),
+        ),
+      );
+
+      ref.invalidate(projectValidationProvider(projectId));
+      ref.invalidate(workspaceProvider(projectId));
+    } catch (failure) {
+      if (!mounted) return;
+
+      setState(() {
+        if (failure is ApiException && failure.statusCode == 503) {
+          error = 'AI provider is unavailable or awaiting approval.';
+        } else if (failure is ApiException && failure.statusCode == 409) {
+          error = 'Blueprint changed. Reload before regenerating.';
+        } else {
+          error = failure.toString();
+        }
+      });
+    } finally {
+      if (mounted) {
+        setState(() => generating = false);
+      }
+    }
+  }
+
+  Future<void> compileBlueprint() async {
+    if (generating || savingDraft || draftBlueprint != null) return;
+
+    setState(() {
+      generating = true;
+      error = null;
+    });
+
+    try {
+      final workspace = widget.workspace;
+      final projectId = workspace.projectId;
+      final repository = ref.read(aiIntelligenceRepositoryProvider);
+      final workspaceRepository = ref.read(workspaceRepositoryProvider);
+
+      final latest = await workspaceRepository.load(projectId);
+
+      if (!mounted) return;
+
+      if (latest.version != workspace.version) {
+        throw StateError('Workspace changed. Reload before generating.');
+      }
+
+      final confirmed = <String, Map<String, dynamic>>{};
+
+      for (final candidate in latest.items('aiCandidates')) {
+        final id = candidate['id']?.toString() ?? '';
+
+        if (id.isEmpty) continue;
+
+        Map<String, dynamic> review;
+
+        try {
+          review = await repository.getReview(projectId, id);
+        } on ApiException catch (failure) {
+          if (failure.statusCode == 404) continue;
+          rethrow;
+        }
+
+        final status = review['status']?.toString().toLowerCase();
+
+        if (status == 'confirmed' || status == '1') {
+          confirmed[id] = review;
+        }
+      }
+
+      if (!mounted) return;
+
+      if (confirmed.isEmpty) {
+        throw StateError(
+          'Confirm requirements through the server review workflow first.',
+        );
+      }
+
+      final features = latest.items('features');
+      final screens = latest.items('screens');
+      final components = latest.items('components');
+      final routes = latest.items('routes');
+
+      if (features.isEmpty || screens.isEmpty) {
+        throw StateError('Add features and screens in Builder Step 02.');
+      }
+
+      final featureMappings = <String, List<String>>{};
+      final routeMappings = <String, String>{};
+
+      final screenNames = {
+        for (final screen in screens)
+          screen['id'].toString(): screen['name'].toString(),
+      };
+
+      final proposal = await showDialog<BlueprintProposal>(
+        context: context,
+        builder: (dialogContext) {
+          String? mappingError;
+
+          return StatefulBuilder(
+            builder: (context, update) {
+              return AlertDialog(
+                title: const LocalizedUiText('Generate Blueprint'),
+                content: SizedBox(
+                  width: 650,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${confirmed.length} server-confirmed requirements',
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Map each feature to its confirmed requirements.',
+                        ),
+                        for (final feature in features) ...[
+                          const Divider(height: 24),
+                          Text(
+                            feature['name'].toString(),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final entry in confirmed.entries)
+                                FilterChip(
+                                  label: Text(
+                                    '${entry.key}: ${entry.value['title'] ?? ''}',
+                                  ),
+                                  selected:
+                                      featureMappings[feature['id'].toString()]
+                                          ?.contains(entry.key) ??
+                                      false,
+                                  onSelected: (selected) {
+                                    update(() {
+                                      final mapped = featureMappings
+                                          .putIfAbsent(
+                                            feature['id'].toString(),
+                                            () => <String>[],
+                                          );
+
+                                      if (selected) {
+                                        mapped.add(entry.key);
+                                      } else {
+                                        mapped.remove(entry.key);
+                                      }
+
+                                      mappingError = null;
+                                    });
+                                  },
+                                ),
+                            ],
+                          ),
+                        ],
+                        if (routes.isNotEmpty) ...[
+                          const Divider(height: 28),
+                          const Text(
+                            'Map navigation routes to source buttons.',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                        for (final route in routes) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            '${screenNames[route['fromScreenId']] ?? 'Missing source'}'
+                            ' -> '
+                            '${screenNames[route['toScreenId']] ?? 'Missing target'}',
+                          ),
+                          DropdownButtonFormField<String>(
+                            initialValue: routeMappings[route['id'].toString()],
+                            isExpanded: true,
+                            decoration: InputDecoration(
+                              labelText: uiText(
+                                context,
+                                'Navigation button',
+                                'வழிசெலுத்தல் பொத்தான்',
+                              ),
+                            ),
+                            items: [
+                              for (final component in components)
+                                if (component['type'] == 'button' &&
+                                    component['screenId'] ==
+                                        route['fromScreenId'])
+                                  DropdownMenuItem<String>(
+                                    value: component['id'].toString(),
+                                    child: Text(
+                                      (component['label'] ?? component['id'])
+                                          .toString(),
+                                    ),
+                                  ),
+                            ],
+                            onChanged: (value) {
+                              update(() {
+                                if (value != null) {
+                                  routeMappings[route['id'].toString()] = value;
+                                }
+
+                                mappingError = null;
+                              });
+                            },
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        const Text(
+                          'This generates a draft Blueprint, not an approved design.',
+                        ),
+                        if (mappingError != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            mappingError!,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const LocalizedUiText('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () {
+                      try {
+                        final result = BlueprintProposal.fromWorkspace(
+                          workspace: latest,
+                          confirmedRequirementIds: confirmed.keys.toSet(),
+                          featureRequirementIds: featureMappings,
+                          routeComponentIds: routeMappings,
+                        );
+
+                        Navigator.pop(dialogContext, result);
+                      } catch (failure) {
+                        update(() {
+                          mappingError = failure.toString();
+                        });
+                      }
+                    },
+                    child: const LocalizedUiText('Generate & save'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+
+      if (!mounted || proposal == null) return;
+
+      final current = Map<String, dynamic>.from(
+        await workspaceRepository.api.get(
+              '/api/projects/$projectId/drafts/current',
+            )
+            as Map,
+      );
+
+      if (!mounted) return;
+
+      final currentVersion = (current['version'] as num?)?.toInt();
+
+      if (currentVersion != latest.version) {
+        throw StateError('Draft changed during mapping. Reload and retry.');
+      }
+
+      final token = current['concurrencyToken'];
+
+      if (token is! String || token.isEmpty) {
+        throw StateError('Missing draft concurrency token.');
+      }
+
+      final draft = Map<String, dynamic>.from(current['draft'] as Map? ?? {});
+
+      final sections = Map<String, dynamic>.from(
+        draft['sections'] as Map? ?? draft,
+      );
+
+      final existing = sections['blueprint'] ?? draft['blueprint'];
+
+      String blueprintId;
+
+      if (existing is Map && existing.isNotEmpty) {
+        final id = existing['blueprintId'];
+
+        if (id is! String || id.isEmpty) {
+          throw StateError('Existing Blueprint identity is missing.');
+        }
+
+        blueprintId = id;
+      } else {
+        blueprintId = BlueprintProposal.contractId('BP', projectId);
+      }
+
+      final response = await repository.generateBlueprint(
+        projectId: projectId,
+        expectedConcurrencyToken: token,
+        blueprintId: blueprintId,
+        confirmedRequirementIds: proposal.confirmedRequirementIds,
+        features: proposal.features,
+        screens: proposal.screens,
+        components: proposal.components,
+        actions: proposal.actions,
+        navigation: proposal.navigation,
+      );
+
+      if (!mounted) return;
+
+      if (response['applied'] != true || response['blueprint'] is! Map) {
+        throw StateError(
+          'Server did not apply Blueprint generation: '
+          '${response['reason'] ?? 'Unknown response'}',
+        );
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Blueprint saved - draft v${response['draftVersion']}'),
+        ),
+      );
+
+      ref.invalidate(projectValidationProvider(projectId));
+      ref.invalidate(workspaceProvider(projectId));
+    } catch (failure) {
+      if (mounted) {
+        setState(() => error = failure.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => generating = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final savedBlueprint = widget.workspace.fields('blueprint');
+    final savedBlueprint =
+        _savedSnapshot ?? widget.workspace.fields('visualEditorDraft');
     final visibleBlueprint = draftBlueprint ?? savedBlueprint;
     final hasCompiledBlueprint = visibleBlueprint['screens'] is List;
     final interactionRules = widget.workspace.items('interactions');
 
     if (hasCompiledBlueprint) {
-      blueprintHistory ??= V4BlueprintHistory(savedBlueprint);
+      blueprintHistory ??= V4BlueprintHistory(visibleBlueprint);
     }
 
     return Column(
@@ -2229,7 +3049,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SectionTitle(
+              const LocalizedSectionTitle(
                 'Blueprint & UI Studio',
                 subtitle:
                     'Preview server-loaded Builder data or compile a Blueprint through the backend.',
@@ -2241,7 +3061,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                 children: [
                   FilterChip(
                     key: const ValueKey('step07-autosave-toggle'),
-                    label: const Text('Autosave (2s)'),
+                    label: const LocalizedUiText('Autosave (2s)'),
                     selected: autosaveEnabled,
                     onSelected:
                         savingDraft || generating
@@ -2256,12 +3076,23 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                             },
                   ),
                   OutlinedButton.icon(
-                    onPressed: generating || savingDraft || draftBlueprint != null
-                      ? null
-                      : generatePreview,
+                    onPressed:
+                        generating || savingDraft || draftBlueprint != null
+                            ? null
+                            : (_versionConflict ? null : generatePreview),
                     icon: const Icon(Icons.visibility_outlined),
-                    label: const Text('Generate Local Preview'),
+                    label: const LocalizedUiText('Generate Local Preview'),
                   ),
+                  if (draftBlueprint != null)
+                    OutlinedButton.icon(
+                      key: const ValueKey('step07-discard-button'),
+                      onPressed:
+                          savingDraft || generating
+                              ? null
+                              : discardVisualChanges,
+                      icon: const Icon(Icons.restore),
+                      label: const LocalizedUiText('Discard Changes'),
+                    ),
                   if (draftBlueprint != null)
                     FilledButton.icon(
                       key: const ValueKey('step07-save-draft-button'),
@@ -2269,26 +3100,31 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                           savingDraft || generating ? null : saveBlueprintDraft,
                       icon: const Icon(Icons.save_outlined),
                       label: Text(
-                        savingDraft
-                            ? 'Saving Draft...'
-                            : 'Save Blueprint Draft',
+                        savingDraft ? 'Saving Draft...' : 'Save Visual Draft',
                       ),
                     ),
                   FilledButton.icon(
-                    onPressed: null,
+                    onPressed:
+                        generating || savingDraft || draftBlueprint != null
+                            ? null
+                            : compileBlueprint,
                     icon: const Icon(Icons.auto_awesome),
-                    label: Text(
-                      generating
-                          ? 'Compiling...'
-                          : 'Server Compilation Unavailable',
-                    ),
+                    label: const LocalizedUiText('Generate & Save Blueprint'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed:
+                        generating || savingDraft || draftBlueprint != null
+                            ? null
+                            : regenerateBlueprint,
+                    icon: const Icon(Icons.auto_awesome),
+                    label: const LocalizedUiText('Safe AI Regeneration'),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
               const Text(
-                'Generate a local draft, edit it, then save using Save Blueprint Draft. '
-                'Server compilation is unavailable; a saved draft is not an approved revision.',
+                'Generate and edit a visual draft separately from the backend Blueprint. '
+                'Visual draft changes do not modify or approve the canonical Blueprint.',
                 style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
               if (error != null) ...[
@@ -2300,7 +3136,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
         ),
         if (localPreview != null && draftBlueprint == null) ...[
           const SizedBox(height: 16),
-          const SectionTitle('Local simulation - not validated'),
+          const LocalizedSectionTitle('Local simulation - not validated'),
           const SizedBox(height: 8),
           SafePreview(
             key: ObjectKey(localPreview),
@@ -2309,7 +3145,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
           ),
         ],
         const SizedBox(height: 16),
-        const SectionTitle('Blueprint Workspace'),
+        const LocalizedSectionTitle('Visual Design Workspace'),
         const SizedBox(height: 8),
         if (hasCompiledBlueprint) ...[
           Wrap(
@@ -2319,16 +3155,26 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
               OutlinedButton.icon(
                 key: const ValueKey('step07-undo-button'),
                 onPressed:
-                    blueprintHistory?.canUndo == true ? undoBlueprint : null,
+                    !savingDraft &&
+                            !generating &&
+                            !_versionConflict &&
+                            blueprintHistory?.canUndo == true
+                        ? undoBlueprint
+                        : null,
                 icon: const Icon(Icons.undo),
-                label: const Text('Undo'),
+                label: const LocalizedUiText('Undo'),
               ),
               OutlinedButton.icon(
                 key: const ValueKey('step07-redo-button'),
                 onPressed:
-                    blueprintHistory?.canRedo == true ? redoBlueprint : null,
+                    !savingDraft &&
+                            !generating &&
+                            !_versionConflict &&
+                            blueprintHistory?.canRedo == true
+                        ? redoBlueprint
+                        : null,
                 icon: const Icon(Icons.redo),
-                label: const Text('Redo'),
+                label: const LocalizedUiText('Redo'),
               ),
             ],
           ),
@@ -2345,14 +3191,20 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
           if (selectedBlueprintComponentId != null) ...[
             const SizedBox(height: 12),
             SurfaceCard(
-              child: V4BlueprintPropertyInspector(
-                key: ValueKey(
-                  'step07-inspector-$inspectorRevision-$selectedBlueprintComponentId',
+              child: IgnorePointer(
+                ignoring: savingDraft || generating || _versionConflict,
+                child: ExcludeFocus(
+                  excluding: savingDraft || generating || _versionConflict,
+                  child: V4BlueprintPropertyInspector(
+                    key: ValueKey(
+                      'step07-inspector-$inspectorRevision-$selectedBlueprintComponentId',
+                    ),
+                    component: selectedComponent(visibleBlueprint),
+                    onChanged: (updated) {
+                      updateDraftComponent(visibleBlueprint, updated);
+                    },
+                  ),
                 ),
-                component: selectedComponent(visibleBlueprint),
-                onChanged: (updated) {
-                  updateDraftComponent(visibleBlueprint, updated);
-                },
               ),
             ),
           ],
@@ -2389,353 +3241,540 @@ class _ValidationEditor extends ConsumerStatefulWidget {
 }
 
 class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
-  bool validating = false;
-  bool exporting = false;
-  bool approving = false;
-  String? approvedRevisionId;
-  Map<String, dynamic>? result;
+  bool busy = false;
   String? error;
+  String? message;
+  String? validationToken;
+
+  Map<String, dynamic>? result;
+
+  List<Map<String, dynamic>> revisions = [];
+  List<Map<String, dynamic>> exports = [];
+
+  String get projectId => widget.workspace.projectId;
 
   @override
   void initState() {
     super.initState();
-    approvedRevisionId = approvedRevisionSession.read(
-      widget.workspace.projectId,
-      widget.workspace.version,
-    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) loadHistory();
+    });
   }
 
   @override
   void didUpdateWidget(covariant _ValidationEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.workspace.projectId != widget.workspace.projectId ||
-        oldWidget.workspace.version != widget.workspace.version) {
-      approvedRevisionId = approvedRevisionSession.read(
-        widget.workspace.projectId,
-        widget.workspace.version,
-      );
+
+    if (oldWidget.workspace.version != widget.workspace.version ||
+        oldWidget.workspace.projectId != projectId) {
       result = null;
+      validationToken = null;
+    }
+
+    if (oldWidget.workspace.projectId != projectId) {
+      revisions = [];
+      exports = [];
     }
   }
 
-  Future<void> runValidation() async {
-    setState(() {
-      validating = true;
-      error = null;
-      result = null;
-    });
-    try {
-      final response = await ref
-          .read(workspaceRepositoryProvider)
-          .validate(widget.workspace.projectId);
-      if (mounted) setState(() => result = response);
-    } catch (e) {
-      if (mounted) setState(() => error = e.toString());
-    } finally {
-      if (mounted) setState(() => validating = false);
-    }
+  Future<Map<String, dynamic>> currentDraft() async {
+    final repository = ref.read(workspaceRepositoryProvider);
+
+    return Map<String, dynamic>.from(
+      await repository.api.get('/api/projects/$projectId/drafts/current')
+          as Map,
+    );
   }
 
-  Future<void> exportOfficialRevision() async {
-    final revisionId = approvedRevisionId;
-
-    if (revisionId == null ||
-        revisionId.isEmpty ||
-        exporting ||
-        approving ||
-        validating) {
-      return;
+  String describeError(Object failure) {
+    if (failure is ApiException) {
+      switch (failure.statusCode) {
+        case 401:
+          return 'Session expired. Sign in again.';
+        case 403:
+          return 'You do not have permission for this operation.';
+        case 409:
+          return 'The draft has changed or is already approved. Reload and retry.';
+        case 404:
+          return 'The requested revision or draft was not found.';
+      }
     }
 
+    return failure.toString();
+  }
+
+  Future<void> execute(Future<void> Function() operation) async {
+    if (busy) return;
+
     setState(() {
-      exporting = true;
+      busy = true;
       error = null;
+      message = null;
     });
 
     try {
-      final repository = ref.read(workspaceRepositoryProvider);
-
-      final metadata = await repository.createOfficialExport(
-        widget.workspace.projectId,
-        revisionId,
-      );
-
-      final exportId = metadata['exportId'];
-
-      if (exportId is! String || exportId.isEmpty) {
-        throw StateError('Backend returned no official export ID.');
-      }
-
-      final bytes = await repository.downloadOfficialExport(
-        widget.workspace.projectId,
-        exportId,
-      );
-
-      if (!isStructurallyValidZip(bytes)) {
-        throw StateError(
-          'Backend did not return a valid ZIP header or archive structure.',
-        );
-      }
-
-      if (!mounted) return;
-
-      ref
-          .read(downloadPortProvider)
-          .saveZip(
-            'reqviora-${widget.workspace.projectId}-$revisionId.zip',
-            bytes,
-          );
-    } catch (e) {
+      await operation();
+    } catch (failure) {
       if (mounted) {
-        setState(() => error = e.toString());
+        setState(() => error = describeError(failure));
       }
     } finally {
       if (mounted) {
-        setState(() => exporting = false);
+        setState(() => busy = false);
       }
     }
   }
 
-  Future<void> approveValidated() async {
+  Future<void> refreshHistory() async {
+    final repository = ref.read(approvalExportRepositoryProvider);
+
+    final approved = await repository.getRevisions(projectId);
+
+    if (!mounted) return;
+
+    setState(() => revisions = approved);
+
+    try {
+      final records = await repository.getExports(projectId);
+
+      if (mounted) {
+        setState(() => exports = records);
+      }
+    } on ApiException catch (failure) {
+      if (failure.statusCode != 403) rethrow;
+
+      if (mounted) {
+        setState(() {
+          exports = [];
+          message = 'Export records are available to project owners.';
+        });
+      }
+    }
+  }
+
+  Future<void> loadHistory() => execute(refreshHistory);
+
+  Future<void> runValidation() => execute(() async {
+    if (widget.workspace.isApproved) {
+      throw StateError('This draft is already approved.');
+    }
+    setState(() {
+      result = null;
+      validationToken = null;
+    });
+
+    final current = await currentDraft();
+
+    if (!mounted) return;
+
+    if (current['version'] != widget.workspace.version) {
+      throw StateError('Workspace changed. Reload before validation.');
+    }
+
+    final token = current['concurrencyToken'];
+
+    if (token is! String || token.isEmpty) {
+      throw StateError('Save the current draft before validation.');
+    }
+
+    final repository = ref.read(workspaceRepositoryProvider);
+
+    final response = Map<String, dynamic>.from(
+      await repository.api.post(
+            '/api/projects/$projectId/blueprints/validate',
+            {'expectedConcurrencyToken': token},
+          )
+          as Map,
+    );
+
+    if (response['id'] is! String ||
+        response['draftVersionId'] is! String ||
+        response['passed'] is! bool ||
+        response['findings'] is! List) {
+      throw const FormatException('Invalid validation response');
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      result = response;
+      validationToken = token;
+      message =
+          response['passed'] == true
+              ? 'Backend validation passed.'
+              : 'Validation failed. Resolve the findings before approval.';
+    });
+  });
+
+  Future<void> approveDraft() => execute(() async {
+    if (widget.workspace.isApproved) {
+      throw StateError('This draft is already approved.');
+    }
     final validation = result;
+    final token = validationToken;
 
     if (validation?['passed'] != true ||
         validation?['id'] is! String ||
-        (validation!['id'] as String).isEmpty ||
-        approving ||
-        approvedRevisionId != null) {
-      return;
+        token == null) {
+      throw StateError('Successful validation is required.');
     }
 
-    final validationId = validation['id'] as String;
+    final current = await currentDraft();
+
+    if (!mounted) return;
+
+    if (current['approvedRevisionId'] != null) {
+      throw StateError('This draft is already approved.');
+    }
+
+    if (current['concurrencyToken'] != token ||
+        current['version'] != widget.workspace.version) {
+      setState(() {
+        result = null;
+        validationToken = null;
+      });
+
+      throw StateError('Draft changed. Run validation again.');
+    }
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
           (dialogContext) => AlertDialog(
-            title: const Text('Approve Blueprint revision?'),
+            title: const LocalizedUiText('Approve validated design?'),
             content: const Text(
-              'Approval creates an immutable revision of the validated draft. '
-              'Confirm only after reviewing the design and validation findings.',
+              'Approval creates an immutable revision of the current '
+              'validated Blueprint. Confirm only after reviewing the design.',
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('Cancel'),
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const LocalizedUiText('Cancel'),
               ),
               FilledButton(
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                child: const Text('Confirm Approval'),
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const LocalizedUiText('Approve design'),
               ),
             ],
           ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (!mounted || confirmed != true) return;
+
+    final repository = ref.read(approvalExportRepositoryProvider);
+
+    final receipt = await repository.approve(
+      projectId: projectId,
+      expectedConcurrencyToken: token,
+      validationRunId: validation!['id'] as String,
+      explicitlyConfirmed: true,
+    );
+
+    if (receipt['revisionId'] is! String ||
+        receipt['validationRunId'] != validation['id']) {
+      throw const FormatException('Invalid approval receipt');
+    }
+
+    if (!mounted) return;
 
     setState(() {
-      approving = true;
-      error = null;
+      result = null;
+      validationToken = null;
+      message = 'Approved revision created successfully.';
     });
 
-    try {
-      final approved = await ref
-          .read(workspaceRepositoryProvider)
-          .approveValidatedDraft(
-            widget.workspace.projectId,
-            widget.workspace.version,
-            validationId,
-          );
+    ref.invalidate(workspaceProvider(projectId));
+    ref.invalidate(projectValidationProvider(projectId));
 
-      final revisionId = approved['revisionId'];
+    await refreshHistory();
+  });
 
-      if (revisionId is! String || revisionId.isEmpty) {
-        throw StateError('Backend returned no approved revision ID.');
-      }
+  Future<void> inspectRevision(String revisionId) => execute(() async {
+    final repository = ref.read(approvalExportRepositoryProvider);
 
-      if (mounted) {
-        approvedRevisionSession.remember(
-          widget.workspace.projectId,
-          widget.workspace.version,
-          revisionId,
-        );
-        setState(() => approvedRevisionId = revisionId);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => error = e.toString());
-      }
-    } finally {
-      if (mounted) setState(() => approving = false);
+    final revision = await repository.getRevision(projectId, revisionId);
+
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const LocalizedUiText('Approved revision details'),
+            content: SingleChildScrollView(
+              child: SelectableText(
+                'Revision: ${revision['revisionId']}\n'
+                'Draft version: ${revision['draftVersion']}\n'
+                'Approved at: ${revision['approvedAt']}\n'
+                'Approved by: ${revision['approvedBy']}\n'
+                'Validation: ${revision['validationRunId']}',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const LocalizedUiText('Close'),
+              ),
+            ],
+          ),
+    );
+  });
+
+  Future<void> createExport(String revisionId) => execute(() async {
+    final repository = ref.read(approvalExportRepositoryProvider);
+
+    final receipt = await repository.createExport(projectId, revisionId);
+
+    if (receipt['exportId'] is! String ||
+        receipt['approvedRevisionId'] != revisionId) {
+      throw const FormatException('Invalid export receipt');
     }
-  }
+
+    if (!mounted) return;
+
+    setState(() {
+      message = 'Official export is ready for download.';
+    });
+
+    await refreshHistory();
+  });
+
+  Future<void> downloadExport(String exportId) => execute(() async {
+    final repository = ref.read(approvalExportRepositoryProvider);
+
+    final metadata = await repository.getExport(projectId, exportId);
+
+    if (metadata['exportId'] != exportId) {
+      throw const FormatException('Export identity mismatch');
+    }
+
+    final bytes = await repository.downloadExport(projectId, exportId);
+
+    if (metadata['archiveBytes'] is! int ||
+        metadata['archiveBytes'] != bytes.length) {
+      throw const FormatException('Archive size mismatch');
+    }
+
+    if (!isStructurallyValidZip(bytes)) {
+      throw const FormatException('Invalid ZIP archive structure');
+    }
+
+    if (!mounted) return;
+
+    ref.read(downloadPortProvider).saveZip('reqviora-$exportId.zip', bytes);
+
+    setState(() {
+      message = 'Official archive sent to browser download.';
+    });
+  });
 
   @override
   Widget build(BuildContext context) {
     final current = result;
+    final passed = current?['passed'] == true;
+
     final findings =
-        (current?['findings'] as List? ?? [])
-            .whereType<Map>()
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList();
-    final blockers = current?['blockers'];
-    final advisories = current?['advisories'];
-    final hasValidation = current != null;
-    final backendPassed = current?['passed'];
-    final validationId = current?['id'];
-    final hasBlockers =
-        backendPassed == false ||
-        (backendPassed == null && blockers is num && blockers > 0);
-    final validationReady =
-        backendPassed == true ||
-        (backendPassed == null &&
-            hasValidation &&
-            blockers is num &&
-            blockers == 0);
+        (current?['findings'] as List? ?? []).whereType<Map>().toList();
 
     return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionTitle(
-            'Review & Validation',
-            subtitle: 'Run backend validation for the saved draft.',
+          const LocalizedSectionTitle(
+            'Review, Approval & Export',
+            subtitle:
+                'Validate the current design and manage approved revisions.',
           ),
           const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed:
-                validating ||
-                        exporting ||
-                        approving ||
-                        approvedRevisionId != null
-                    ? null
-                    : runValidation,
-            icon: const Icon(Icons.fact_check_outlined),
-            label: Text(
-              validating ? 'Validating...' : 'Run Backend Validation',
-            ),
+
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              FilledButton.icon(
+                key: const ValueKey('step08-validation-button'),
+                onPressed:
+                    busy || widget.workspace.isApproved ? null : runValidation,
+                icon: const Icon(Icons.fact_check_outlined),
+                label: const LocalizedUiText('Run Backend Validation'),
+              ),
+              FilledButton.icon(
+                key: const ValueKey('step08-approve-button'),
+                onPressed:
+                    busy ||
+                            widget.workspace.isApproved ||
+                            !passed ||
+                            validationToken == null
+                        ? null
+                        : approveDraft,
+                icon: const Icon(Icons.verified_outlined),
+                label: const LocalizedUiText('Approve Design'),
+              ),
+              OutlinedButton.icon(
+                onPressed: busy ? null : loadHistory,
+                icon: const Icon(Icons.refresh),
+                label: const LocalizedUiText('Refresh History'),
+              ),
+            ],
           ),
+
+          if (busy) ...[
+            const SizedBox(height: 12),
+            const LinearProgressIndicator(),
+          ],
+
           const SizedBox(height: 12),
-          if (validating)
-            const LinearProgressIndicator()
-          else if (current == null)
-            const Text('Validation has not been completed.')
+
+          if (current == null)
+            const LocalizedUiText(
+              'Run validation before approving this design.',
+            )
           else ...[
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                if (backendPassed is bool)
-                  SmallLabel(
-                    backendPassed
-                        ? 'Backend validation passed'
-                        : 'Backend validation failed',
-                    color:
-                        backendPassed
-                            ? AppColors.green
-                            : const Color(0xFFCA5161),
-                  ),
-                if (blockers is int)
-                  SmallLabel(
-                    '$blockers blockers',
-                    color:
-                        blockers > 0
-                            ? const Color(0xFFCA5161)
-                            : AppColors.green,
-                  ),
-                if (advisories is int) SmallLabel('$advisories advisories'),
-                if (current['draftVersion'] != null)
-                  SmallLabel("Draft v${current['draftVersion']}"),
-              ],
+            Text(
+              passed ? 'Validation PASSED' : 'Validation FAILED',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: passed ? Colors.green : Colors.red,
+              ),
             ),
-            const SizedBox(height: 12),
-            if (hasBlockers)
-              const Text(
-                'Validation blocked: resolve all blockers before approval.',
-                key: ValueKey('step08-validation-blocked'),
-              )
-            else if (validationReady)
-              const Text(
-                'Validation returned zero blockers. Approval is still required.',
-                key: ValueKey('step08-validation-ready'),
-              )
-            else
-              const Text(
-                'Validation result is incomplete. Approval readiness is unknown.',
-                key: ValueKey('step08-validation-incomplete'),
-              ),
-            const SizedBox(height: 12),
+            Text('Validation ID: ${current['id']}'),
+            Text('Validated at: ${current['validatedAt']}'),
+            if (current['blockers'] is int)
+              Text('${current['blockers']} blockers'),
+            if (current['advisories'] is int)
+              Text('${current['advisories']} advisories'),
+            Text(
+              passed
+                  ? 'Validation passed. Approval is still required.'
+                  : 'Validation blocked: resolve findings before approval.',
+              key: ValueKey(passed
+                  ? 'step08-validation-ready'
+                  : 'step08-validation-blocked'),
+            ),
             if (findings.isEmpty)
-              const Text(
-                'No validation findings returned for implemented rules.',
-              ),
+              const Text('No validation findings returned.'),
+
             for (final finding in findings)
               ListTile(
-                leading: Icon(
-                  finding['severity'] == 'blocker'
-                      ? Icons.error_outline
-                      : Icons.info_outline,
-                  color:
-                      finding['severity'] == 'blocker'
-                          ? const Color(0xFFCA5161)
-                          : AppColors.purple,
+                leading: const Icon(Icons.info_outline),
+                title: Text((finding['ruleId'] ?? finding['code'] ?? 'Finding').toString()),
+                subtitle: Text(
+                  '${finding['message'] ?? ''}\n'
+                  '${finding['path'] ?? ''}',
                 ),
-                title: Text(
-                  (finding['ruleId'] ?? finding['code'] ?? 'Finding')
-                      .toString(),
-                ),
-                subtitle: Text((finding['message'] ?? '').toString()),
               ),
           ],
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            key: const ValueKey('step08-approve-button'),
-            onPressed:
-                backendPassed == true &&
-                        validationId is String &&
-                        validationId.isNotEmpty &&
-                        !validating &&
-                        !approving &&
-                        approvedRevisionId == null
-                    ? approveValidated
-                    : null,
-            icon: const Icon(Icons.verified_outlined),
-            label: Text(approving ? 'Approving...' : 'Approve Revision'),
+
+          const Divider(height: 36),
+
+          const LocalizedSectionTitle(
+            'Approved Revision History',
+            subtitle: 'Immutable server-approved design snapshots.',
           ),
-          if (approvedRevisionId != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Approved revision: $approvedRevisionId',
-              key: const ValueKey('step08-approved-revision'),
+
+          if (revisions.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: LocalizedUiText('No approved revisions loaded.'),
             ),
-          ],
-          if (approving) const LinearProgressIndicator(),
-          const SizedBox(height: 20),
-          const Divider(),
-          const SizedBox(height: 12),
-          Text(
-            approvedRevisionId == null
-                ? 'Official ZIP export requires a successfully approved revision.'
-                : 'Download the official ZIP for the approved revision.',
-            key: const ValueKey('step08-export-unavailable'),
-            style: const TextStyle(color: AppColors.muted, fontSize: 12),
+
+          for (final revision in revisions)
+            if (revision['revisionId'] is String)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Approved draft v${revision['draftVersion']}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      Text('${revision['approvedAt']}'),
+                      SelectableText(revision['revisionId'].toString()),
+                      const SizedBox(height: 10),
+
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton(
+                            onPressed:
+                                busy
+                                    ? null
+                                    : () => inspectRevision(
+                                      revision['revisionId'] as String,
+                                    ),
+                            child: const LocalizedUiText('Revision details'),
+                          ),
+                          FilledButton.icon(
+                            onPressed:
+                                busy
+                                    ? null
+                                    : () => createExport(
+                                      revision['revisionId'] as String,
+                                    ),
+                            icon: const Icon(Icons.archive_outlined),
+                            label: const LocalizedUiText(
+                              'Create Official Export',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+          const Divider(height: 36),
+
+          const LocalizedSectionTitle(
+            'Official Second Brain Exports',
+            subtitle: 'Download archives created from approved revisions.',
           ),
           const SizedBox(height: 12),
-          OutlinedButton.icon(
-            key: const ValueKey('step08-export-disabled'),
-            onPressed:
-                approvedRevisionId != null &&
-                        !validating &&
-                        !approving &&
-                        !exporting
-                    ? exportOfficialRevision
-                    : null,
-            icon: const Icon(Icons.download_outlined),
-            label: Text(
-              exporting ? 'Preparing Official ZIP...' : 'Download Official ZIP',
+          SecondBrainViewerButton(projectId: projectId),
+
+          if (exports.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: LocalizedUiText('No official export records loaded.'),
             ),
-          ),
-          if (exporting) const LinearProgressIndicator(),
+
+          for (final item in exports)
+            if (item['exportId'] is String)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Export: ${item['exportId']}'),
+                      Text('Revision: ${item['approvedRevisionId']}'),
+                      Text('Generator: ${item['generatorVersion']}'),
+                      Text('Size: ${item['archiveBytes']} bytes'),
+                      Text('Created: ${item['createdAt']}'),
+                      const SizedBox(height: 8),
+                      SelectableText('SHA-256: ${item['archiveSha256']}'),
+                      const SizedBox(height: 10),
+                      FilledButton.icon(
+                        onPressed:
+                            busy
+                                ? null
+                                : () =>
+                                    downloadExport(item['exportId'] as String),
+                        icon: const Icon(Icons.download_outlined),
+                        label: const LocalizedUiText('Download Official ZIP'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+          if (message != null) ...[const SizedBox(height: 12), Text(message!)],
+
           if (error != null) ...[
             const SizedBox(height: 12),
             InlineError(error!),

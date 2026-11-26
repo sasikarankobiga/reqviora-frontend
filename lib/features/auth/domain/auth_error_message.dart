@@ -34,6 +34,11 @@ String authErrorMessage(Object error) {
           '(HTTP 409). Please contact the administrator '
           'if the problem continues.';
 
+    case 424:
+      return 'Your account was created, but the verification email '
+          'request could not be confirmed. Check your inbox first. '
+          'Do not register again. Contact support if no email arrives.';
+
     case 429:
       return 'Too many requests. Please try again later.';
 

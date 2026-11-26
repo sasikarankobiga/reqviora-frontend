@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
+import '../../../l10n/language_settings.dart';
 import '../application/projects_providers.dart';
 
 class CreateProjectPage extends ConsumerStatefulWidget {
@@ -16,6 +17,10 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
   final form = GlobalKey<FormState>();
   final name = TextEditingController();
   final description = TextEditingController();
+  final nameFocusNode = FocusNode(debugLabel: 'Create project name');
+  final descriptionFocusNode = FocusNode(
+    debugLabel: 'Create project description',
+  );
   String category = 'Software / SaaS';
   final selectedTargets = <String>{'web'};
   String? error;
@@ -24,11 +29,13 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
   void dispose() {
     name.dispose();
     description.dispose();
+    nameFocusNode.dispose();
+    descriptionFocusNode.dispose();
     super.dispose();
   }
 
   Future<void> submit() async {
-    if (!(form.currentState?.validate() ?? false)) return;
+    if (saving || !(form.currentState?.validate() ?? false)) return;
     setState(() {
       saving = true;
       error = null;
@@ -53,15 +60,17 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
 
   @override
   Widget build(BuildContext context) => AppShell(
-    pageTitle: 'Workspace / Create Project',
+    pageTitle: localizedLabel(context, 'Workspace / Create Project'),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         PageIntro(
-          eyebrow: 'Project setup',
-          title: 'Create a new project',
-          subtitle:
-              'Start with the basics. You can refine these details inside Builder Step 01.',
+          eyebrow: localizedLabel(context, 'Project setup'),
+          title: localizedLabel(context, 'Create a new project'),
+          subtitle: localizedLabel(
+            context,
+            'Start with the basics. You can refine these details inside Builder Step 01.',
+          ),
         ),
         const SizedBox(height: 25),
         LayoutBuilder(
@@ -73,26 +82,42 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SectionTitle(
-                      'Project details',
-                      subtitle: 'A simple, single-screen setup.',
+                    SectionTitle(
+                      localizedLabel(context, 'Project details'),
+                      subtitle: localizedLabel(
+                        context,
+                        'A simple, single-screen setup.',
+                      ),
                     ),
                     const SizedBox(height: 22),
                     const _FieldName('Project name *'),
                     TextFormField(
                       key: const ValueKey('create-project-name'),
                       controller: name,
+                      focusNode: nameFocusNode,
                       maxLength: 160,
                       textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Project name (required)',
-                        hintText: 'e.g. Coffee Shop App',
+                      onEditingComplete: () {
+                        descriptionFocusNode.requestFocus();
+                      },
+                      decoration: InputDecoration(
+                        labelText: localizedLabel(
+                          context,
+                          'Project name (required)',
+                        ),
+                        hintText: localizedLabel(
+                          context,
+                          'e.g. Coffee Shop App',
+                        ),
                         counterText: '',
                       ),
                       validator:
                           (v) =>
                               v == null || v.trim().isEmpty
-                                  ? 'Enter a project name'
+                                  ? localizedLabel(
+                                    context,
+                                    'Enter a project name',
+                                  )
                                   : null,
                     ),
                     const SizedBox(height: 17),
@@ -100,11 +125,15 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                     TextFormField(
                       key: const ValueKey('create-project-description'),
                       controller: description,
+                      focusNode: descriptionFocusNode,
                       maxLines: 3,
                       maxLength: 10000,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                        hintText: 'What problem will your software solve?',
+                      decoration: InputDecoration(
+                        labelText: localizedLabel(context, 'Description'),
+                        hintText: localizedLabel(
+                          context,
+                          'What problem will your software solve?',
+                        ),
                         counterText: '',
                       ),
                     ),
@@ -112,7 +141,7 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                     const _FieldName('Category / industry'),
                     DropdownButtonFormField<String>(
                       initialValue: category,
-                      decoration: const InputDecoration(),
+                      decoration: InputDecoration(),
                       isExpanded: true,
                       items:
                           [
@@ -125,8 +154,10 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                                 'Other',
                               ]
                               .map(
-                                (x) =>
-                                    DropdownMenuItem(value: x, child: Text(x)),
+                                (x) => DropdownMenuItem(
+                                  value: x,
+                                  child: Text(localizedLabel(context, x)),
+                                ),
                               )
                               .toList(),
                       onChanged: (v) {
@@ -148,7 +179,7 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Personal workspace · local demo',
+                              'Personal workspace',
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: 12,
@@ -173,8 +204,11 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                               .map(
                                 (target) => FilterChip(
                                   label: Text(
-                                    target[0].toUpperCase() +
-                                        target.substring(1),
+                                    localizedLabel(
+                                      context,
+                                      target[0].toUpperCase() +
+                                          target.substring(1),
+                                    ),
                                   ),
                                   selected: selectedTargets.contains(target),
                                   onSelected:
@@ -209,7 +243,7 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                         OutlinedButton(
                           onPressed:
                               saving ? null : () => context.go('/projects'),
-                          child: const Text('Cancel'),
+                          child: Text(localizedLabel(context, 'Cancel')),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -222,7 +256,9 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                                   : Icons.arrow_forward,
                             ),
                             label: Text(
-                              saving ? 'Creating…' : 'Create project',
+                              saving
+                                  ? localizedLabel(context, 'Creating…')
+                                  : localizedLabel(context, 'Create project'),
                             ),
                           ),
                         ),
@@ -244,7 +280,7 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                   ),
                   const SizedBox(height: 13),
                   Text(
-                    'Your idea, structured.',
+                    localizedLabel(context, 'Your idea, structured.'),
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 9),
@@ -279,7 +315,7 @@ class _CreateProjectPageState extends ConsumerState<CreateProjectPage> {
                       ),
                     ),
                   const SizedBox(height: 9),
-                  const SmallLabel('Local demo · not a live customer app'),
+                  const SmallLabel('Design workspace'),
                 ],
               ),
             );
@@ -310,7 +346,7 @@ class _FieldName extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 7),
     child: Text(
-      text,
+      localizedLabel(context, text),
       style: const TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w800,
