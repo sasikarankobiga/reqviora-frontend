@@ -12,6 +12,7 @@ import '../../../app/theme.dart';
 import '../../../app/widgets.dart';
 import '../application/workspace_providers.dart';
 import '../domain/workspace.dart';
+import '../domain/blueprint_recovery_store.dart';
 import '../domain/navigation_diagnostics.dart';
 import '../domain/draft_conflict.dart';
 import '../domain/feature_coverage.dart';
@@ -1794,8 +1795,33 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   bool savingDraft = false;
   bool autosaveEnabled = false;
   Timer? _autosaveTimer;
+  final BlueprintRecoveryStore _recoveryStore = BlueprintRecoveryStore();
+
+  @override
+  void initState() {
+    super.initState();
+    final restored = _recoveryStore.restore(
+      widget.workspace.projectId,
+      widget.workspace.version,
+    );
+    if (restored != null) {
+      draftBlueprint = restored;
+      blueprintHistory = V4BlueprintHistory(restored);
+    }
+  }
+
+  void _persistRecovery() {
+    final draft = draftBlueprint;
+    if (draft == null) return;
+    _recoveryStore.save(
+      widget.workspace.projectId,
+      widget.workspace.version,
+      draft,
+    );
+  }
 
   void scheduleAutosave() {
+    _persistRecovery();
     _autosaveTimer?.cancel();
     if (!autosaveEnabled || draftBlueprint == null) return;
 
@@ -1916,6 +1942,7 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
 
       if (!mounted) return;
 
+      _recoveryStore.clear(widget.workspace.projectId);
       setState(() {
         draftBlueprint = null;
         blueprintHistory = null;
