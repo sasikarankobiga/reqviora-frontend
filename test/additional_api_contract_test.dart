@@ -11,8 +11,6 @@ import 'package:reqviora_frontend/features/workspace/data/ai_intelligence_reposi
 
 const projectId = 'd5859ac2-7a39-4f5a-b937-5f1b2b591111';
 const questionId = 'd5859ac2-7a39-4f5a-b937-5f1b2b592222';
-const concurrencyToken = 'd5859ac2-7a39-4f5a-b937-5f1b2b593333';
-
 void main() {
   setUp(authSession.signOut);
   tearDown(authSession.signOut);
@@ -98,12 +96,13 @@ void main() {
     expect(authSession.token, 'test-access');
   });
 
-  test('Clarification list uses the workflow endpoint', () async {
+  test('Clarification list uses the requirement-scoped endpoint', () async {
     final api = ApiClient(
       MockClient((request) async {
         expect(
           request.url.path,
-          '/api/projects/$projectId/workflow-intelligence/clarifications',
+          '/api/projects/$projectId/requirements/candidates/'
+          'REQ-001/clarifications',
         );
 
         return http.Response('[]', 200);
@@ -114,28 +113,28 @@ void main() {
 
     final result = await AiIntelligenceRepository(
       api,
-    ).getClarifications(projectId);
+    ).getClarifications(projectId, requirementId: 'REQ-001');
 
     expect(result, isEmpty);
   });
 
-  test('Clarification creation preserves concurrency token', () async {
+  test('Clarification creation uses the backend request DTO', () async {
     final api = ApiClient(
       MockClient((request) async {
         expect(request.method, 'POST');
         expect(
           request.url.path,
-          '/api/projects/$projectId/workflow-intelligence/clarifications',
+          '/api/projects/$projectId/requirements/candidates/'
+          'REQ-001/clarifications',
         );
         expect(jsonDecode(request.body), {
-          'expectedConcurrencyToken': concurrencyToken,
-          'requirementId': 'REQ-001',
           'question': 'Which users need access?',
         });
 
         return http.Response(
-          '{"clarification":{"revision":1},"version":2}',
-          200,
+          '{"id":"$questionId","requirementId":"REQ-001",'
+          '"question":"Which users need access?","revision":1}',
+          201,
         );
       }),
     );
@@ -146,10 +145,9 @@ void main() {
       projectId: projectId,
       requirementId: 'REQ-001',
       question: 'Which users need access?',
-      expectedConcurrencyToken: concurrencyToken,
     );
 
-    expect(result['version'], 2);
+    expect(result['revision'], 1);
   });
 
   test('Clarification answer includes expected revision', () async {
@@ -157,17 +155,18 @@ void main() {
       MockClient((request) async {
         expect(
           request.url.path,
-          '/api/projects/$projectId/workflow-intelligence/'
-          'clarifications/$questionId/answer',
+          '/api/projects/$projectId/requirements/candidates/'
+          'REQ-001/clarifications/$questionId/answer',
         );
         expect(jsonDecode(request.body), {
-          'expectedConcurrencyToken': concurrencyToken,
           'expectedRevision': 1,
           'answer': 'Project owners',
         });
 
         return http.Response(
-          '{"clarification":{"revision":2},"version":3}',
+          '{"id":"$questionId","requirementId":"REQ-001",'
+          '"question":"Which users need access?",'
+          '"answer":"Project owners","revision":2}',
           200,
         );
       }),
@@ -177,31 +176,29 @@ void main() {
 
     final result = await AiIntelligenceRepository(api).answerClarification(
       projectId: projectId,
+      requirementId: 'REQ-001',
       questionId: questionId,
-      expectedConcurrencyToken: concurrencyToken,
       expectedRevision: 1,
       answer: 'Project owners',
     );
 
-    expect(result['version'], 3);
+    expect(result['revision'], 2);
   });
 
   test('Review sync reports the actual server synchronization state', () async {
     final api = ApiClient(
       MockClient((request) async {
-        expect(
-          request.url.path,
-          '/api/projects/$projectId/workflow-intelligence/'
-          'blueprints/review-sync-status',
-        );
+        if (request.url.path.endsWith('/requirements/candidates')) {
+          expect(request.url.queryParameters, {'offset': '0', 'limit': '100'});
+          return http.Response(
+            '[{"id":"REQ-001","status":"confirmed","revision":2}]',
+            200,
+          );
+        }
 
+        expect(request.url.path, '/api/projects/$projectId/blueprints/current');
         return http.Response(
-          jsonEncode({
-            'projectId': projectId,
-            'blueprintRevision': 2,
-            'existingRequirementsSynchronized': false,
-            'items': [],
-          }),
+          '{"blueprint":{"revision":2,"requirements":[]}}',
           200,
         );
       }),

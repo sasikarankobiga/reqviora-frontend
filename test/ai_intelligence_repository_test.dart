@@ -10,30 +10,22 @@ import 'package:reqviora_frontend/features/workspace/data/ai_intelligence_reposi
 void main() {
   late AiIntelligenceRepository repository;
 
+  const projectId = 'd5859ac2-7a39-4f5a-b937-5f1b2b591111';
+  const token = '11111111-1111-4111-8111-111111111111';
   final evidence = <Map<String, dynamic>>[
     {
       'sourceId': 'source-1',
       'locator': 'text:0-19',
-      'pageNumber': null,
-      'startOffset': 0,
-      'endOffset': 19,
       'quote': 'Users must sign in.',
     },
   ];
-
   final candidate = <String, dynamic>{
     'id': 'REQ-001',
     'title': 'Sign in',
     'description': 'Users must sign in.',
     'languageCode': 'en',
     'confidence': 0.95,
-    'evidence': [
-      {
-        'sourceId': 'source-1',
-        'locator': 'text:0-19',
-        'quote': 'Users must sign in.',
-      },
-    ],
+    'evidence': evidence,
   };
 
   void configure(Future<http.Response> Function(http.Request) handler) {
@@ -48,66 +40,237 @@ void main() {
     headers: {'content-type': 'application/json'},
   );
 
-  Future<List<Map<String, dynamic>>> extract({
-    bool consent = true,
-    String text = 'Users must sign in.',
-  }) => repository.extractRequirements(
-    projectId: 'project-1',
-    languageCode: 'en',
-    inputText: text,
-    evidence: evidence,
-    consentGranted: consent,
-  );
-
-  test('AI extraction sends correct request contract', () async {
+  test('AI extraction uses the input intelligence contract', () async {
     configure((request) async {
       expect(request.method, 'POST');
       expect(
         request.url.path,
-        '/api/projects/project-1/input-intelligence/requirements/extract',
+        '/api/projects/$projectId/input-intelligence/requirements/extract',
       );
-
       final body = jsonDecode(request.body) as Map;
-
       expect(body['languageCode'], 'en');
       expect(body['consentGranted'], isTrue);
       expect(body['evidence'], evidence);
-
       return response({
         'contractVersion': '1.0',
         'candidates': [candidate],
       });
     });
 
-    final result = await extract();
+    final result = await repository.extractRequirements(
+      projectId: projectId,
+      languageCode: 'en',
+      inputText: 'Users must sign in.',
+      evidence: evidence,
+      consentGranted: true,
+    );
 
     expect(result.single['id'], 'REQ-001');
-    expect(result.single['confidence'], 0.95);
   });
 
   test('Extraction without consent never calls API', () async {
-    configure((request) async {
-      fail('API must not be called without consent');
-    });
+    configure((request) async => throw StateError('unexpected request'));
 
-    await expectLater(extract(consent: false), throwsArgumentError);
+    await expectLater(
+      repository.extractRequirements(
+        projectId: projectId,
+        languageCode: 'en',
+        inputText: 'Users must sign in.',
+        evidence: evidence,
+        consentGranted: false,
+      ),
+      throwsArgumentError,
+    );
   });
 
-  test('Empty source text is rejected', () async {
+  test('Empty source text never calls API', () async {
+    configure((request) async => throw StateError('unexpected request'));
+
+    await expectLater(
+      repository.extractRequirements(
+        projectId: projectId,
+        languageCode: 'en',
+        inputText: '   ',
+        evidence: evidence,
+        consentGranted: true,
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('Malformed extraction response is rejected', () async {
+    configure((request) async => response({'candidates': 'invalid'}));
+
+    await expectLater(
+      repository.extractRequirements(
+        projectId: projectId,
+        languageCode: 'en',
+        inputText: 'Users must sign in.',
+        evidence: evidence,
+        consentGranted: true,
+      ),
+      throwsFormatException,
+    );
+  });
+
+  test('Review status uses the backend candidate resource', () async {
     configure((request) async {
-      fail('API must not be called for empty text');
+      expect(request.method, 'GET');
+      expect(
+        request.url.path,
+        '/api/projects/$projectId/requirements/candidates/REQ-001',
+      );
+      return response({'id': 'REQ-001', 'status': 'suggested', 'revision': 1});
     });
 
-    await expectLater(extract(text: '   '), throwsArgumentError);
+    final result = await repository.getReview(projectId, 'REQ-001');
+    expect(result['revision'], 1);
+  });
+
+  test('Blueprint generation sends only the authoritative DTO', () async {
+    configure((request) async {
+      expect(request.method, 'POST');
+      expect(request.url.path, '/api/projects/$projectId/blueprints/generate');
+      expect(jsonDecode(request.body), {
+        'expectedConcurrencyToken': token,
+        'requirementIds': ['REQ-001'],
+      });
+      return response({
+        'version': 2,
+        'concurrencyToken': token,
+        'draft': <String, dynamic>{},
+      });
+    });
+
+    final result = await repository.generateBlueprint(
+      projectId: projectId,
+      expectedConcurrencyToken: token,
+      confirmedRequirementIds: ['REQ-001'],
+    );
+
+    expect(result['version'], 2);
+  });
+
+  test('Duplicate confirmed requirements are rejected locally', () async {
+    configure((request) async => throw StateError('unexpected request'));
+
+    await expectLater(
+      repository.generateBlueprint(
+        projectId: projectId,
+        expectedConcurrencyToken: token,
+        confirmedRequirementIds: ['REQ-001', 'REQ-001'],
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('More than fifty requirements are rejected locally', () async {
+    configure((request) async => throw StateError('unexpected request'));
+
+    await expectLater(
+      repository.generateBlueprint(
+        projectId: projectId,
+        expectedConcurrencyToken: token,
+        confirmedRequirementIds: List.generate(51, (index) => 'REQ-$index'),
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('Regeneration maps editable IDs to the current backend DTO', () async {
+    configure((request) async {
+      expect(request.method, 'POST');
+      expect(
+        request.url.path,
+        '/api/projects/$projectId/blueprints/regenerate',
+      );
+      expect(jsonDecode(request.body), {
+        'expectedConcurrencyToken': token,
+        'expectedRevision': 3,
+        'editableFeatureIds': ['FEAT-001'],
+        'editableScreenIds': <String>[],
+        'editableComponentIds': ['CMP-001'],
+      });
+      return response({
+        'version': 4,
+        'concurrencyToken': token,
+        'draft': <String, dynamic>{},
+      });
+    });
+
+    final result = await repository.regenerateBlueprint(
+      projectId: projectId,
+      expectedConcurrencyToken: token,
+      expectedRevision: 3,
+      editableFeatureIds: const ['FEAT-001'],
+      editableScreenIds: const [],
+      editableComponentIds: const ['CMP-001'],
+    );
+
+    expect(result['version'], 4);
+  });
+
+  test('Malformed project draft response is rejected', () async {
+    configure((request) async => response({'version': 2}));
+
+    await expectLater(
+      repository.generateBlueprint(
+        projectId: projectId,
+        expectedConcurrencyToken: token,
+        confirmedRequirementIds: ['REQ-001'],
+      ),
+      throwsFormatException,
+    );
+  });
+
+  test('Invalid regeneration revision never calls API', () async {
+    configure((request) async => throw StateError('unexpected request'));
+
+    await expectLater(
+      repository.regenerateBlueprint(
+        projectId: projectId,
+        expectedConcurrencyToken: token,
+        expectedRevision: 0,
+        editableFeatureIds: const [],
+        editableScreenIds: const [],
+        editableComponentIds: const [],
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('Project clarification list follows candidate-scoped routes', () async {
+    configure((request) async {
+      if (request.url.path.endsWith('/requirements/candidates')) {
+        return response([
+          {'id': 'REQ-001'},
+          {'id': 'REQ-002'},
+        ]);
+      }
+      if (request.url.path.endsWith('/REQ-001/clarifications')) {
+        return response([
+          {'id': 'question-1', 'requirementId': 'REQ-001'},
+        ]);
+      }
+      expect(request.url.path, endsWith('/REQ-002/clarifications'));
+      return response(<Object>[]);
+    });
+
+    final result = await repository.getClarifications(projectId);
+    expect(result.single['requirementId'], 'REQ-001');
   });
 
   test('Unavailable AI provider preserves HTTP 503', () async {
-    configure((request) async {
-      return response({'title': 'AI provider approval is pending.'}, 503);
-    });
+    configure((request) async => response({'title': 'Unavailable'}, 503));
 
     await expectLater(
-      extract(),
+      repository.extractRequirements(
+        projectId: projectId,
+        languageCode: 'en',
+        inputText: 'Users must sign in.',
+        evidence: evidence,
+        consentGranted: true,
+      ),
       throwsA(
         isA<ApiException>().having(
           (error) => error.statusCode,
@@ -115,199 +278,6 @@ void main() {
           503,
         ),
       ),
-    );
-  });
-
-  test('Malformed extraction response is rejected', () async {
-    configure((request) async {
-      return response({'candidates': 'invalid'});
-    });
-
-    await expectLater(extract(), throwsFormatException);
-  });
-
-  test('Candidate staging preserves evidence', () async {
-    configure((request) async {
-      expect(request.method, 'POST');
-
-      expect(
-        request.url.path,
-        '/api/projects/project-1/workflow-intelligence/candidates',
-      );
-
-      final body = jsonDecode(request.body) as Map;
-
-      expect(body['id'], candidate['id']);
-      expect(body['evidence'], candidate['evidence']);
-
-      return response({'id': 'REQ-001', 'status': 0, 'revision': 1}, 201);
-    });
-
-    final result = await repository.stageCandidate('project-1', candidate);
-
-    expect(result['status'], 0);
-    expect(result['revision'], 1);
-  });
-
-  test('Review status is retrieved from backend', () async {
-    configure((request) async {
-      expect(request.method, 'GET');
-
-      expect(
-        request.url.path,
-        '/api/projects/project-1/workflow-intelligence/reviews/REQ-001',
-      );
-
-      return response({'id': 'REQ-001', 'status': 1, 'revision': 2});
-    });
-
-    final result = await repository.getReview('project-1', 'REQ-001');
-
-    expect(result['status'], 1);
-    expect(result['revision'], 2);
-  });
-
-  test('Blueprint generation sends concurrency token', () async {
-    configure((request) async {
-      expect(
-        request.url.path,
-        '/api/projects/project-1/workflow-intelligence/blueprints/generate',
-      );
-
-      final body = jsonDecode(request.body) as Map;
-
-      expect(body['expectedConcurrencyToken'], 'token-1');
-      expect(body['confirmedRequirementIds'], ['REQ-001']);
-      expect(body['blueprintId'], 'BP-001');
-
-      return response({
-        'applied': true,
-        'draftVersion': 2,
-        'concurrencyToken': '11111111-1111-4111-8111-111111111111',
-        'reason': 'APPLIED',
-        'blueprint': {'blueprintId': 'BP-001'},
-      });
-    });
-
-    final result = await repository.generateBlueprint(
-      projectId: 'project-1',
-      expectedConcurrencyToken: 'token-1',
-      blueprintId: 'BP-001',
-      confirmedRequirementIds: ['REQ-001'],
-      features: [
-        {
-          'id': 'FEAT-001',
-          'name': 'Authentication',
-          'requirementIds': ['REQ-001'],
-        },
-      ],
-      screens: [
-        {
-          'id': 'SCR-001',
-          'name': 'Login',
-          'featureIds': ['FEAT-001'],
-        },
-      ],
-      components: [],
-      actions: [],
-      navigation: [],
-    );
-
-    expect(result['applied'], isTrue);
-  });
-
-  test('Duplicate confirmed requirements are rejected', () async {
-    configure((request) async {
-      fail('Duplicate selection must not reach API');
-    });
-
-    await expectLater(
-      repository.generateBlueprint(
-        projectId: 'project-1',
-        expectedConcurrencyToken: null,
-        blueprintId: 'BP-001',
-        confirmedRequirementIds: ['REQ-001', 'REQ-001'],
-        features: [],
-        screens: [],
-        components: [],
-        actions: [],
-        navigation: [],
-      ),
-      throwsArgumentError,
-    );
-  });
-
-  test('AI regeneration requires consent', () async {
-    configure((request) async {
-      fail('Regeneration must require consent');
-    });
-
-    await expectLater(
-      repository.regenerateBlueprint(
-        projectId: 'project-1',
-        expectedConcurrencyToken: 'token-1',
-        expectedRevision: 1,
-        languageCode: 'ta',
-        instructions: 'Improve the layout',
-        consentGranted: false,
-        protectedFeatureIds: [],
-        protectedScreenIds: [],
-        protectedComponentIds: [],
-      ),
-      throwsArgumentError,
-    );
-  });
-
-  test('Unsupported extraction contract is rejected', () async {
-    configure((request) async {
-      return response({
-        'contractVersion': '2.0',
-        'candidates': [candidate],
-      });
-    });
-
-    await expectLater(extract(), throwsFormatException);
-  });
-
-  test('Empty Blueprint features and screens are rejected', () async {
-    configure((request) async {
-      fail('Invalid proposal must not reach the API');
-    });
-
-    await expectLater(
-      repository.generateBlueprint(
-        projectId: 'project-1',
-        expectedConcurrencyToken: null,
-        blueprintId: 'BP-001',
-        confirmedRequirementIds: ['REQ-001'],
-        features: [],
-        screens: [],
-        components: [],
-        actions: [],
-        navigation: [],
-      ),
-      throwsArgumentError,
-    );
-  });
-
-  test('Incomplete regeneration response is rejected', () async {
-    configure((request) async {
-      return response({'applied': true});
-    });
-
-    await expectLater(
-      repository.regenerateBlueprint(
-        projectId: 'project-1',
-        expectedConcurrencyToken: '11111111-1111-4111-8111-111111111111',
-        expectedRevision: 1,
-        languageCode: 'en',
-        instructions: 'Improve layout',
-        consentGranted: true,
-        protectedFeatureIds: [],
-        protectedScreenIds: [],
-        protectedComponentIds: [],
-      ),
-      throwsFormatException,
     );
   });
 }

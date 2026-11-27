@@ -8,8 +8,11 @@ class AiIntelligenceRepository {
   String _inputPath(String projectId) =>
       '/api/projects/$projectId/input-intelligence';
 
-  String _workflowPath(String projectId) =>
-      '/api/projects/$projectId/workflow-intelligence';
+  String _requirementsPath(String projectId) =>
+      '/api/projects/$projectId/requirements';
+
+  String _blueprintsPath(String projectId) =>
+      '/api/projects/$projectId/blueprints';
 
   Map<String, dynamic> _object(dynamic value) {
     if (value is! Map) {
@@ -53,24 +56,6 @@ class AiIntelligenceRepository {
     }
 
     return candidates.map(_object).toList();
-  }
-
-  Future<Map<String, dynamic>> stageCandidate(
-    String projectId,
-    Map<String, dynamic> candidate,
-  ) async {
-    final payload = <String, dynamic>{
-      'id': candidate['id'],
-      'title': candidate['title'],
-      'description': candidate['description'],
-      'languageCode': candidate['languageCode'],
-      'confidence': candidate['confidence'],
-      'evidence': candidate['evidence'],
-    };
-
-    return _object(
-      await api.post('${_workflowPath(projectId)}/candidates', payload),
-    );
   }
 
   Future<Map<String, dynamic>> submitReview({
@@ -142,27 +127,59 @@ class AiIntelligenceRepository {
   ) async {
     return _object(
       await api.get(
-        '${_workflowPath(projectId)}/reviews/'
+        '${_requirementsPath(projectId)}/candidates/'
         '${Uri.encodeComponent(requirementId)}',
       ),
     );
   }
 
-  Future<List<Map<String, dynamic>>> getClarifications(String projectId) async {
-    final result = await api.get('${_workflowPath(projectId)}/clarifications');
+  Future<List<Map<String, dynamic>>> getClarifications(
+    String projectId, {
+    String? requirementId,
+  }) async {
+    if (requirementId != null) {
+      final result = await api.get(
+        '${_requirementsPath(projectId)}/candidates/'
+        '${Uri.encodeComponent(requirementId)}/clarifications',
+      );
 
-    if (result is! List) {
-      throw const FormatException('Invalid clarification response');
+      if (result is! List) {
+        throw const FormatException('Invalid clarification response');
+      }
+
+      return result.map(_object).toList();
     }
 
-    return result.map(_object).toList();
+    final candidates = await api.get(
+      '${_requirementsPath(projectId)}/candidates?offset=0&limit=100',
+    );
+
+    if (candidates is! List) {
+      throw const FormatException('Invalid requirement candidate response');
+    }
+
+    final clarifications = <Map<String, dynamic>>[];
+
+    for (final candidate in candidates) {
+      final row = _object(candidate);
+      final id = row['id'];
+
+      if (id is! String || id.isEmpty) {
+        throw const FormatException('Invalid requirement candidate response');
+      }
+
+      clarifications.addAll(
+        await getClarifications(projectId, requirementId: id),
+      );
+    }
+
+    return clarifications;
   }
 
   Future<Map<String, dynamic>> createClarification({
     required String projectId,
     required String requirementId,
     required String question,
-    required String? expectedConcurrencyToken,
   }) async {
     final cleanQuestion = question.trim();
 
@@ -173,18 +190,18 @@ class AiIntelligenceRepository {
     }
 
     return _object(
-      await api.post('${_workflowPath(projectId)}/clarifications', {
-        'expectedConcurrencyToken': expectedConcurrencyToken,
-        'requirementId': requirementId,
-        'question': cleanQuestion,
-      }),
+      await api.post(
+        '${_requirementsPath(projectId)}/candidates/'
+        '${Uri.encodeComponent(requirementId)}/clarifications',
+        {'question': cleanQuestion},
+      ),
     );
   }
 
   Future<Map<String, dynamic>> answerClarification({
     required String projectId,
+    required String requirementId,
     required String questionId,
-    required String expectedConcurrencyToken,
     required int expectedRevision,
     required String answer,
   }) async {
@@ -193,7 +210,7 @@ class AiIntelligenceRepository {
     );
 
     if (!guid.hasMatch(questionId) ||
-        !guid.hasMatch(expectedConcurrencyToken) ||
+        requirementId.trim().isEmpty ||
         expectedRevision < 1 ||
         answer.trim().isEmpty) {
       throw ArgumentError('Invalid clarification answer request');
@@ -201,49 +218,96 @@ class AiIntelligenceRepository {
 
     return _object(
       await api.post(
-        '${_workflowPath(projectId)}/clarifications/$questionId/answer',
-        {
-          'expectedConcurrencyToken': expectedConcurrencyToken,
-          'expectedRevision': expectedRevision,
-          'answer': answer.trim(),
-        },
+        '${_requirementsPath(projectId)}/candidates/'
+        '${Uri.encodeComponent(requirementId)}/clarifications/'
+        '$questionId/answer',
+        {'expectedRevision': expectedRevision, 'answer': answer.trim()},
       ),
     );
   }
 
   Future<Map<String, dynamic>> getReviewSyncStatus(String projectId) async {
-    final result = _object(
-      await api.get(
-        '${_workflowPath(projectId)}/blueprints/review-sync-status',
-      ),
+    final candidatesValue = await api.get(
+      '${_requirementsPath(projectId)}/candidates?offset=0&limit=100',
+    );
+    final blueprintVersion = _object(
+      await api.get('${_blueprintsPath(projectId)}/current'),
     );
 
-    if (result['projectId'] != projectId ||
-        result['blueprintRevision'] is! int ||
-        result['existingRequirementsSynchronized'] is! bool ||
-        result['items'] is! List) {
+    if (candidatesValue is! List || blueprintVersion['blueprint'] is! Map) {
       throw const FormatException('Invalid review synchronization response');
     }
 
-    return result;
+    final blueprint = _object(blueprintVersion['blueprint']);
+    final blueprintRequirements = blueprint['requirements'];
+    final revision = blueprint['revision'];
+
+    if (blueprintRequirements is! List || revision is! int) {
+      throw const FormatException('Invalid review synchronization response');
+    }
+
+    final byId = <String, Map<String, dynamic>>{};
+
+    for (final requirement in blueprintRequirements) {
+      final row = _object(requirement);
+      final id = row['id'];
+
+      if (id is! String || id.isEmpty) {
+        throw const FormatException('Invalid Blueprint requirement response');
+      }
+
+      byId[id] = row;
+    }
+
+    final items = <Map<String, dynamic>>[];
+
+    for (final candidateValue in candidatesValue) {
+      final candidate = _object(candidateValue);
+      final id = candidate['id'];
+      final status = candidate['status']?.toString().toLowerCase();
+
+      if (id is! String || id.isEmpty) {
+        throw const FormatException('Invalid requirement candidate response');
+      }
+
+      if (status != 'confirmed' && status != '1') continue;
+
+      final blueprintRequirement = byId[id];
+      final blueprintStatus = blueprintRequirement?['status']?.toString();
+      final synchronized = blueprintStatus?.toLowerCase() == 'confirmed';
+
+      items.add({
+        'requirementId': id,
+        'reviewStatus': status,
+        'blueprintStatus': blueprintStatus,
+        'requiresRegeneration': !synchronized,
+        if (!synchronized) 'problem': 'REQUIREMENT_MISSING_OR_STALE',
+      });
+    }
+
+    return {
+      'projectId': projectId,
+      'blueprintRevision': revision,
+      'existingRequirementsSynchronized': items.every(
+        (item) => item['requiresRegeneration'] != true,
+      ),
+      'items': items,
+    };
   }
 
-  Map<String, dynamic> _blueprintResponse(dynamic value) {
+  Map<String, dynamic> _draftResponse(dynamic value) {
     final response = _object(value);
-
     final token = response['concurrencyToken'];
 
-    if (response['applied'] is! bool ||
-        response['reason'] is! String ||
-        response['draftVersion'] is! int ||
-        (response['draftVersion'] as int) < 1 ||
+    if (response['version'] is! int ||
+        (response['version'] as int) < 1 ||
         token is! String ||
         !RegExp(
           r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
         ).hasMatch(token) ||
         token == '00000000-0000-0000-0000-000000000000' ||
-        response['blueprint'] is! Map) {
-      throw const FormatException('Invalid Blueprint workflow response');
+        response['draft'] is! Map) {
+      throw const FormatException('Invalid project draft response');
     }
 
     return response;
@@ -252,35 +316,19 @@ class AiIntelligenceRepository {
   Future<Map<String, dynamic>> generateBlueprint({
     required String projectId,
     required String? expectedConcurrencyToken,
-    required String blueprintId,
     required List<String> confirmedRequirementIds,
-    required List<Map<String, dynamic>> features,
-    required List<Map<String, dynamic>> screens,
-    required List<Map<String, dynamic>> components,
-    required List<Map<String, dynamic>> actions,
-    required List<Map<String, dynamic>> navigation,
   }) async {
-    if (features.isEmpty || screens.isEmpty) {
-      throw ArgumentError('Blueprint generation requires features and screens');
-    }
-
     if (confirmedRequirementIds.isEmpty ||
-        confirmedRequirementIds.length > 200 ||
+        confirmedRequirementIds.length > 50 ||
         confirmedRequirementIds.toSet().length !=
             confirmedRequirementIds.length) {
       throw ArgumentError('Invalid confirmed requirement selection');
     }
 
-    return _blueprintResponse(
-      await api.post('${_workflowPath(projectId)}/blueprints/generate', {
+    return _draftResponse(
+      await api.post('${_blueprintsPath(projectId)}/generate', {
         'expectedConcurrencyToken': expectedConcurrencyToken,
-        'blueprintId': blueprintId,
-        'confirmedRequirementIds': confirmedRequirementIds,
-        'features': features,
-        'screens': screens,
-        'components': components,
-        'actions': actions,
-        'navigation': navigation,
+        'requirementIds': confirmedRequirementIds,
       }),
     );
   }
@@ -289,33 +337,23 @@ class AiIntelligenceRepository {
     required String projectId,
     required String expectedConcurrencyToken,
     required int expectedRevision,
-    required String languageCode,
-    required String instructions,
-    required bool consentGranted,
-    required List<String> protectedFeatureIds,
-    required List<String> protectedScreenIds,
-    required List<String> protectedComponentIds,
+    required List<String> editableFeatureIds,
+    required List<String> editableScreenIds,
+    required List<String> editableComponentIds,
+    Map<String, dynamic>? proposal,
   }) async {
-    if (!consentGranted) {
-      throw ArgumentError('AI processing consent is required');
+    if (expectedRevision < 1) {
+      throw ArgumentError('Invalid Blueprint revision');
     }
 
-    if (instructions.trim().isEmpty) {
-      throw ArgumentError('Design instructions are required');
-    }
-
-    return _blueprintResponse(
-      await api.post('${_workflowPath(projectId)}/blueprints/regenerate', {
+    return _draftResponse(
+      await api.post('${_blueprintsPath(projectId)}/regenerate', {
         'expectedConcurrencyToken': expectedConcurrencyToken,
-        'languageCode': languageCode,
-        'instructions': instructions,
-        'consentGranted': consentGranted,
-        'policy': {
-          'expectedRevision': expectedRevision,
-          'protectedFeatureIds': protectedFeatureIds,
-          'protectedScreenIds': protectedScreenIds,
-          'protectedComponentIds': protectedComponentIds,
-        },
+        'expectedRevision': expectedRevision,
+        'editableFeatureIds': editableFeatureIds,
+        'editableScreenIds': editableScreenIds,
+        'editableComponentIds': editableComponentIds,
+        if (proposal != null) 'proposal': proposal,
       }),
     );
   }

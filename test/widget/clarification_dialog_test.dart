@@ -98,26 +98,18 @@ void main() {
   testWidgets('Review sync displays actual server status', (tester) async {
     final api = ApiClient(
       MockClient((request) async {
-        expect(
-          request.url.path,
-          '/api/projects/$projectId/workflow-intelligence/'
-          'blueprints/review-sync-status',
-        );
+        if (request.url.path.endsWith('/requirements/candidates')) {
+          return http.Response(
+            '[{"id":"REQ-001","status":"confirmed","revision":2}]',
+            200,
+          );
+        }
+
+        expect(request.url.path, '/api/projects/$projectId/blueprints/current');
 
         return http.Response(
           jsonEncode({
-            'projectId': projectId,
-            'blueprintRevision': 2,
-            'existingRequirementsSynchronized': false,
-            'items': [
-              {
-                'requirementId': 'REQ-001',
-                'reviewStatus': 'confirmed',
-                'blueprintStatus': null,
-                'requiresRegeneration': true,
-                'problem': 'REQUIREMENT_MISSING',
-              },
-            ],
+            'blueprint': {'revision': 2, 'requirements': <Object>[]},
           }),
           200,
         );
