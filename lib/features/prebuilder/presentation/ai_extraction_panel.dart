@@ -193,16 +193,13 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
     try {
       final repository = ref.read(aiIntelligenceRepositoryProvider);
 
-      final review = await repository.stageCandidate(
-        widget.workspace.projectId,
-        candidate,
-      );
+      final review = await repository.getReview(widget.workspace.projectId, id);
 
       if (!mounted) return;
 
       setState(() {
         serverReviews[id] = review;
-        message = 'Candidate staged on server. It is not yet confirmed.';
+        message = 'Server review status loaded.';
       });
     } catch (failure) {
       if (mounted) {
@@ -584,7 +581,7 @@ class _AiExtractionPanelState extends ConsumerState<AiExtractionPanel> {
                               )
                           ? null
                           : () => stage(candidate),
-                  child: const LocalizedUiText('Stage for review'),
+                  child: const LocalizedUiText('Load server review'),
                 ),
                 OutlinedButton(
                   onPressed:

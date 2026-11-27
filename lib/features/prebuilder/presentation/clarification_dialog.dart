@@ -123,7 +123,10 @@ class _ClarificationDialogState extends ConsumerState<ClarificationDialog> {
   Future<void> _refreshList() async {
     final items = await ref
         .read(aiIntelligenceRepositoryProvider)
-        .getClarifications(widget.projectId);
+        .getClarifications(
+          widget.projectId,
+          requirementId: widget.requirementId,
+        );
 
     if (!mounted || !_sessionValid) return;
 
@@ -177,16 +180,6 @@ class _ClarificationDialogState extends ConsumerState<ClarificationDialog> {
     return token;
   }
 
-  void _acceptReceipt(Map<String, dynamic> receipt) {
-    final version = receipt['version'];
-
-    if (version is! int || version != _expectedVersion + 1) {
-      throw const FormatException('Unexpected saved version');
-    }
-
-    _expectedVersion = version;
-  }
-
   Future<void> _create() async {
     final question = _question.text.trim();
 
@@ -200,20 +193,18 @@ class _ClarificationDialogState extends ConsumerState<ClarificationDialog> {
     await _run(() async {
       final repository = ref.read(aiIntelligenceRepositoryProvider);
 
-      final token = await _currentToken();
+      await _currentToken();
 
       if (!mounted || !_sessionValid) return;
 
-      final receipt = await repository.createClarification(
+      await repository.createClarification(
         projectId: widget.projectId,
         requirementId: widget.requirementId!,
         question: question,
-        expectedConcurrencyToken: token,
       );
 
       if (!mounted || !_sessionValid) return;
 
-      _acceptReceipt(receipt);
       _question.clear();
 
       await _refreshList();
@@ -231,9 +222,14 @@ class _ClarificationDialogState extends ConsumerState<ClarificationDialog> {
     if (!_canWrite || item['answer'] != null) return;
 
     final id = item['id'];
+    final requirementId = item['requirementId'];
     final revision = item['revision'];
 
-    if (id is! String || revision is! int || revision < 1) {
+    if (id is! String ||
+        requirementId is! String ||
+        requirementId.isEmpty ||
+        revision is! int ||
+        revision < 1) {
       return;
     }
 
@@ -285,17 +281,15 @@ class _ClarificationDialogState extends ConsumerState<ClarificationDialog> {
         throw const FormatException('Missing saved draft');
       }
 
-      final receipt = await repository.answerClarification(
+      await repository.answerClarification(
         projectId: widget.projectId,
+        requirementId: requirementId,
         questionId: id,
-        expectedConcurrencyToken: token,
         expectedRevision: revision,
         answer: answer.trim(),
       );
 
       if (!mounted || !_sessionValid) return;
-
-      _acceptReceipt(receipt);
 
       await _refreshList();
 
