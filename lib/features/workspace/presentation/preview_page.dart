@@ -41,7 +41,6 @@ class ProjectPreviewPage extends ConsumerWidget {
                   ),
               data: (workspace) {
                 final blueprint = workspace.fields('blueprint');
- feature/thikal-v4-frontend-development
                 final visualDraft = workspace.fields('visualEditorDraft');
 
                 final hasCanonical = blueprint['screens'] is List;
@@ -79,10 +78,6 @@ class ProjectPreviewPage extends ConsumerWidget {
                         ],
                       ],
                     )
-
-              return blueprint['screens'] is List
-                    ? SafePreview(blueprint: blueprint, interactionRules: workspace.items('interactions'))
-develop
                     : SurfaceCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

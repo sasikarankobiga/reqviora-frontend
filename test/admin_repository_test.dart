@@ -1,20 +1,12 @@
- feature/thikal-v4-frontend-development
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-
-
-import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
- develop
 import 'package:reqviora_frontend/core/network/api_client.dart';
 import 'package:reqviora_frontend/features/administration/data/repositories/admin_repository.dart';
 
 void main() {
- feature/thikal-v4-frontend-development
   for (final section in AdminSection.values) {
     test('${section.name} uses admin contract and filters fields', () async {
       final api = ApiClient(
@@ -205,5 +197,4 @@ void main() {
       expect(section.fields, isNot(contains('refreshToken')));
     }
   });
- develop
 }

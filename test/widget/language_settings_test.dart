@@ -6,7 +6,7 @@ import 'package:reqviora_frontend/l10n/language_settings.dart';
 
 void main() {
   tearDown(() {
-    appLocale.value = const Locale('en');
+    resetAppLocalePreference();
   });
 
   Future<void> openApp(WidgetTester tester) async {

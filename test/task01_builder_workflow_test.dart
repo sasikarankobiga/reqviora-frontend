@@ -4,10 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:reqviora_frontend/features/builder/presentation/builder_page.dart';
 import 'package:reqviora_frontend/features/projects/application/projects_providers.dart';
+import 'package:reqviora_frontend/features/projects/data/project_members_repository.dart';
 import 'package:reqviora_frontend/features/projects/domain/project.dart';
 import 'package:reqviora_frontend/features/projects/domain/projects_repository.dart';
 import 'package:reqviora_frontend/features/projects/presentation/create_project_page.dart';
 import 'package:reqviora_frontend/features/projects/presentation/project_overview_page.dart';
+import 'package:reqviora_frontend/features/workspace/application/workspace_providers.dart';
+import 'package:reqviora_frontend/features/workspace/domain/workspace.dart';
+import 'package:reqviora_frontend/features/workspace/presentation/authoring_page.dart';
 
 class WorkflowRepository implements ProjectsRepository {
   int version = 0;
@@ -109,7 +113,22 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [projectsRepositoryProvider.overrideWithValue(repo)],
+        overrides: [
+          projectsRepositoryProvider.overrideWithValue(repo),
+          builderMemberRoleProvider(
+            'project-1',
+          ).overrideWith((ref) async => ProjectMemberRole.owner),
+          workspaceProvider('project-1').overrideWith(
+            (ref) async => const Workspace(
+              projectId: 'project-1',
+              draftId: 'draft-project-1',
+              version: 0,
+              projectName: 'Coffee Shop',
+              designTargets: ['web'],
+              sections: <String, dynamic>{},
+            ),
+          ),
+        ],
         child: MaterialApp.router(routerConfig: router),
       ),
     );

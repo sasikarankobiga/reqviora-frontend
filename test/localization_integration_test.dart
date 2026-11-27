@@ -6,9 +6,13 @@ import 'package:reqviora_frontend/core/auth/auth_session.dart';
 import 'package:reqviora_frontend/features/administration/presentation/pages/admin_page.dart';
 import 'package:reqviora_frontend/features/auth/presentation/account_security_pages.dart';
 import 'package:reqviora_frontend/l10n/app_localizations.dart';
+import 'package:reqviora_frontend/l10n/language_settings.dart';
 
 void main() {
-  setUp(authSession.signOut);
+  setUp(() {
+    authSession.signOut();
+    resetAppLocalePreference();
+  });
   tearDown(() {
     authSession.signOut();
     appRouter.go('/projects');

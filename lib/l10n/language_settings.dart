@@ -2,6 +2,27 @@ import 'package:flutter/material.dart';
 
 /// Application language only. Never changes backend contract values.
 final appLocale = ValueNotifier<Locale>(const Locale('en'));
+bool _appLocaleExplicitlySelected = false;
+
+void selectAppLocale(Locale locale) {
+  _appLocaleExplicitlySelected = true;
+  appLocale.value = locale;
+}
+
+void resetAppLocalePreference() {
+  _appLocaleExplicitlySelected = false;
+  appLocale.value = const Locale('en');
+}
+
+Locale effectiveAppLocale(Locale selected, Iterable<Locale> systemLocales) {
+  if (_appLocaleExplicitlySelected) return selected;
+  return systemLocales.firstWhere(
+    (locale) => supportedAppLocales.any(
+      (supported) => supported.languageCode == locale.languageCode,
+    ),
+    orElse: () => selected,
+  );
+}
 
 const supportedAppLocales = <Locale>[Locale('en'), Locale('ta')];
 
@@ -23,7 +44,7 @@ class LanguageSwitcher extends StatelessWidget {
       initialValue: current,
       onSelected: (value) {
         if (value == 'en' || value == 'ta') {
-          appLocale.value = Locale(value);
+          selectAppLocale(Locale(value));
         }
       },
       itemBuilder:

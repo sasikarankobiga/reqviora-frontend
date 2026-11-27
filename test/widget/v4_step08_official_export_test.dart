@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:reqviora_frontend/core/network/api_client.dart';
 import 'package:reqviora_frontend/features/projects/application/projects_providers.dart';
+import 'package:reqviora_frontend/features/projects/data/project_members_repository.dart';
 import 'package:reqviora_frontend/features/workspace/application/workspace_providers.dart';
 import 'package:reqviora_frontend/features/workspace/domain/download_port.dart';
 import 'package:reqviora_frontend/features/workspace/presentation/authoring_page.dart';
@@ -155,6 +156,9 @@ void main() {
         overrides: [
           apiClientProvider.overrideWithValue(ApiClient(client)),
           downloadPortProvider.overrideWithValue(downloader),
+          builderMemberRoleProvider(
+            projectId,
+          ).overrideWith((ref) async => ProjectMemberRole.owner),
         ],
         child: const MaterialApp(
           home: Scaffold(

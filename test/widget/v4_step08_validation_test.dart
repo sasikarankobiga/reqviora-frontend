@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:reqviora_frontend/core/network/api_client.dart';
 import 'package:reqviora_frontend/core/auth/auth_session.dart';
 import 'package:reqviora_frontend/features/projects/application/projects_providers.dart';
+import 'package:reqviora_frontend/features/projects/data/project_members_repository.dart';
 import 'package:reqviora_frontend/features/workspace/presentation/authoring_page.dart';
 
 void main() {
@@ -83,7 +84,12 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [apiClientProvider.overrideWithValue(ApiClient(client))],
+        overrides: [
+          apiClientProvider.overrideWithValue(ApiClient(client)),
+          builderMemberRoleProvider(
+            projectId,
+          ).overrideWith((ref) async => ProjectMemberRole.owner),
+        ],
         child: const MaterialApp(
           home: Scaffold(
             body: SingleChildScrollView(

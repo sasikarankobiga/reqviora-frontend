@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:reqviora_frontend/core/network/api_client.dart';
+import 'package:reqviora_frontend/features/projects/data/project_members_repository.dart';
 import 'package:reqviora_frontend/features/projects/application/projects_providers.dart';
 import 'package:reqviora_frontend/features/workspace/domain/workspace.dart';
 import 'package:reqviora_frontend/features/workspace/presentation/authoring_page.dart';
@@ -24,12 +25,7 @@ void main() {
         {'id': 'home', 'name': 'Home'},
       ],
       'components': [
-        {
-          'id': 'welcome',
-          'screenId': 'home',
-          'type': 'text',
-          'text': 'Hello',
-        },
+        {'id': 'welcome', 'screenId': 'home', 'type': 'text', 'text': 'Hello'},
       ],
       'routes': <Map<String, dynamic>>[],
       'blueprint': <String, dynamic>{},
@@ -72,7 +68,7 @@ void main() {
         final draft = body['draft'] as Map<String, dynamic>;
         final savedSections = draft['sections'] as Map<String, dynamic>;
         final blueprint =
-            savedSections['blueprint'] as Map<String, dynamic>;
+            savedSections['visualEditorDraft'] as Map<String, dynamic>;
 
         expect(body['expectedConcurrencyToken'], concurrencyToken);
         expect(blueprint['previewOnly'], true);
@@ -83,7 +79,7 @@ void main() {
         concurrencyToken = 'token-$currentVersion';
 
         sections = Map<String, dynamic>.from(savedSections);
-        sections['blueprint'] = Map<String, dynamic>.from(blueprint);
+        sections['visualEditorDraft'] = Map<String, dynamic>.from(blueprint);
 
         return reply({
           'version': currentVersion,
@@ -101,14 +97,14 @@ void main() {
       ProviderScope(
         overrides: [
           apiClientProvider.overrideWithValue(ApiClient(client)),
+          builderMemberRoleProvider(
+            'project-test',
+          ).overrideWith((ref) async => ProjectMemberRole.owner),
         ],
         child: const MaterialApp(
           home: Scaffold(
             body: SingleChildScrollView(
-              child: BuilderAuthoringPage(
-                projectId: 'project-test',
-                step: 7,
-              ),
+              child: BuilderAuthoringPage(projectId: 'project-test', step: 7),
             ),
           ),
         ),
@@ -117,9 +113,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    final toggle = find.byKey(
-      const ValueKey('step07-autosave-toggle'),
-    );
+    final toggle = find.byKey(const ValueKey('step07-autosave-toggle'));
 
     await tester.ensureVisible(toggle);
     await tester.tap(toggle);
@@ -142,10 +136,7 @@ void main() {
 
     expect(saves, 1);
 
-    expect(
-      find.textContaining('Blueprint draft saved - v2'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Blueprint draft saved - v2'), findsOneWidget);
 
     final refreshedToggle = tester.widget<FilterChip>(toggle);
 
@@ -167,131 +158,125 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'Autosave flushes a pending Blueprint when leaving the editor',
-    (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1200, 1000));
+  testWidgets('Autosave flushes a pending Blueprint when leaving the editor', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 1000));
 
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      var saves = 0;
+    var saves = 0;
 
-      final client = MockClient((request) async {
-        if (request.method == 'GET') {
-          return http.Response(
-            jsonEncode({
-              'version': 1,
-              'concurrencyToken': 'token-1',
-              'draft': {
-                'sections': {
-                  'screens': [
-                    {'id': 'home', 'name': 'Home'},
-                  ],
-                  'components': [
-                    {
-                      'id': 'welcome',
-                      'screenId': 'home',
-                      'type': 'text',
-                      'text': 'Hello',
-                    },
-                  ],
-                  'routes': <Map<String, dynamic>>[],
-                  'blueprint': <String, dynamic>{},
-                  'interactions': <Map<String, dynamic>>[],
-                },
+    final client = MockClient((request) async {
+      if (request.method == 'GET') {
+        return http.Response(
+          jsonEncode({
+            'version': 1,
+            'concurrencyToken': 'token-1',
+            'draft': {
+              'sections': {
+                'screens': [
+                  {'id': 'home', 'name': 'Home'},
+                ],
+                'components': [
+                  {
+                    'id': 'welcome',
+                    'screenId': 'home',
+                    'type': 'text',
+                    'text': 'Hello',
+                  },
+                ],
+                'routes': <Map<String, dynamic>>[],
+                'blueprint': <String, dynamic>{},
+                'interactions': <Map<String, dynamic>>[],
               },
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-
-        if (request.method == 'PUT') {
-          saves++;
-
-          return http.Response(
-            '{"version":2}',
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-
-        return http.Response('{}', 500);
-      });
-
-      addTearDown(client.close);
-
-      final api = ApiClient(client);
-
-      final workspace = Workspace(
-        projectId: 'leave-test',
-        draftId: 'draft-leave',
-        version: 1,
-        projectName: 'REQVIORA',
-        designTargets: const ['web'],
-        sections: {
-          'screens': [
-            {'id': 'home', 'name': 'Home'},
-          ],
-          'components': [
-            {
-              'id': 'welcome',
-              'screenId': 'home',
-              'type': 'text',
-              'text': 'Hello',
             },
-          ],
-          'routes': <Map<String, dynamic>>[],
-          'blueprint': <String, dynamic>{},
-          'interactions': <Map<String, dynamic>>[],
-        },
-      );
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
 
-      Widget app(Widget child) => ProviderScope(
-        overrides: [
-          apiClientProvider.overrideWithValue(api),
+      if (request.method == 'PUT') {
+        saves++;
+
+        return http.Response(
+          '{"version":2}',
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+
+      return http.Response('{}', 500);
+    });
+
+    addTearDown(client.close);
+
+    final api = ApiClient(client);
+
+    final workspace = Workspace(
+      projectId: 'leave-test',
+      draftId: 'draft-leave',
+      version: 1,
+      projectName: 'REQVIORA',
+      designTargets: const ['web'],
+      sections: {
+        'screens': [
+          {'id': 'home', 'name': 'Home'},
         ],
-        child: MaterialApp(
-          home: Scaffold(body: child),
-        ),
-      );
+        'components': [
+          {
+            'id': 'welcome',
+            'screenId': 'home',
+            'type': 'text',
+            'text': 'Hello',
+          },
+        ],
+        'routes': <Map<String, dynamic>>[],
+        'blueprint': <String, dynamic>{},
+        'interactions': <Map<String, dynamic>>[],
+      },
+    );
 
-      await tester.pumpWidget(
-        app(
-          SingleChildScrollView(
-            child: V4BlueprintStudio(workspace: workspace),
-          ),
-        ),
-      );
+    Widget app(Widget child) => ProviderScope(
+      overrides: [
+        apiClientProvider.overrideWithValue(api),
+        builderMemberRoleProvider(
+          'project-test',
+        ).overrideWith((ref) async => ProjectMemberRole.owner),
+      ],
+      child: MaterialApp(home: Scaffold(body: child)),
+    );
 
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      app(
+        SingleChildScrollView(child: V4BlueprintStudio(workspace: workspace)),
+      ),
+    );
 
-      final toggle = find.byKey(
-        const ValueKey('step07-autosave-toggle'),
-      );
+    await tester.pumpAndSettle();
 
-      await tester.ensureVisible(toggle);
-      await tester.tap(toggle);
-      await tester.pump();
+    final toggle = find.byKey(const ValueKey('step07-autosave-toggle'));
 
-      final generate = find.text('Generate Local Preview');
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
+    await tester.pump();
 
-      await tester.ensureVisible(generate);
-      await tester.tap(generate);
-      await tester.pump();
+    final generate = find.text('Generate Local Preview');
 
-      await tester.pump(const Duration(seconds: 1));
+    await tester.ensureVisible(generate);
+    await tester.tap(generate);
+    await tester.pump();
 
-      expect(saves, 0);
+    await tester.pump(const Duration(seconds: 1));
 
-      await tester.pumpWidget(
-        app(const SizedBox.shrink()),
-      );
+    expect(saves, 0);
 
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(app(const SizedBox.shrink()));
 
-      expect(saves, 1);
-      expect(tester.takeException(), isNull);
-    },
-  );
+    await tester.pumpAndSettle();
+
+    expect(saves, 1);
+    expect(tester.takeException(), isNull);
+  });
 }

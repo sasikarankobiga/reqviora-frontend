@@ -28,6 +28,7 @@ import '../application/workspace_providers.dart';
 import '../data/workspace_repository.dart';
 import '../domain/workspace.dart';
 import '../domain/blueprint_recovery_store.dart';
+import '../domain/approved_revision_session.dart';
 import '../domain/navigation_diagnostics.dart';
 import '../domain/draft_conflict.dart';
 import '../domain/feature_coverage.dart';
@@ -36,11 +37,7 @@ import '../domain/theme_accessibility.dart';
 import '../domain/theme_draft_tokens.dart';
 import 'simulated_preview.dart';
 import '../domain/local_preview_blueprint.dart';
- feature/shayiny-v4-components-editor
 import '../domain/backend_blueprint_mapper.dart';
-import '../domain/v4_blueprint_history.dart';
-
- develop
 
 /// Service-backed authoring for Builder steps 02-08. All writes are owner-scoped
 /// and carry a draft version. No fake AI/approval states are produced here.
@@ -640,6 +637,9 @@ class _ItemEditorState extends State<_ItemEditor> {
 
     // Persist first; keep the existing order if saving fails.
     await widget.onSave(widget.section, reordered);
+    if (mounted) {
+      setState(() => items = reordered);
+    }
   }
 
   Future<void> remove(Map<String, dynamic> item) async {
@@ -2148,18 +2148,21 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   Map<String, dynamic>? _savedSnapshot;
   bool _versionConflict = false;
   final BlueprintRecoveryStore _recoveryStore = BlueprintRecoveryStore();
+  late final WorkspaceRepository _repository;
   late final int _sessionGeneration;
   late final String? _recoveryKey;
 
   @override
   void initState() {
     super.initState();
+    _repository = ref.read(workspaceRepositoryProvider);
     _editingVersion = widget.workspace.version;
     _sessionGeneration = authSession.generation;
     final actorId = projectMemberActorId(authSession.token);
-    _recoveryKey = isLocalDemo
-        ? 'demo:${widget.workspace.projectId}'
-        : actorId == null
+    _recoveryKey =
+        isLocalDemo
+            ? 'demo:${widget.workspace.projectId}'
+            : actorId == null
             ? null
             : '$actorId:$_sessionGeneration:${widget.workspace.projectId}';
     final key = _recoveryKey;
@@ -2175,8 +2178,10 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   void _persistRecovery() {
     final key = _recoveryKey;
     final draft = draftBlueprint;
-    if (key != null && draft != null &&
-        authSession.generation == _sessionGeneration && !_versionConflict) {
+    if (key != null &&
+        draft != null &&
+        authSession.generation == _sessionGeneration &&
+        !_versionConflict) {
       _recoveryStore.save(key, _editingVersion, draft);
     }
   }
@@ -2227,7 +2232,9 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     if (!autosaveEnabled || draftBlueprint == null || _versionConflict) return;
 
     _autosaveTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted && !savingDraft && !generating &&
+      if (mounted &&
+          !savingDraft &&
+          !generating &&
           authSession.generation == _sessionGeneration) {
         saveBlueprintDraft();
       }
@@ -2237,6 +2244,25 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
   @override
   void dispose() {
     _autosaveTimer?.cancel();
+    final pendingBlueprint = draftBlueprint;
+    if (autosaveEnabled &&
+        pendingBlueprint != null &&
+        !savingDraft &&
+        !generating &&
+        !_versionConflict &&
+        authSession.generation == _sessionGeneration) {
+      unawaited(
+        _repository
+            .save(
+              widget.workspace.projectId,
+              'visualEditorDraft',
+              _editingVersion,
+              pendingBlueprint,
+            )
+            .then<void>((_) {})
+            .catchError((Object _) {}),
+      );
+    }
     super.dispose();
   }
 
@@ -2427,13 +2453,16 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Visual editor draft saved - v$version (not approved)'),
+          content: Text(
+            'Blueprint draft saved - v$version '
+            '(visual editor; not approved)',
+          ),
         ),
       );
     } catch (failure) {
       if (mounted) {
         setState(() {
-          error = 'Visual editor draft was not saved: $failure';
+          error = 'Blueprint draft was not saved: $failure';
 
           if (failure is StateError ||
               (failure is ApiException && failure.statusCode == 409)) {
@@ -2448,20 +2477,59 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     }
   }
 
-  void generatePreview() {
-    if (savingDraft ||
-        generating ||
-        draftBlueprint != null ||
-        _versionConflict) {
+  Future<void> generatePreview() async {
+    if (savingDraft || generating || _versionConflict) {
       return;
     }
+
+    final savedVisualDraft = widget.workspace.fields('visualEditorDraft');
+    final canonicalBlueprint = widget.workspace.fields('blueprint');
+    final currentBlueprint =
+        draftBlueprint ??
+        (savedVisualDraft['screens'] is List
+            ? savedVisualDraft
+            : canonicalBlueprint);
+    final hasExistingDesign =
+        currentBlueprint['screens'] is List &&
+        (currentBlueprint['screens'] as List).isNotEmpty;
+
+    if (hasExistingDesign) {
+      final replace = await showDialog<bool>(
+        context: context,
+        builder:
+            (dialogContext) => AlertDialog(
+              title: const Text('Replace the current Blueprint draft?'),
+              content: const Text(
+                'Generating again replaces the working preview. '
+                'You can undo the replacement until it is saved.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Keep Current'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('Replace Draft'),
+                ),
+              ],
+            ),
+      );
+      if (replace != true || !mounted) return;
+    }
+
     try {
       // Derived from server-loaded Workspace content, not hardcoded DB records.
       final preview = buildLocalPreviewBlueprint(widget.workspace);
+      final history =
+          hasExistingDesign
+              ? (blueprintHistory ?? V4BlueprintHistory(currentBlueprint))
+              : V4BlueprintHistory(preview);
+      if (hasExistingDesign) history.record(preview);
       setState(() {
         localPreview = preview;
-        draftBlueprint = preview;
-        blueprintHistory = V4BlueprintHistory(preview);
+        draftBlueprint = history.current;
+        blueprintHistory = history;
         selectedBlueprintComponentId = null;
         inspectorRevision++;
         error = null;
@@ -2475,7 +2543,6 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     }
   }
 
- feature/shayiny-v4-components-editor
   /// Saves Backend Blueprint v1 without approving it.
   Future<void> saveOfficialBlueprintV1() async {
     if (generating || savingDraft || draftBlueprint != null) return;
@@ -2522,9 +2589,6 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     }
   }
 
-  Future<void> compileBlueprint() async {
-    _autosaveTimer?.cancel();
-
   Future<void> regenerateBlueprint() async {
     if (generating ||
         savingDraft ||
@@ -2537,7 +2601,6 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
     final workspaceRepository = ref.read(workspaceRepositoryProvider);
     final repository = ref.read(aiIntelligenceRepositoryProvider);
 
- develop
     setState(() {
       generating = true;
       error = null;
@@ -3088,8 +3151,13 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
 
   @override
   Widget build(BuildContext context) {
+    final savedVisualDraft = widget.workspace.fields('visualEditorDraft');
+    final canonicalBlueprint = widget.workspace.fields('blueprint');
     final savedBlueprint =
-        _savedSnapshot ?? widget.workspace.fields('visualEditorDraft');
+        _savedSnapshot ??
+        (savedVisualDraft['screens'] is List
+            ? savedVisualDraft
+            : canonicalBlueprint);
     final visibleBlueprint = draftBlueprint ?? savedBlueprint;
     final hasCompiledBlueprint = visibleBlueprint['screens'] is List;
     final interactionRules = widget.workspace.items('interactions');
@@ -3133,9 +3201,12 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                   ),
                   OutlinedButton.icon(
                     onPressed:
-                        generating || savingDraft || draftBlueprint != null
+                        generating ||
+                                savingDraft ||
+                                draftBlueprint != null ||
+                                _versionConflict
                             ? null
-                            : (_versionConflict ? null : generatePreview),
+                            : generatePreview,
                     icon: const Icon(Icons.visibility_outlined),
                     label: const LocalizedUiText('Generate Local Preview'),
                   ),
@@ -3161,9 +3232,10 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
                     ),
                   OutlinedButton.icon(
                     key: const ValueKey('step07-save-official-blueprint-v1'),
-                    onPressed: generating || savingDraft || draftBlueprint != null
-                        ? null
-                        : saveOfficialBlueprintV1,
+                    onPressed:
+                        generating || savingDraft || draftBlueprint != null
+                            ? null
+                            : saveOfficialBlueprintV1,
                     icon: const Icon(Icons.cloud_upload_outlined),
                     label: const Text('Save Official Blueprint v1'),
                   ),
@@ -3309,6 +3381,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
   String? error;
   String? message;
   String? validationToken;
+  String? approvedRevisionId;
 
   Map<String, dynamic>? result;
 
@@ -3320,6 +3393,10 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
   @override
   void initState() {
     super.initState();
+    approvedRevisionId = approvedRevisionSession.read(
+      projectId,
+      widget.workspace.version,
+    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) loadHistory();
@@ -3452,11 +3529,18 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
           as Map,
     );
 
-    if (response['id'] is! String ||
-        response['draftVersionId'] is! String ||
-        response['passed'] is! bool ||
-        response['findings'] is! List) {
+    if (response['findings'] is! List) {
       throw const FormatException('Invalid validation response');
+    }
+
+    final backendPassed = response['passed'];
+    final blockers = response['blockers'];
+    if (backendPassed is! bool && blockers is! int) {
+      response['readinessKnown'] = false;
+    } else {
+      response['readinessKnown'] = true;
+      response['passed'] =
+          backendPassed is bool ? backendPassed : blockers == 0;
     }
 
     if (!mounted) return;
@@ -3506,7 +3590,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
       context: context,
       builder:
           (dialogContext) => AlertDialog(
-            title: const LocalizedUiText('Approve validated design?'),
+            title: const LocalizedUiText('Approve Blueprint revision?'),
             content: const Text(
               'Approval creates an immutable revision of the current '
               'validated Blueprint. Confirm only after reviewing the design.',
@@ -3518,7 +3602,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: const LocalizedUiText('Approve design'),
+                child: const LocalizedUiText('Confirm Approval'),
               ),
             ],
           ),
@@ -3526,32 +3610,69 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
 
     if (!mounted || confirmed != true) return;
 
-    final repository = ref.read(approvalExportRepositoryProvider);
+    final repository = ref.read(workspaceRepositoryProvider);
 
-    final receipt = await repository.approve(
-      projectId: projectId,
-      expectedConcurrencyToken: token,
-      validationRunId: validation!['id'] as String,
-      explicitlyConfirmed: true,
+    final receipt = await repository.approveValidatedDraft(
+      projectId,
+      widget.workspace.version,
+      validation!['id'] as String,
     );
 
-    if (receipt['revisionId'] is! String ||
-        receipt['validationRunId'] != validation['id']) {
+    if (receipt['revisionId'] is! String) {
       throw const FormatException('Invalid approval receipt');
     }
 
     if (!mounted) return;
 
     setState(() {
-      result = null;
       validationToken = null;
+      approvedRevisionId = receipt['revisionId'] as String;
       message = 'Approved revision created successfully.';
     });
+
+    approvedRevisionSession.remember(
+      projectId,
+      widget.workspace.version,
+      approvedRevisionId!,
+    );
 
     ref.invalidate(workspaceProvider(projectId));
     ref.invalidate(projectValidationProvider(projectId));
 
-    await refreshHistory();
+    try {
+      await refreshHistory();
+    } catch (_) {
+      // The approval receipt is authoritative even if optional history
+      // endpoints are unavailable on an older backend deployment.
+    }
+  });
+
+  Future<void> exportOfficialRevision() => execute(() async {
+    final revisionId = approvedRevisionId;
+    if (revisionId == null) {
+      throw StateError('Approve a validated revision before exporting.');
+    }
+
+    final repository = ref.read(workspaceRepositoryProvider);
+    final receipt = await repository.createOfficialExport(
+      projectId,
+      revisionId,
+    );
+    final exportId = receipt['exportId'];
+    if (exportId is! String || exportId.isEmpty) {
+      throw const FormatException('Backend returned no official export ID.');
+    }
+
+    final bytes = await repository.downloadOfficialExport(projectId, exportId);
+    if (!isStructurallyValidZip(bytes)) {
+      throw const FormatException('Official export has no valid ZIP header.');
+    }
+    if (!mounted) return;
+
+    ref
+        .read(downloadPortProvider)
+        .saveZip('reqviora-$projectId-$revisionId.zip', bytes);
+    setState(() => message = 'Official archive sent to browser download.');
   });
 
   Future<void> inspectRevision(String revisionId) => execute(() async {
@@ -3637,6 +3758,8 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
   Widget build(BuildContext context) {
     final current = result;
     final passed = current?['passed'] == true;
+    final readinessKnown = current?['readinessKnown'] != false;
+    final approved = widget.workspace.isApproved || approvedRevisionId != null;
 
     final findings =
         (current?['findings'] as List? ?? []).whereType<Map>().toList();
@@ -3658,18 +3781,14 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
             children: [
               FilledButton.icon(
                 key: const ValueKey('step08-validation-button'),
-                onPressed:
-                    busy || widget.workspace.isApproved ? null : runValidation,
+                onPressed: busy || approved ? null : runValidation,
                 icon: const Icon(Icons.fact_check_outlined),
                 label: const LocalizedUiText('Run Backend Validation'),
               ),
               FilledButton.icon(
                 key: const ValueKey('step08-approve-button'),
                 onPressed:
-                    busy ||
-                            widget.workspace.isApproved ||
-                            !passed ||
-                            validationToken == null
+                    busy || approved || !passed || validationToken == null
                         ? null
                         : approveDraft,
                 icon: const Icon(Icons.verified_outlined),
@@ -3685,7 +3804,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
 
           if (busy) ...[
             const SizedBox(height: 12),
-            const LinearProgressIndicator(),
+            const LinearProgressIndicator(value: 0.5),
           ],
 
           const SizedBox(height: 12),
@@ -3696,7 +3815,9 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
             )
           else ...[
             Text(
-              passed ? 'Validation PASSED' : 'Validation FAILED',
+              passed
+                  ? 'Backend validation passed'
+                  : 'Backend validation failed',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: passed ? Colors.green : Colors.red,
@@ -3709,12 +3830,18 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
             if (current['advisories'] is int)
               Text('${current['advisories']} advisories'),
             Text(
-              passed
+              !readinessKnown
+                  ? 'Validation result is incomplete. Approval readiness is unknown.'
+                  : passed
                   ? 'Validation passed. Approval is still required.'
                   : 'Validation blocked: resolve findings before approval.',
-              key: ValueKey(passed
-                  ? 'step08-validation-ready'
-                  : 'step08-validation-blocked'),
+              key: ValueKey(
+                !readinessKnown
+                    ? 'step08-validation-incomplete'
+                    : passed
+                    ? 'step08-validation-ready'
+                    : 'step08-validation-blocked',
+              ),
             ),
             if (findings.isEmpty)
               const Text('No validation findings returned.'),
@@ -3722,13 +3849,47 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
             for (final finding in findings)
               ListTile(
                 leading: const Icon(Icons.info_outline),
-                title: Text((finding['ruleId'] ?? finding['code'] ?? 'Finding').toString()),
-                subtitle: Text(
-                  '${finding['message'] ?? ''}\n'
-                  '${finding['path'] ?? ''}',
+                title: Text(
+                  (finding['ruleId'] ?? finding['code'] ?? 'Finding')
+                      .toString(),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text((finding['message'] ?? '').toString()),
+                    if ((finding['path'] ?? '').toString().isNotEmpty)
+                      Text(finding['path'].toString()),
+                  ],
                 ),
               ),
           ],
+
+          if (approvedRevisionId != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Approved revision: $approvedRevisionId',
+              key: const ValueKey('step08-approved-revision'),
+            ),
+          ],
+
+          const SizedBox(height: 12),
+          Text(
+            approvedRevisionId == null
+                ? 'Official ZIP export requires a successfully approved revision.'
+                : 'Download the official ZIP for the approved revision.',
+            key: const ValueKey('step08-export-unavailable'),
+            style: const TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            key: const ValueKey('step08-export-disabled'),
+            onPressed:
+                busy || approvedRevisionId == null
+                    ? null
+                    : exportOfficialRevision,
+            icon: const Icon(Icons.download_outlined),
+            label: const LocalizedUiText('Download Official ZIP'),
+          ),
 
           const Divider(height: 36),
 

@@ -64,15 +64,9 @@ final appRouter = GoRouter(
   },
 
   routes: [
-    GoRoute(
-      path: '/admin',
-      builder: (_, _) => const AdminPage(),
-    ),
+    GoRoute(path: '/admin', builder: (_, _) => const AdminPage()),
 
-    GoRoute(
-      path: '/projects',
-      builder: (_, _) => const ProjectsPage(),
-    ),
+    GoRoute(path: '/projects', builder: (_, _) => const ProjectsPage()),
 
     GoRoute(
       path: '/projects/new',
@@ -81,9 +75,9 @@ final appRouter = GoRouter(
 
     GoRoute(
       path: '/projects/:id/overview',
-      builder: (_, state) => ProjectOverviewPage(
-        projectId: state.pathParameters['id']!,
-      ),
+      builder:
+          (_, state) =>
+              ProjectOverviewPage(projectId: state.pathParameters['id']!),
     ),
 
     GoRoute(
@@ -118,64 +112,60 @@ final appRouter = GoRouter(
 
     GoRoute(
       path: '/projects/:id/builder/:step',
-      builder: (_, state) => BuilderPage(
-        projectId: state.pathParameters['id']!,
-        step: int.tryParse(
-              state.pathParameters['step'] ?? '1',
-            ) ??
-            1,
-      ),
+      builder:
+          (_, state) => BuilderPage(
+            projectId: state.pathParameters['id']!,
+            step: int.tryParse(state.pathParameters['step'] ?? '1') ?? 1,
+          ),
     ),
 
     GoRoute(
       path: '/projects/:id/preview',
-      builder: (_, state) => ProjectPreviewPage(
-        projectId: state.pathParameters['id']!,
-      ),
+      builder:
+          (_, state) =>
+              ProjectPreviewPage(projectId: state.pathParameters['id']!),
     ),
 
     GoRoute(
       path: '/login',
-      builder: (_, state) => AuthPage(
-        showRegistrationSuccess:
-            state.uri.queryParameters['registered'] == '1',
-      ),
+      builder:
+          (_, state) => AuthPage(
+            showRegistrationSuccess:
+                state.uri.queryParameters['registered'] == '1',
+          ),
     ),
 
     GoRoute(
       path: '/register',
-      builder: (_, _) => const AuthPage(
-        register: true,
-      ),
+      builder: (_, _) => const AuthPage(register: true),
     ),
 
     GoRoute(
       path: '/forgot-password',
-      builder: (_, _) => const AccountSecurityPage(
-        action: AccountAction.forgotPassword,
-      ),
+      builder:
+          (_, _) =>
+              const AccountSecurityPage(action: AccountAction.forgotPassword),
     ),
 
     GoRoute(
       path: '/reset-password',
-      builder: (_, state) => AccountSecurityPage(
-        action: AccountAction.resetPassword,
-        token: state.uri.queryParameters['token'] ?? '',
-      ),
+      builder:
+          (_, state) => AccountSecurityPage(
+            action: AccountAction.resetPassword,
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
     ),
 
     GoRoute(
       path: '/verify-email',
-      builder: (_, state) => AccountSecurityPage(
-        action: AccountAction.verifyEmail,
-        token: state.uri.queryParameters['token'] ?? '',
-      ),
+      builder:
+          (_, state) => AccountSecurityPage(
+            action: AccountAction.verifyEmail,
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
     ),
 
-    GoRoute(
-      path: '/account',
-      builder: (_, _) => const AccountProfilePage(),
-    ),
+    GoRoute(path: '/account', builder: (_, _) => const AccountProfilePage()),
 
     GoRoute(
       path: '/ai-jobs',
@@ -191,17 +181,17 @@ final appRouter = GoRouter(
 
     GoRoute(
       path: '/confirm-email-change',
-      builder: (_, state) => AccountProfilePage(
-        confirmChange: true,
-        token: state.uri.queryParameters['token'] ?? '',
-      ),
+      builder:
+          (_, state) => AccountProfilePage(
+            confirmChange: true,
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
     ),
 
     GoRoute(
       path: '/security/mfa',
-      builder: (_, _) => const AccountSecurityPage(
-        action: AccountAction.setupMfa,
-      ),
+      builder:
+          (_, _) => const AccountSecurityPage(action: AccountAction.setupMfa),
     ),
   ],
 );
@@ -210,18 +200,20 @@ class ReqvioraApp extends StatelessWidget {
   const ReqvioraApp({super.key});
 
   @override
-  Widget build(BuildContext context) =>
-      ValueListenableBuilder<Locale>(
-        valueListenable: appLocale,
-        builder: (context, locale, _) => MaterialApp.router(
+  Widget build(BuildContext context) => ValueListenableBuilder<Locale>(
+    valueListenable: appLocale,
+    builder:
+        (context, locale, _) => MaterialApp.router(
           title: 'REQVIORA · Design Workspace',
           debugShowCheckedModeBanner: false,
           theme: appTheme(),
           routerConfig: appRouter,
-          locale: locale,
+          locale: effectiveAppLocale(
+            locale,
+            WidgetsBinding.instance.platformDispatcher.locales,
+          ),
           supportedLocales: supportedAppLocales,
-          localizationsDelegates:
-              AppLocalizations.localizationsDelegates,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
         ),
-      );
+  );
 }

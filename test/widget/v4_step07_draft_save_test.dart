@@ -104,7 +104,7 @@ void main() {
 
         final draft = body['draft'] as Map<String, dynamic>;
         final sections = draft['sections'] as Map<String, dynamic>;
-        final saved = sections['blueprint'] as Map<String, dynamic>;
+        final saved = sections['visualEditorDraft'] as Map<String, dynamic>;
         final components = saved['componentInstances'] as List;
         final component = components.first as Map<String, dynamic>;
         final props = component['props'] as Map<String, dynamic>;
@@ -167,7 +167,7 @@ void main() {
 
         final draft = body['draft'] as Map<String, dynamic>;
         final sections = draft['sections'] as Map<String, dynamic>;
-        final saved = sections['blueprint'] as Map<String, dynamic>;
+        final saved = sections['visualEditorDraft'] as Map<String, dynamic>;
         final components = saved['componentInstances'] as List;
         final component = components.first as Map<String, dynamic>;
         final props = component['props'] as Map<String, dynamic>;

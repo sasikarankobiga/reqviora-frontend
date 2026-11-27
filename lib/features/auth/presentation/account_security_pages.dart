@@ -7,21 +7,12 @@ import '../../../core/auth/auth_session.dart';
 import '../application/auth_providers.dart';
 import '../domain/auth_error_message.dart';
 
-enum AccountAction {
-  forgotPassword,
-  resetPassword,
-  verifyEmail,
-  setupMfa,
-}
+enum AccountAction { forgotPassword, resetPassword, verifyEmail, setupMfa }
 
 /// Real REST-backed recovery, verification and MFA onboarding screens.
 /// This does not fake successful email delivery or MFA enablement.
 class AccountSecurityPage extends ConsumerStatefulWidget {
-  const AccountSecurityPage({
-    super.key,
-    required this.action,
-    this.token = '',
-  });
+  const AccountSecurityPage({super.key, required this.action, this.token = ''});
 
   final AccountAction action;
   final String token;
@@ -31,8 +22,7 @@ class AccountSecurityPage extends ConsumerStatefulWidget {
       _AccountSecurityPageState();
 }
 
-class _AccountSecurityPageState
-    extends ConsumerState<AccountSecurityPage> {
+class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
   final _form = GlobalKey<FormState>();
 
   final _email = TextEditingController();
@@ -52,8 +42,7 @@ class _AccountSecurityPageState
 
   bool get _protectedAction =>
       widget.action == AccountAction.setupMfa ||
-      (widget.action == AccountAction.verifyEmail &&
-          widget.token.isEmpty);
+      (widget.action == AccountAction.verifyEmail && widget.token.isEmpty);
 
   @override
   void initState() {
@@ -62,8 +51,7 @@ class _AccountSecurityPageState
   }
 
   void _sessionChanged() {
-    if (!mounted ||
-        _generation == authSession.generation) {
+    if (!mounted || _generation == authSession.generation) {
       return;
     }
 
@@ -100,7 +88,7 @@ class _AccountSecurityPageState
     AccountAction.forgotPassword => uiText(
       context,
       'Forgot password',
-      'கடவுச்சொல் மறந்துவிட்டதா?',
+      'கடவுச்சொல்லை மறந்துவிட்டீர்களா',
     ),
     AccountAction.resetPassword => uiText(
       context,
@@ -143,16 +131,13 @@ class _AccountSecurityPageState
   };
 
   Future<void> _submit() async {
-    if (_protectedAction &&
-        !authSession.authenticated) {
+    if (_protectedAction && !authSession.authenticated) {
       return;
     }
 
     final generation = authSession.generation;
 
-    if (_busy ||
-        _mfaCompleted ||
-        !(_form.currentState?.validate() ?? false)) {
+    if (_busy || _mfaCompleted || !(_form.currentState?.validate() ?? false)) {
       return;
     }
 
@@ -163,15 +148,11 @@ class _AccountSecurityPageState
     });
 
     try {
-      final repository = ref.read(
-        authRepositoryProvider,
-      );
+      final repository = ref.read(authRepositoryProvider);
 
       switch (widget.action) {
         case AccountAction.forgotPassword:
-          await repository.forgotPassword(
-            _email.text.trim(),
-          );
+          await repository.forgotPassword(_email.text.trim());
 
           if (!mounted) return;
 
@@ -188,10 +169,7 @@ class _AccountSecurityPageState
             throw StateError('Missing reset token');
           }
 
-          await repository.resetPassword(
-            widget.token,
-            _password.text,
-          );
+          await repository.resetPassword(widget.token, _password.text);
 
           if (!mounted) return;
 
@@ -208,9 +186,7 @@ class _AccountSecurityPageState
 
         case AccountAction.verifyEmail:
           if (widget.token.isNotEmpty) {
-            await repository.confirmEmailVerification(
-              widget.token,
-            );
+            await repository.confirmEmailVerification(widget.token);
 
             if (!mounted) return;
 
@@ -221,15 +197,12 @@ class _AccountSecurityPageState
             );
           } else {
             if (!authSession.authenticated) {
-              throw StateError(
-                'Sign in to request a verification email.',
-              );
+              throw StateError('Sign in to request a verification email.');
             }
 
             await repository.requestEmailVerification();
 
-            if (!mounted ||
-                generation != authSession.generation) {
+            if (!mounted || generation != authSession.generation) {
               return;
             }
 
@@ -244,28 +217,23 @@ class _AccountSecurityPageState
 
         case AccountAction.setupMfa:
           if (_mfaProvision == null) {
-            final provision =
-                await repository.provisionMfa();
+            final provision = await repository.provisionMfa();
 
-            if (!mounted ||
-                generation != authSession.generation) {
+            if (!mounted || generation != authSession.generation) {
               return;
             }
 
             final uri = provision['uri'];
             final recovery = provision['recoveryCodes'];
 
-            final parsedUri =
-                uri is String ? Uri.tryParse(uri) : null;
+            final parsedUri = uri is String ? Uri.tryParse(uri) : null;
 
             // AuthRepository may return only the URI and
             // recovery codes. Obtain the secret from the URI
             // when a separate secret field is unavailable.
-            final uriSecret =
-                parsedUri?.queryParameters['secret'];
+            final uriSecret = parsedUri?.queryParameters['secret'];
 
-            final secret =
-                provision['secret'] ?? uriSecret;
+            final secret = provision['secret'] ?? uriSecret;
 
             if (secret is! String ||
                 !RegExp(r'^[A-Z2-7]+$').hasMatch(secret) ||
@@ -276,21 +244,15 @@ class _AccountSecurityPageState
                 recovery is! List ||
                 recovery.isEmpty ||
                 recovery.any(
-                  (code) =>
-                      code is! String ||
-                      code.trim().isEmpty,
+                  (code) => code is! String || code.trim().isEmpty,
                 )) {
-              throw const FormatException(
-                'Invalid MFA setup response',
-              );
+              throw const FormatException('Invalid MFA setup response');
             }
 
             _mfaProvision = {
               'secret': secret,
               'uri': uri,
-              'recoveryCodes': List<String>.from(
-                recovery,
-              ),
+              'recoveryCodes': List<String>.from(recovery),
             };
 
             _notice = uiText(
@@ -299,12 +261,9 @@ class _AccountSecurityPageState
               'அமைப்புக் குறியீட்டை அங்கீகார செயலியில் சேர்க்கவும். உறுதிப்படுத்துவதற்கு முன்பு மீட்புக் குறியீடுகளைச் சேமிக்கவும்.',
             );
           } else {
-            await repository.verifyMfa(
-              _otp.text.trim(),
-            );
+            await repository.verifyMfa(_otp.text.trim());
 
-            if (!mounted ||
-                generation != authSession.generation) {
+            if (!mounted || generation != authSession.generation) {
               return;
             }
 
@@ -323,14 +282,12 @@ class _AccountSecurityPageState
       }
     } catch (error) {
       if (mounted &&
-          (!_protectedAction ||
-              generation == authSession.generation)) {
+          (!_protectedAction || generation == authSession.generation)) {
         _error = authErrorMessage(error);
       }
     } finally {
       if (mounted &&
-          (!_protectedAction ||
-              generation == authSession.generation)) {
+          (!_protectedAction || generation == authSession.generation)) {
         setState(() {
           _busy = false;
         });
@@ -343,16 +300,13 @@ class _AccountSecurityPageState
     final action = widget.action;
 
     final requiresLink =
-        action == AccountAction.resetPassword &&
-        widget.token.isEmpty;
+        action == AccountAction.resetPassword && widget.token.isEmpty;
 
-    final isMfa =
-        action == AccountAction.setupMfa;
+    final isMfa = action == AccountAction.setupMfa;
 
     final requiresSignIn =
         (isMfa ||
-            (action == AccountAction.verifyEmail &&
-                widget.token.isEmpty)) &&
+            (action == AccountAction.verifyEmail && widget.token.isEmpty)) &&
         !authSession.authenticated;
 
     final isPublicVerificationHelp =
@@ -369,9 +323,7 @@ class _AccountSecurityPageState
             'REQVIORA கணக்குப் பாதுகாப்பு',
           ),
         ),
-        actions: const [
-          LanguageSwitcher(),
-        ],
+        actions: const [LanguageSwitcher()],
       ),
 
       body: Center(
@@ -379,9 +331,7 @@ class _AccountSecurityPageState
           padding: const EdgeInsets.all(24),
 
           child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: 520,
-            ),
+            constraints: const BoxConstraints(maxWidth: 520),
 
             child: Card(
               child: Padding(
@@ -391,16 +341,13 @@ class _AccountSecurityPageState
                   key: _form,
 
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.stretch,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisSize: MainAxisSize.min,
 
                     children: [
                       Text(
                         _title,
-                        style: Theme.of(
-                          context,
-                        ).textTheme.headlineSmall,
+                        style: Theme.of(context).textTheme.headlineSmall,
                       ),
 
                       const SizedBox(height: 12),
@@ -458,8 +405,7 @@ class _AccountSecurityPageState
                         ),
                       ],
 
-                      if (requiresSignIn &&
-                          !isPublicVerificationHelp)
+                      if (requiresSignIn && !isPublicVerificationHelp)
                         Text(
                           uiText(
                             context,
@@ -468,18 +414,14 @@ class _AccountSecurityPageState
                           ),
                         ),
 
-                      if (action ==
-                          AccountAction.forgotPassword)
+                      if (action == AccountAction.forgotPassword)
                         TextFormField(
-                          key: const ValueKey(
-                            'security-email',
-                          ),
+                          key: const ValueKey('security-email'),
 
                           controller: _email,
                           enabled: !_busy,
 
-                          keyboardType:
-                              TextInputType.emailAddress,
+                          keyboardType: TextInputType.emailAddress,
 
                           decoration: InputDecoration(
                             labelText: uiText(
@@ -489,25 +431,23 @@ class _AccountSecurityPageState
                             ),
                           ),
 
-                          validator: (value) =>
-                              value != null &&
-                                  value.contains('@') &&
-                                  value.contains('.')
-                              ? null
-                              : uiText(
-                                  context,
-                                  'Enter a valid email address',
-                                  'சரியான மின்னஞ்சல் முகவரியை உள்ளிடவும்',
-                                ),
+                          validator:
+                              (value) =>
+                                  value != null &&
+                                          value.contains('@') &&
+                                          value.contains('.')
+                                      ? null
+                                      : uiText(
+                                        context,
+                                        'Enter a valid email address',
+                                        'சரியான மின்னஞ்சல் முகவரியை உள்ளிடவும்',
+                                      ),
                         ),
 
-                      if (action ==
-                              AccountAction.resetPassword &&
+                      if (action == AccountAction.resetPassword &&
                           !requiresLink) ...[
                         TextFormField(
-                          key: const ValueKey(
-                            'security-password',
-                          ),
+                          key: const ValueKey('security-password'),
 
                           controller: _password,
                           obscureText: true,
@@ -521,22 +461,21 @@ class _AccountSecurityPageState
                             ),
                           ),
 
-                          validator: (value) =>
-                              (value?.length ?? 0) >= 12
-                              ? null
-                              : uiText(
-                                  context,
-                                  'Use at least 12 characters',
-                                  'குறைந்தது 12 எழுத்துகளைப் பயன்படுத்தவும்',
-                                ),
+                          validator:
+                              (value) =>
+                                  (value?.length ?? 0) >= 12
+                                      ? null
+                                      : uiText(
+                                        context,
+                                        'Use at least 12 characters',
+                                        'குறைந்தது 12 எழுத்துகளைப் பயன்படுத்தவும்',
+                                      ),
                         ),
 
                         const SizedBox(height: 12),
 
                         TextFormField(
-                          key: const ValueKey(
-                            'security-confirm-password',
-                          ),
+                          key: const ValueKey('security-confirm-password'),
 
                           controller: _confirm,
                           obscureText: true,
@@ -550,19 +489,19 @@ class _AccountSecurityPageState
                             ),
                           ),
 
-                          validator: (value) =>
-                              value == _password.text
-                              ? null
-                              : uiText(
-                                  context,
-                                  'Passwords do not match',
-                                  'கடவுச்சொற்கள் பொருந்தவில்லை',
-                                ),
+                          validator:
+                              (value) =>
+                                  value == _password.text
+                                      ? null
+                                      : uiText(
+                                        context,
+                                        'Passwords do not match',
+                                        'கடவுச்சொற்கள் பொருந்தவில்லை',
+                                      ),
                         ),
                       ],
 
-                      if (isMfa &&
-                          _mfaProvision != null) ...[
+                      if (isMfa && _mfaProvision != null) ...[
                         const SizedBox(height: 12),
 
                         Text(
@@ -574,8 +513,7 @@ class _AccountSecurityPageState
                         ),
 
                         SelectableText(
-                          (_mfaProvision!['secret'] ?? '')
-                              .toString(),
+                          (_mfaProvision!['secret'] ?? '').toString(),
                         ),
 
                         const SizedBox(height: 12),
@@ -589,8 +527,7 @@ class _AccountSecurityPageState
                         ),
 
                         SelectableText(
-                          (_mfaProvision!['uri'] ?? '')
-                              .toString(),
+                          (_mfaProvision!['uri'] ?? '').toString(),
                         ),
 
                         const SizedBox(height: 12),
@@ -603,26 +540,19 @@ class _AccountSecurityPageState
                           ),
                         ),
 
-                        for (final code in
-                            (_mfaProvision!['recoveryCodes']
-                                    as List? ??
-                                []))
-                          SelectableText(
-                            code.toString(),
-                          ),
+                        for (final code
+                            in (_mfaProvision!['recoveryCodes'] as List? ?? []))
+                          SelectableText(code.toString()),
 
                         const SizedBox(height: 12),
 
                         TextFormField(
-                          key: const ValueKey(
-                            'security-otp',
-                          ),
+                          key: const ValueKey('security-otp'),
 
                           controller: _otp,
                           enabled: !_busy,
 
-                          keyboardType:
-                              TextInputType.number,
+                          keyboardType: TextInputType.number,
 
                           decoration: InputDecoration(
                             labelText: uiText(
@@ -632,18 +562,17 @@ class _AccountSecurityPageState
                             ),
                           ),
 
-                          validator: (value) =>
-                              RegExp(
-                                r'^\d{6}$',
-                              ).hasMatch(
-                                value?.trim() ?? '',
-                              )
-                              ? null
-                              : uiText(
-                                  context,
-                                  'Enter a 6-digit code',
-                                  '6 இலக்கக் குறியீட்டை உள்ளிடவும்',
-                                ),
+                          validator:
+                              (value) =>
+                                  RegExp(
+                                        r'^\d{6}$',
+                                      ).hasMatch(value?.trim() ?? '')
+                                      ? null
+                                      : uiText(
+                                        context,
+                                        'Enter a 6-digit code',
+                                        '6 இலக்கக் குறியீட்டை உள்ளிடவும்',
+                                      ),
                         ),
                       ],
 
@@ -655,9 +584,7 @@ class _AccountSecurityPageState
 
                           child: Text(
                             _error!,
-                            style: const TextStyle(
-                              color: Colors.red,
-                            ),
+                            style: const TextStyle(color: Colors.red),
                           ),
                         ),
                       ],
@@ -665,10 +592,7 @@ class _AccountSecurityPageState
                       if (_notice != null) ...[
                         const SizedBox(height: 16),
 
-                        Semantics(
-                          liveRegion: true,
-                          child: Text(_notice!),
-                        ),
+                        Semantics(liveRegion: true, child: Text(_notice!)),
                       ],
 
                       const SizedBox(height: 22),
@@ -677,75 +601,74 @@ class _AccountSecurityPageState
                         FilledButton(
                           onPressed:
                               (_busy ||
-                                  _mfaCompleted ||
-                                  requiresLink ||
-                                  requiresSignIn)
-                              ? null
-                              : _submit,
+                                      _mfaCompleted ||
+                                      requiresLink ||
+                                      requiresSignIn)
+                                  ? null
+                                  : _submit,
 
                           child: Text(
                             _busy
                                 ? uiText(
-                                    context,
-                                    'Processing…',
-                                    'செயலாக்கப்படுகிறது…',
-                                  )
+                                  context,
+                                  'Processing…',
+                                  'செயலாக்கப்படுகிறது…',
+                                )
                                 : switch (action) {
-                                    AccountAction.forgotPassword =>
-                                      uiText(
-                                        context,
-                                        'Send reset link',
-                                        'மீட்டமைப்பு இணைப்பை அனுப்புக',
-                                      ),
+                                  AccountAction.forgotPassword => uiText(
+                                    context,
+                                    'Send reset link',
+                                    'மீட்டமைப்பு இணைப்பை அனுப்பு',
+                                  ),
 
-                                    AccountAction.resetPassword =>
-                                      uiText(
-                                        context,
-                                        'Reset password',
-                                        'கடவுச்சொல்லை மீட்டமைக்கவும்',
-                                      ),
+                                  AccountAction.resetPassword => uiText(
+                                    context,
+                                    'Reset password',
+                                    'கடவுச்சொல்லை மீட்டமைக்கவும்',
+                                  ),
 
-                                    AccountAction.verifyEmail =>
-                                      widget.token.isEmpty
-                                          ? uiText(
-                                              context,
-                                              'Request verification email',
-                                              'உறுதிப்படுத்தல் மின்னஞ்சலைக் கோருக',
-                                            )
-                                          : uiText(
-                                              context,
-                                              'Confirm email',
-                                              'மின்னஞ்சலை உறுதிப்படுத்துக',
-                                            ),
+                                  AccountAction.verifyEmail =>
+                                    widget.token.isEmpty
+                                        ? uiText(
+                                          context,
+                                          'Request verification email',
+                                          'உறுதிப்படுத்தல் மின்னஞ்சலைக் கோருக',
+                                        )
+                                        : uiText(
+                                          context,
+                                          'Confirm email',
+                                          'மின்னஞ்சலை உறுதிப்படுத்துக',
+                                        ),
 
-                                    AccountAction.setupMfa =>
-                                      _mfaCompleted
-                                          ? uiText(
-                                              context,
-                                              'MFA enabled',
-                                              'MFA செயல்படுத்தப்பட்டது',
-                                            )
-                                          : _mfaProvision == null
-                                          ? uiText(
-                                              context,
-                                              'Start MFA setup',
-                                              'MFA அமைப்பைத் தொடங்குக',
-                                            )
-                                          : uiText(
-                                              context,
-                                              'Verify authenticator',
-                                              'அங்கீகாரக் குறியீட்டைச் சரிபார்க்கவும்',
-                                            ),
-                                  },
+                                  AccountAction.setupMfa =>
+                                    _mfaCompleted
+                                        ? uiText(
+                                          context,
+                                          'MFA enabled',
+                                          'MFA செயல்படுத்தப்பட்டது',
+                                        )
+                                        : _mfaProvision == null
+                                        ? uiText(
+                                          context,
+                                          'Start MFA setup',
+                                          'MFA அமைப்பைத் தொடங்குக',
+                                        )
+                                        : uiText(
+                                          context,
+                                          'Verify authenticator',
+                                          'அங்கீகாரக் குறியீட்டைச் சரிபார்க்கவும்',
+                                        ),
+                                },
                           ),
                         ),
 
                       TextButton(
-                        onPressed: () => context.go(
-                          authSession.authenticated
-                              ? '/projects'
-                              : '/login',
-                        ),
+                        onPressed:
+                            () => context.go(
+                              authSession.authenticated
+                                  ? '/projects'
+                                  : '/login',
+                            ),
 
                         child: Text(
                           uiText(

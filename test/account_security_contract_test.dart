@@ -1,7 +1,4 @@
- feature/thikal-v4-frontend-development
-
 import 'dart:async';
- develop
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -40,8 +37,6 @@ void main() {
     expect(authSession.authenticated, isTrue);
   });
 
- feature/thikal-v4-frontend-development
-
   test(
     'Login rejects non-string token fields without starting a session',
     () async {
@@ -61,13 +56,20 @@ void main() {
 
       await expectLater(
         AuthRepository(api).signIn('demo@example.com', 'password'),
-        throwsStateError,
+        throwsA(
+          isA<ApiException>()
+              .having((error) => error.statusCode, 'status', 502)
+              .having(
+                (error) => error.message,
+                'message',
+                'Incomplete authentication credentials.',
+              ),
+        ),
       );
       expect(authSession.authenticated, isFalse);
     },
   );
 
- develop
   test('401 triggers one refresh and retries protected GET', () async {
     var getCount = 0;
     var refreshCount = 0;
@@ -193,8 +195,6 @@ void main() {
     expect(calls, 2);
   });
 
- feature/thikal-v4-frontend-development
-=======
   test('MFA provisioning rejects malformed recovery codes', () async {
     authSession.signIn('session-token');
     final api = ApiClient(
@@ -213,7 +213,6 @@ void main() {
     await expectLater(AuthRepository(api).provisionMfa(), throwsStateError);
   });
 
- develop
   test('Logout revokes refresh token and clears in-memory session', () async {
     authSession.startSession(
       accessToken: 'live',
@@ -252,7 +251,6 @@ void main() {
     expect(authSession.authenticated, isFalse);
   });
 
-feature/thikal-v4-frontend-development
   test('Successful reset clears the current session', () async {
     authSession.startSession(
       accessToken: 'old-access',
@@ -343,6 +341,7 @@ feature/thikal-v4-frontend-development
       AuthRepository(api).resetPassword('   ', 'NewStrongPassword123'),
       throwsArgumentError,
     );
+  });
 
   test('staggered 401 responses reuse one token rotation', () async {
     authSession.startSession(
@@ -425,6 +424,5 @@ feature/thikal-v4-frontend-development
     await expectLater(pending, throwsA(isA<ApiException>()));
     expect(protectedWrites, 1);
     expect(refreshRequests, 0);
-develop
   });
 }

@@ -1,12 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reqviora_frontend/core/auth/auth_session.dart';
 import 'package:reqviora_frontend/features/workspace/domain/blueprint_recovery_store.dart';
 import 'package:reqviora_frontend/features/workspace/domain/workspace.dart';
 import 'package:reqviora_frontend/features/workspace/presentation/authoring_page.dart';
 
 void main() {
   const recovery = BlueprintRecoveryStore();
+  const actorId = '11111111-1111-4111-8111-111111111111';
+  const token =
+      'e30.eyJzdWIiOiIxMTExMTExMS0xMTExLTQxMTEtODExMS0xMTExMTExMTExMTEifQ.sig';
+
+  setUp(() => authSession.signIn(token));
+  tearDown(authSession.signOut);
+
+  String recoveryKey(String projectId) =>
+      '$actorId:${authSession.generation}:$projectId';
 
   Workspace makeWorkspace(String projectId, int version) {
     return Workspace(
@@ -57,8 +67,9 @@ void main() {
 
   testWidgets('Unsaved edits survive reopening Step 07', (tester) async {
     const project = 'widget-recovery-reopen';
-    recovery.clear(project);
-    addTearDown(() => recovery.clear(project));
+    final key = recoveryKey(project);
+    recovery.clear(key);
+    addTearDown(() => recovery.clear(key));
 
     await tester.binding.setSurfaceSize(const Size(1200, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -78,7 +89,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Restored unsaved content'), findsWidgets);
-    expect(recovery.restore(project, 1), isNotNull);
+    expect(recovery.restore(key, 1), isNotNull);
 
     // Destroy the widget tree to simulate navigating away/reopening.
     await tester.pumpWidget(const SizedBox.shrink());
@@ -95,13 +106,14 @@ void main() {
     tester,
   ) async {
     const project = 'widget-recovery-stale';
-    recovery.clear(project);
-    addTearDown(() => recovery.clear(project));
+    final key = recoveryKey(project);
+    recovery.clear(key);
+    addTearDown(() => recovery.clear(key));
 
     await tester.binding.setSurfaceSize(const Size(1200, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    recovery.save(project, 1, {
+    recovery.save(key, 1, {
       'screens': [
         {'screenId': 'home', 'name': 'Home'},
       ],
@@ -119,7 +131,7 @@ void main() {
 
     expect(find.text('Saved original content'), findsWidgets);
     expect(find.text('Outdated unsaved content'), findsNothing);
-    expect(recovery.restore(project, 1), isNull);
+    expect(recovery.restore(key, 1), isNull);
     expect(tester.takeException(), isNull);
   });
 }
