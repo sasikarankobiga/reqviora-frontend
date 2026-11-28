@@ -25,6 +25,8 @@ import '../features/auth/domain/verification_link.dart';
 
 import '../features/administration/presentation/pages/admin_page.dart';
 import '../features/administration/presentation/pages/admin_dashboard_page.dart';
+import '../features/administration/presentation/pages/admin_export_diagnostics_page.dart';
+import '../features/administration/presentation/pages/admin_mcp_grants_page.dart';
 
 import '../features/workspace/presentation/preview_page.dart';
 import '../features/workspace/presentation/project_write_gate.dart';
@@ -85,6 +87,18 @@ final appRouter = GoRouter(
 
   routes: [
     GoRoute(path: '/admin', builder: (_, _) => const AdminPage()),
+
+    GoRoute(
+      path: '/admin/mcp-grants',
+      redirect: (_, _) => isLocalDemo ? '/projects' : null,
+      builder: (_, _) => const AdminMcpGrantsPage(),
+    ),
+
+    GoRoute(
+      path: '/admin/export-diagnostics',
+      redirect: (_, _) => isLocalDemo ? '/projects' : null,
+      builder: (_, _) => const AdminExportDiagnosticsPage(),
+    ),
 
     GoRoute(path: '/projects', builder: (_, _) => const ProjectsPage()),
 
