@@ -129,12 +129,14 @@ class FeatureTile extends StatelessWidget {
 class PageIntro extends StatelessWidget {
   const PageIntro({
     super.key,
-    required this.eyebrow,
+    this.eyebrow,
+    this.eyebrowWidget,
     required this.title,
     required this.subtitle,
     this.action,
   });
-  final String eyebrow;
+  final String? eyebrow;
+  final Widget? eyebrowWidget;
   final String title;
   final String subtitle;
   final Widget? action;
@@ -142,14 +144,14 @@ class PageIntro extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(
-        eyebrow.toUpperCase(),
+      DefaultTextStyle(
         style: const TextStyle(
           fontSize: 11,
           letterSpacing: 1.6,
           fontWeight: FontWeight.w800,
           color: AppColors.purple,
         ),
+        child: eyebrowWidget ?? Text((eyebrow ?? '').toUpperCase()),
       ),
       const SizedBox(height: 8),
       Wrap(

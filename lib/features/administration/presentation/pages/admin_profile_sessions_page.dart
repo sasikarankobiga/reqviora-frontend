@@ -7,6 +7,7 @@ import '../../../../core/config/app_config.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../l10n/language_settings.dart';
 import '../../../projects/application/projects_providers.dart';
+import '../../../auth/application/auth_providers.dart';
 import '../../data/repositories/admin_profile_repository.dart';
 import '../../domain/admin_profile_models.dart';
 
@@ -162,6 +163,7 @@ class _AdminProfileSessionsPageState
         _dirty = false;
         _notice = _t('Profile updated.', 'சுயவிவரம் புதுப்பிக்கப்பட்டது.');
       });
+      ref.invalidate(authenticatedProfileProvider);
     } on ArgumentError {
       if (_current(operation, generation)) {
         setState(

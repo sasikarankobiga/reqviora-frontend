@@ -30,7 +30,6 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
   bool _confirmed = false;
   String? _error;
   String? _notice;
-  Map<String, dynamic>? _profile;
   int _generation = authSession.generation;
 
   @override
@@ -49,7 +48,6 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
     _email.clear();
 
     setState(() {
-      _profile = null;
       _error = null;
       _notice = null;
       _busy = false;
@@ -69,17 +67,15 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
     setState(() {
       _busy = true;
       _error = null;
-      _profile = null;
     });
 
     final generation = authSession.generation;
 
     try {
-      final result = await ref.read(authRepositoryProvider).getProfile();
-
+      ref.invalidate(authenticatedProfileProvider);
+      await ref.read(authenticatedProfileProvider.future);
       if (!mounted || generation != authSession.generation) return;
-
-      setState(() => _profile = result);
+      setState(() {});
     } catch (error) {
       if (mounted && generation == authSession.generation) {
         setState(() => _error = authErrorMessage(error));
@@ -148,6 +144,10 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final centralizedProfile =
+        !widget.confirmChange && authSession.authenticated
+            ? ref.watch(authenticatedProfileProvider)
+            : null;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -207,12 +207,25 @@ class _AccountProfilePageState extends ConsumerState<AccountProfilePage> {
                           icon: const Icon(Icons.refresh),
                           label: const LocalizedUiText('Load account profile'),
                         ),
-                        if (_profile != null) ...[
+                        if (centralizedProfile != null) ...[
                           const SizedBox(height: 12),
-                          if (_profile!['displayName'] is String)
-                            Text(_profile!['displayName'] as String),
-                          if (_profile!['email'] is String)
-                            Text(_profile!['email'] as String),
+                          centralizedProfile.when(
+                            data:
+                                (profile) => Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      profile.displayName,
+                                      key: const ValueKey(
+                                        'account-display-name',
+                                      ),
+                                    ),
+                                    Text(profile.email),
+                                  ],
+                                ),
+                            error: (error, _) => Text(authErrorMessage(error)),
+                            loading: () => const LinearProgressIndicator(),
+                          ),
                         ],
                         const Divider(height: 32),
                         const LocalizedUiText('Change email address'),

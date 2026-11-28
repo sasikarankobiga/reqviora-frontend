@@ -36,6 +36,21 @@ import '../features/administration/presentation/pages/admin_settings_incidents_p
 import '../features/workspace/presentation/preview_page.dart';
 import '../features/workspace/presentation/project_write_gate.dart';
 
+String? safeLocalDestination(String? candidate) {
+  if (candidate == null || candidate.isEmpty || !candidate.startsWith('/')) {
+    return null;
+  }
+  final uri = Uri.tryParse(candidate);
+  if (uri == null ||
+      uri.hasScheme ||
+      uri.hasAuthority ||
+      candidate.startsWith('//')) {
+    return null;
+  }
+  if (uri.path == '/login' || uri.path == '/register') return null;
+  return uri.toString();
+}
+
 final appRouter = GoRouter(
   initialLocation: '/projects',
   refreshListenable: authSession,
@@ -73,7 +88,10 @@ final appRouter = GoRouter(
         state.matchedLocation == '/confirm-email-change';
 
     if (!authSession.authenticated && !publicAuth) {
-      return '/login';
+      return Uri(
+        path: '/login',
+        queryParameters: {'from': state.uri.toString()},
+      ).toString();
     }
 
     if (authSession.authenticated && signInPages) {
@@ -84,7 +102,8 @@ final appRouter = GoRouter(
           queryParameters: {'token': invitationToken},
         ).toString();
       }
-      return '/projects';
+      return safeLocalDestination(state.uri.queryParameters['from']) ??
+          '/projects';
     }
 
     return null;
@@ -185,6 +204,9 @@ final appRouter = GoRouter(
           (_, state) => AuthPage(
             showRegistrationSuccess:
                 state.uri.queryParameters['registered'] == '1',
+            postSignInPath: safeLocalDestination(
+              state.uri.queryParameters['from'],
+            ),
           ),
     ),
 
