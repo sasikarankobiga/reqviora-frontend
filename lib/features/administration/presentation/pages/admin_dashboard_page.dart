@@ -267,6 +267,38 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                   'Read-only administration. Access is verified '
                   'by the server for every request.',
                 ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    OutlinedButton.icon(
+                      key: const ValueKey('admin-validation-health'),
+                      onPressed:
+                          () => context.go('/administration/validation-health'),
+                      icon: const Icon(Icons.fact_check),
+                      label: Text(
+                        uiText(
+                          context,
+                          'Validation health',
+                          'சரிபார்ப்பு நிலை',
+                        ),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      key: const ValueKey('admin-ai-queue'),
+                      onPressed: () => context.go('/administration/ai-queue'),
+                      icon: const Icon(Icons.memory),
+                      label: Text(
+                        uiText(
+                          context,
+                          'AI queue monitoring',
+                          'AI வரிசை கண்காணிப்பு',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 20),
                 _sectionSelector(),
                 const SizedBox(height: 20),
