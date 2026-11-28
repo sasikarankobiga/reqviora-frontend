@@ -29,6 +29,7 @@ import '../features/administration/presentation/pages/admin_export_diagnostics_p
 import '../features/administration/presentation/pages/admin_mcp_grants_page.dart';
 import '../features/administration/presentation/pages/validation_health_page.dart';
 import '../features/administration/presentation/pages/ai_queue_monitoring_page.dart';
+import '../features/administration/presentation/pages/admin_settings_incidents_page.dart';
 
 import '../features/workspace/presentation/preview_page.dart';
 import '../features/workspace/presentation/project_write_gate.dart';
@@ -239,6 +240,11 @@ final appRouter = GoRouter(
       path: '/administration/ai-queue',
       redirect: (_, _) => isLocalDemo ? '/projects' : null,
       builder: (_, _) => const AiQueueMonitoringPage(),
+    ),
+    GoRoute(
+      path: '/administration/settings-incidents',
+      redirect: (_, _) => isLocalDemo ? '/projects' : null,
+      builder: (_, _) => const AdminSettingsIncidentsPage(),
     ),
 
     GoRoute(
