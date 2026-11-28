@@ -15,10 +15,12 @@ class AuthPage extends ConsumerStatefulWidget {
     super.key,
     this.register = false,
     this.showRegistrationSuccess = false,
+    this.postSignInPath,
   });
 
   final bool register;
   final bool showRegistrationSuccess;
+  final String? postSignInPath;
 
   @override
   ConsumerState<AuthPage> createState() => _AuthPageState();
@@ -134,7 +136,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
 
         if (!mounted) return;
 
-        context.go('/projects');
+        context.go(widget.postSignInPath ?? '/projects');
       }
     } catch (e) {
       if (!mounted) return;

@@ -7,6 +7,7 @@ import '../../../app/widgets.dart';
 import '../application/projects_providers.dart';
 import '../domain/project.dart';
 import '../../../l10n/language_settings.dart';
+import '../../auth/presentation/authenticated_identity.dart';
 
 class ProjectsPage extends ConsumerWidget {
   const ProjectsPage({super.key});
@@ -23,7 +24,7 @@ class ProjectsPage extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           PageIntro(
-            eyebrow: uiText(context, 'Welcome back', 'மீண்டும் வரவேற்கிறோம்'),
+            eyebrowWidget: const PersonalizedGreeting(),
             title: uiText(
               context,
               'Your design workspace',

@@ -215,6 +215,7 @@ class _IdentityEditorState extends ConsumerState<IdentityEditor> {
     try {
       final values = <String, dynamic>{
         'expectedVersion': widget.draft.version,
+        '_expectedIdentity': widget.draft.identity,
         'designTargets': targets.toList(),
         for (final e in inputs.entries) e.key: e.value.text.trim(),
       };

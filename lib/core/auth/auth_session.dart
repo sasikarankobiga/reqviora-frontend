@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 
-/// Session tokens remain in memory. They are never written to browser storage.
-/// A page refresh intentionally requires re-authentication.
+/// Session tokens remain in memory. They are never written to script-readable
+/// browser storage. Secure refresh restoration requires an HttpOnly backend
+/// cookie; until that contract exists, refresh safely returns to sign-in.
+enum AuthSessionPhase { signInRequired, restoring, authenticated, expired }
+
 class AuthSession extends ChangeNotifier {
   int _generation = 0;
 
@@ -10,6 +13,7 @@ class AuthSession extends ChangeNotifier {
   String? _token;
   String? _refreshToken;
   DateTime? _accessExpiresAt;
+  AuthSessionPhase _phase = AuthSessionPhase.signInRequired;
 
   int get generation => _generation;
 
@@ -20,6 +24,8 @@ class AuthSession extends ChangeNotifier {
   String? get refreshToken => _refreshToken;
 
   DateTime? get accessExpiresAt => _accessExpiresAt;
+
+  AuthSessionPhase get phase => _phase;
 
   bool get authenticated => _token != null && _token!.isNotEmpty;
 
@@ -33,6 +39,7 @@ class AuthSession extends ChangeNotifier {
     _token = token;
     _refreshToken = null;
     _accessExpiresAt = null;
+    _phase = AuthSessionPhase.authenticated;
 
     _advanceGeneration();
     notifyListeners();
@@ -50,6 +57,7 @@ class AuthSession extends ChangeNotifier {
     _token = accessToken;
     _refreshToken = refreshToken;
     _accessExpiresAt = accessExpiresAt.toUtc();
+    _phase = AuthSessionPhase.authenticated;
 
     _advanceGeneration();
     notifyListeners();
@@ -86,8 +94,7 @@ class AuthSession extends ChangeNotifier {
       return false;
     }
 
-    if (expectedRefreshToken != null &&
-        _refreshToken != expectedRefreshToken) {
+    if (expectedRefreshToken != null && _refreshToken != expectedRefreshToken) {
       return false;
     }
 
@@ -100,16 +107,19 @@ class AuthSession extends ChangeNotifier {
     _token = accessToken;
     _refreshToken = refreshToken;
     _accessExpiresAt = accessExpiresAt.toUtc();
+    _phase = AuthSessionPhase.authenticated;
 
     notifyListeners();
 
     return true;
   }
 
-  void signOut() {
+  void signOut({bool expired = false}) {
     _token = null;
     _refreshToken = null;
     _accessExpiresAt = null;
+    _phase =
+        expired ? AuthSessionPhase.expired : AuthSessionPhase.signInRequired;
 
     _advanceGeneration();
     notifyListeners();

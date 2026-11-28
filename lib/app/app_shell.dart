@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../core/auth/auth_session.dart';
 import '../core/config/app_config.dart';
+import '../core/network/backend_connection.dart';
 import '../features/auth/application/auth_providers.dart';
+import '../features/auth/presentation/authenticated_identity.dart';
 import 'theme.dart';
 import 'widgets.dart';
 import '../l10n/language_settings.dart';
@@ -63,11 +65,7 @@ class AppShell extends StatelessWidget {
       return Scaffold(
         drawer: Drawer(width: 260, child: sidebar),
         appBar: AppBar(title: const _Brand(compact: true)),
-        body: Column(
-          children: [
-            Expanded(child: main),
-          ],
-        ),
+        body: Column(children: [Expanded(child: main)]),
       );
     },
   );
@@ -137,20 +135,16 @@ class _Sidebar extends ConsumerWidget {
 
   final String? projectId;
 
-  Widget link(
-    BuildContext context,
-    IconData icon,
-    String label,
-    String path,
-  ) {
+  Widget link(BuildContext context, IconData icon, String label, String path) {
     final selected = GoRouterState.of(context).uri.path == path;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 3),
       child: Material(
-        color: selected
-            ? AppColors.purple.withValues(alpha: .11)
-            : Colors.transparent,
+        color:
+            selected
+                ? AppColors.purple.withValues(alpha: .11)
+                : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         child: ListTile(
           dense: true,
@@ -160,20 +154,14 @@ class _Sidebar extends ConsumerWidget {
           leading: Icon(
             icon,
             size: 19,
-            color: selected
-                ? AppColors.purple
-                : AppColors.muted,
+            color: selected ? AppColors.purple : AppColors.muted,
           ),
           title: Text(
             label,
             style: TextStyle(
               fontSize: 13,
-              fontWeight: selected
-                  ? FontWeight.w800
-                  : FontWeight.w600,
-              color: selected
-                  ? AppColors.purple
-                  : AppColors.ink,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              color: selected ? AppColors.purple : AppColors.ink,
             ),
           ),
           onTap: () {
@@ -192,19 +180,14 @@ class _Sidebar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => Container(
     decoration: const BoxDecoration(
       color: Color(0xFFFBFAFF),
-      border: Border(
-        right: BorderSide(color: AppColors.line),
-      ),
+      border: Border(right: BorderSide(color: AppColors.line)),
     ),
     child: SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 23, 16, 15),
         child: ListView(
           children: [
-            const Padding(
-              padding: EdgeInsets.only(left: 12),
-              child: _Brand(),
-            ),
+            const Padding(padding: EdgeInsets.only(left: 12), child: _Brand()),
 
             const SizedBox(height: 12),
 
@@ -320,23 +303,12 @@ class _Sidebar extends ConsumerWidget {
 
                   const Text(
                     'Workspace status',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
                   ),
 
                   const SizedBox(height: 5),
 
-                  Text(
-                    isLocalDemo
-                        ? 'Local demo · SQLite storage'
-                        : 'Backend requires sign-in',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.muted,
-                    ),
-                  ),
+                  const _WorkspaceStatus(),
                 ],
               ),
             ),
@@ -348,51 +320,40 @@ class _Sidebar extends ConsumerWidget {
               child: ListTile(
                 dense: true,
 
-                onTap: isLocalDemo
-                    ? null
-                    : () async {
-                        try {
-                          await ref.read(authRepositoryProvider).logout();
-                        } catch (_) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'The server could not confirm sign-out. Local session data was cleared.',
+                onTap:
+                    isLocalDemo
+                        ? null
+                        : () async {
+                          try {
+                            await ref.read(authRepositoryProvider).logout();
+                          } catch (_) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'The server could not confirm sign-out. Local session data was cleared.',
+                                  ),
                                 ),
-                              ),
-                            );
+                              );
+                            }
                           }
-                        }
-                      },
+                        },
 
-                leading: const CircleAvatar(
-                  radius: 15,
-                  backgroundColor: Color(0xFFE8DFFF),
-                  child: Icon(
-                    Icons.person_outline,
-                    size: 18,
-                    color: AppColors.purple,
-                  ),
-                ),
+                leading: const AuthenticatedAvatar(radius: 15),
 
-                trailing: isLocalDemo
-                    ? null
-                    : IconButton(
-                        tooltip: 'Authenticator MFA setup',
-                        icon: const Icon(Icons.shield_outlined),
-                        onPressed: () => context.go('/security/mfa'),
-                      ),
+                trailing:
+                    isLocalDemo
+                        ? null
+                        : IconButton(
+                          tooltip: 'Authenticator MFA setup',
+                          icon: const Icon(Icons.shield_outlined),
+                          onPressed: () => context.go('/security/mfa'),
+                        ),
 
-                title: Text(
-                  isLocalDemo
-                      ? 'Local demo owner'
-                      : 'Account / Sign out',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                title:
+                    isLocalDemo
+                        ? const Text('Local demo owner')
+                        : const AuthenticatedName(),
 
                 subtitle: Text(
                   isLocalDemo
@@ -409,11 +370,59 @@ class _Sidebar extends ConsumerWidget {
   );
 }
 
+class _WorkspaceStatus extends StatefulWidget {
+  const _WorkspaceStatus();
+
+  @override
+  State<_WorkspaceStatus> createState() => _WorkspaceStatusState();
+}
+
+class _WorkspaceStatusState extends State<_WorkspaceStatus> {
+  @override
+  void initState() {
+    super.initState();
+    authSession.addListener(_changed);
+    backendConnection.addListener(_changed);
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    authSession.removeListener(_changed);
+    backendConnection.removeListener(_changed);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text =
+        isLocalDemo
+            ? 'Local demo · SQLite storage'
+            : switch (authSession.phase) {
+              AuthSessionPhase.restoring => 'Restoring session…',
+              AuthSessionPhase.expired => 'Session expired',
+              AuthSessionPhase.signInRequired => 'Sign-in required',
+              AuthSessionPhase.authenticated => switch (backendConnection
+                  .phase) {
+                BackendConnectionPhase.connecting => 'Connecting…',
+                BackendConnectionPhase.reconnecting => 'Reconnecting…',
+                BackendConnectionPhase.unavailable => 'Backend unavailable',
+                _ => 'Authenticated session active',
+              },
+            };
+    return Text(
+      text,
+      key: const ValueKey('workspace-connection-status'),
+      style: const TextStyle(fontSize: 11, color: AppColors.muted),
+    );
+  }
+}
+
 class _Topbar extends StatelessWidget {
-  const _Topbar({
-    required this.title,
-    this.projectId,
-  });
+  const _Topbar({required this.title, this.projectId});
 
   final String title;
   final String? projectId;
@@ -424,9 +433,7 @@ class _Topbar extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 28),
     decoration: const BoxDecoration(
       color: Colors.white,
-      border: Border(
-        bottom: BorderSide(color: AppColors.line),
-      ),
+      border: Border(bottom: BorderSide(color: AppColors.line)),
     ),
     child: Row(
       children: [
@@ -443,19 +450,14 @@ class _Topbar extends StatelessWidget {
           ),
         ),
 
-        const SmallLabel(
-          'V1 · PRODUCT CORE',
-          color: AppColors.purple,
-        ),
+        const SmallLabel('V1 · PRODUCT CORE', color: AppColors.purple),
 
         const SizedBox(width: 12),
 
         if (projectId != null)
           IconButton(
             tooltip: 'Project overview',
-            onPressed: () => context.go(
-              '/projects/$projectId/overview',
-            ),
+            onPressed: () => context.go('/projects/$projectId/overview'),
             icon: const Icon(Icons.home_outlined),
           ),
 
@@ -463,20 +465,10 @@ class _Topbar extends StatelessWidget {
           IconButton(
             tooltip: 'Administration (authorized accounts only)',
             onPressed: () => context.go('/admin'),
-            icon: const Icon(
-              Icons.admin_panel_settings_outlined,
-            ),
+            icon: const Icon(Icons.admin_panel_settings_outlined),
           ),
 
-        const CircleAvatar(
-          radius: 17,
-          backgroundColor: Color(0xFFEAE7FB),
-          child: Icon(
-            Icons.person_rounded,
-            color: AppColors.purple,
-            size: 19,
-          ),
-        ),
+        const AuthenticatedAvatar(),
       ],
     ),
   );
