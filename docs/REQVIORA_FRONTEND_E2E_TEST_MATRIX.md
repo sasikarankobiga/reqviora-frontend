@@ -4,8 +4,10 @@ Date: 2026-11-28 (Asia/Colombo)
 
 ## Environment check
 
-Expected frontend: `http://localhost:3000`  
-Expected backend: `http://127.0.0.1:5264`  
+Expected frontend: `http://localhost:3000`
+
+Expected backend: `http://127.0.0.1:5264`
+
 Result: both ports were NOT LISTENING. No authorized user/admin credentials, isolated database, SMTP recipient, provider keys, MCP client, or PayHere sandbox/callback configuration was supplied.
 
 Automated unit/widget/mock-contract results are recorded separately and are never substituted for live evidence.
