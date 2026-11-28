@@ -25,14 +25,18 @@ void main() {
     );
   });
 
-  test(
-    'external, protocol-relative and recursive auth redirects are rejected',
-    () {
-      expect(safeLocalDestination('https://evil.example/steal'), isNull);
-      expect(safeLocalDestination('//evil.example/steal'), isNull);
-      expect(safeLocalDestination('javascript:alert(1)'), isNull);
-      expect(safeLocalDestination('/login?from=/account'), isNull);
-      expect(safeLocalDestination('/register'), isNull);
-    },
-  );
+  test('external, public-auth and unknown local redirects are rejected', () {
+    expect(safeLocalDestination('https://evil.example/steal'), isNull);
+    expect(safeLocalDestination('//evil.example/steal'), isNull);
+    expect(safeLocalDestination('javascript:alert(1)'), isNull);
+    expect(safeLocalDestination('/login?from=/account'), isNull);
+    expect(safeLocalDestination('/register'), isNull);
+    expect(safeLocalDestination('/forgot-password'), isNull);
+    expect(safeLocalDestination('/reset-password?token=secret'), isNull);
+    expect(safeLocalDestination('/verify-email?token=secret'), isNull);
+    expect(safeLocalDestination('/confirm-email-change#token'), isNull);
+    expect(safeLocalDestination('/project-invitations/respond'), isNull);
+    expect(safeLocalDestination('/not-a-real-route'), isNull);
+    expect(safeLocalDestination(r'/projects\external'), isNull);
+  });
 }
