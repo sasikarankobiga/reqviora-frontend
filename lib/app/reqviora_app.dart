@@ -37,17 +37,34 @@ import '../features/workspace/presentation/preview_page.dart';
 import '../features/workspace/presentation/project_write_gate.dart';
 
 String? safeLocalDestination(String? candidate) {
-  if (candidate == null || candidate.isEmpty || !candidate.startsWith('/')) {
+  if (candidate == null ||
+      candidate.isEmpty ||
+      !candidate.startsWith('/') ||
+      candidate.contains(r'\')) {
     return null;
   }
   final uri = Uri.tryParse(candidate);
   if (uri == null ||
       uri.hasScheme ||
       uri.hasAuthority ||
+      uri.hasFragment ||
       candidate.startsWith('//')) {
     return null;
   }
-  if (uri.path == '/login' || uri.path == '/register') return null;
+
+  final path = uri.path;
+  final authenticatedRoute =
+      path == '/projects' ||
+      path.startsWith('/projects/') ||
+      path == '/account' ||
+      path == '/security/mfa' ||
+      path == '/ai-jobs' ||
+      path == '/admin' ||
+      path.startsWith('/admin/') ||
+      path == '/administration' ||
+      path.startsWith('/administration/');
+  if (!authenticatedRoute) return null;
+
   return uri.toString();
 }
 
