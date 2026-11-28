@@ -322,6 +322,20 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                         ),
                       ),
                     ),
+                    OutlinedButton.icon(
+                      key: const ValueKey('admin-settings-incidents'),
+                      onPressed:
+                          () =>
+                              context.go('/administration/settings-incidents'),
+                      icon: const Icon(Icons.support_agent),
+                      label: Text(
+                        uiText(
+                          context,
+                          'Settings and incidents',
+                          'அமைப்புகள் மற்றும் சம்பவங்கள்',
+                        ),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 20),
