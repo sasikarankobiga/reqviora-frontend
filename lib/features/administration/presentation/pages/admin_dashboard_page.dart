@@ -267,6 +267,52 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                   'Read-only administration. Access is verified '
                   'by the server for every request.',
                 ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    OutlinedButton.icon(
+                      key: const ValueKey('admin-validation-health'),
+                      onPressed:
+                          () => context.go('/administration/validation-health'),
+                      icon: const Icon(Icons.fact_check),
+                      label: Text(
+                        uiText(
+                          context,
+                          'Validation health',
+                          'சரிபார்ப்பு நிலை',
+                        ),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      key: const ValueKey('admin-ai-queue'),
+                      onPressed: () => context.go('/administration/ai-queue'),
+                      icon: const Icon(Icons.memory),
+                      label: Text(
+                        uiText(
+                          context,
+                          'AI queue monitoring',
+                          'AI வரிசை கண்காணிப்பு',
+                        ),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      key: const ValueKey('admin-settings-incidents'),
+                      onPressed:
+                          () =>
+                              context.go('/administration/settings-incidents'),
+                      icon: const Icon(Icons.support_agent),
+                      label: Text(
+                        uiText(
+                          context,
+                          'Settings and incidents',
+                          'அமைப்புகள் மற்றும் சம்பவங்கள்',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 20),
                 _sectionSelector(),
                 const SizedBox(height: 20),

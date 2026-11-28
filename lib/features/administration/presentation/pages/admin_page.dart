@@ -8,6 +8,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../projects/application/projects_providers.dart';
 import '../../data/repositories/admin_repository.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../../l10n/language_settings.dart';
 
 class AdminPage extends ConsumerStatefulWidget {
   const AdminPage({super.key});
@@ -232,6 +233,20 @@ class _AdminPageState extends ConsumerState<AdminPage> {
       appBar: AppBar(
         title: Text(l10n.adminTitle),
         actions: [
+          IconButton(
+            tooltip: uiText(context, 'MCP grants', 'MCP அனுமதிகள்'),
+            onPressed: () => context.go('/admin/mcp-grants'),
+            icon: const Icon(Icons.key_outlined),
+          ),
+          IconButton(
+            tooltip: uiText(
+              context,
+              'Export diagnostics',
+              'ஏற்றுமதி கண்டறிதல்',
+            ),
+            onPressed: () => context.go('/admin/export-diagnostics'),
+            icon: const Icon(Icons.analytics_outlined),
+          ),
           TextButton(
             onPressed: () => context.go('/projects'),
             child: Text(l10n.workspace),
