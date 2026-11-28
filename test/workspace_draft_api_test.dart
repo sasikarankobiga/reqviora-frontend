@@ -181,6 +181,89 @@ void main() {
     client.close();
   });
 
+  test(
+    'stale version rebases when only another draft section changed',
+    () async {
+      var putCount = 0;
+      final client = MockClient((request) async {
+        if (request.method == 'GET') {
+          return reply({
+            'projectId': projectId,
+            'version': 8,
+            'concurrencyToken': token,
+            'draft': {
+              'sections': {
+                'theme': {'mode': 'light'},
+                'features': [
+                  {'id': 'new-server-feature'},
+                ],
+              },
+            },
+          }, 200);
+        }
+        if (request.method == 'PUT') {
+          putCount++;
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          final sections = (body['draft'] as Map)['sections'] as Map;
+          expect(body['expectedConcurrencyToken'], token);
+          expect(sections['theme'], {'mode': 'dark'});
+          expect(
+            (sections['features'] as List).single['id'],
+            'new-server-feature',
+          );
+          return reply({'version': 9, 'draft': body['draft']}, 200);
+        }
+        return reply({'title': 'Unexpected'}, 500);
+      });
+
+      final version = await WorkspaceRepository(ApiClient(client)).save(
+        projectId,
+        'theme',
+        7,
+        {'mode': 'dark'},
+        expectedSectionData: {'mode': 'light'},
+      );
+
+      expect(version, 9);
+      expect(putCount, 1);
+      client.close();
+    },
+  );
+
+  test('same-section conflict never overwrites newer server data', () async {
+    var putCount = 0;
+    final client = MockClient((request) async {
+      if (request.method == 'GET') {
+        return reply({
+          'projectId': projectId,
+          'version': 8,
+          'concurrencyToken': token,
+          'draft': {
+            'sections': {
+              'theme': {'mode': 'server-newer'},
+            },
+          },
+        }, 200);
+      }
+      if (request.method == 'PUT') putCount++;
+      return reply({'title': 'Unexpected'}, 500);
+    });
+
+    await expectLater(
+      WorkspaceRepository(ApiClient(client)).save(
+        projectId,
+        'theme',
+        7,
+        {'mode': 'local-edit'},
+        expectedSectionData: {'mode': 'light'},
+      ),
+      throwsA(isA<StateError>()),
+    );
+
+    expect(putCount, 0);
+    client.close();
+  });
+
   test('First workspace save sends a null concurrency token', () async {
     final client = MockClient((request) async {
       if (request.method == 'GET' &&

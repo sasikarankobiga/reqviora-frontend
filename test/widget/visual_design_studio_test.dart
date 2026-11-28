@@ -24,8 +24,9 @@ class RecordingWorkspaceRepository extends WorkspaceRepository {
     String projectId,
     String section,
     int version,
-    dynamic data,
-  ) async {
+    dynamic data, {
+    Object? expectedSectionData,
+  }) async {
     saves++;
     savedFromVersion = version;
     savedSection = section;
