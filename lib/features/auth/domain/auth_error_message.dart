@@ -30,9 +30,10 @@ String authErrorMessage(Object error) {
           'is unavailable. Please contact the administrator.';
 
     case 409:
-      return 'The account request could not be completed '
-          '(HTTP 409). Please contact the administrator '
-          'if the problem continues.';
+      return 'The request conflicts with an existing account or operation '
+          '(HTTP 409). '
+          'Try to sign in or resend the verification email. '
+          'Contact support if the problem continues.';
 
     case 424:
       return 'Your account was created, but the verification email '

@@ -21,6 +21,7 @@ import '../core/config/app_config.dart';
 import '../features/auth/presentation/auth_page.dart';
 import '../features/auth/presentation/account_security_pages.dart';
 import '../features/auth/presentation/account_profile_page.dart';
+import '../features/auth/domain/verification_link.dart';
 
 import '../features/administration/presentation/pages/admin_page.dart';
 import '../features/administration/presentation/pages/admin_dashboard_page.dart';
@@ -194,7 +195,7 @@ final appRouter = GoRouter(
       builder:
           (_, state) => AccountSecurityPage(
             action: AccountAction.verifyEmail,
-            token: state.uri.queryParameters['token'] ?? '',
+            token: verificationTokenFromUri(state.uri),
           ),
     ),
 

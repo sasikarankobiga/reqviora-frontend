@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,10 +14,16 @@ enum AccountAction { forgotPassword, resetPassword, verifyEmail, setupMfa }
 /// Real REST-backed recovery, verification and MFA onboarding screens.
 /// This does not fake successful email delivery or MFA enablement.
 class AccountSecurityPage extends ConsumerStatefulWidget {
-  const AccountSecurityPage({super.key, required this.action, this.token = ''});
+  const AccountSecurityPage({
+    super.key,
+    required this.action,
+    this.token = '',
+    this.resendCooldown = const Duration(seconds: 60),
+  });
 
   final AccountAction action;
   final String token;
+  final Duration resendCooldown;
 
   @override
   ConsumerState<AccountSecurityPage> createState() =>
@@ -32,6 +40,9 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
 
   bool _busy = false;
   bool _mfaCompleted = false;
+  bool _actionCompleted = false;
+  int _resendSeconds = 0;
+  Timer? _resendTimer;
 
   String? _error;
   String? _notice;
@@ -40,9 +51,7 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
 
   int _generation = authSession.generation;
 
-  bool get _protectedAction =>
-      widget.action == AccountAction.setupMfa ||
-      (widget.action == AccountAction.verifyEmail && widget.token.isEmpty);
+  bool get _protectedAction => widget.action == AccountAction.setupMfa;
 
   @override
   void initState() {
@@ -73,6 +82,7 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
   @override
   void dispose() {
     authSession.removeListener(_sessionChanged);
+    _resendTimer?.cancel();
 
     _mfaProvision = null;
 
@@ -137,7 +147,11 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
 
     final generation = authSession.generation;
 
-    if (_busy || _mfaCompleted || !(_form.currentState?.validate() ?? false)) {
+    if (_busy ||
+        _mfaCompleted ||
+        _actionCompleted ||
+        _resendSeconds > 0 ||
+        !(_form.currentState?.validate() ?? false)) {
       return;
     }
 
@@ -190,27 +204,23 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
 
             if (!mounted) return;
 
+            _actionCompleted = true;
             _notice = uiText(
               context,
               'Email address successfully verified.',
               'மின்னஞ்சல் முகவரி வெற்றிகரமாக உறுதிப்படுத்தப்பட்டது.',
             );
           } else {
-            if (!authSession.authenticated) {
-              throw StateError('Sign in to request a verification email.');
-            }
+            await repository.resendEmailVerification(_email.text.trim());
 
-            await repository.requestEmailVerification();
-
-            if (!mounted || generation != authSession.generation) {
-              return;
-            }
+            if (!mounted) return;
 
             _notice = uiText(
               context,
-              'If verification is pending, a link will be emailed to you.',
-              'உறுதிப்படுத்தல் நிலுவையில் இருந்தால் மின்னஞ்சல் இணைப்பு அனுப்பப்படும்.',
+              'If an eligible account exists, a verification email was requested. Delivery is not guaranteed; check your inbox and spam folder.',
+              'தகுதியான கணக்கு இருந்தால் உறுதிப்படுத்தல் மின்னஞ்சல் கோரப்பட்டது. வழங்கல் உறுதி செய்யப்படவில்லை; உங்கள் அஞ்சல் மற்றும் தேவையற்ற அஞ்சல் கோப்புறையைச் சரிபார்க்கவும்.',
             );
+            _startResendCooldown();
           }
 
           break;
@@ -295,6 +305,23 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
     }
   }
 
+  void _startResendCooldown() {
+    _resendTimer?.cancel();
+    _resendSeconds = widget.resendCooldown.inSeconds;
+    if (_resendSeconds <= 0) return;
+
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _resendSeconds--;
+        if (_resendSeconds <= 0) timer.cancel();
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final action = widget.action;
@@ -304,15 +331,10 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
 
     final isMfa = action == AccountAction.setupMfa;
 
-    final requiresSignIn =
-        (isMfa ||
-            (action == AccountAction.verifyEmail && widget.token.isEmpty)) &&
-        !authSession.authenticated;
+    final requiresSignIn = isMfa && !authSession.authenticated;
 
     final isPublicVerificationHelp =
-        action == AccountAction.verifyEmail &&
-        widget.token.isEmpty &&
-        !authSession.authenticated;
+        action == AccountAction.verifyEmail && widget.token.isEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -369,8 +391,8 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
                         Text(
                           uiText(
                             context,
-                            'After registration, a verification link is requested for your email address.',
-                            'பதிவு செய்த பிறகு உங்கள் மின்னஞ்சலுக்கு உறுதிப்படுத்தல் இணைப்பு கோரப்படும்.',
+                            'Enter your account email to request another verification message.',
+                            'மற்றொரு உறுதிப்படுத்தல் செய்தியைக் கோர உங்கள் கணக்கு மின்னஞ்சலை உள்ளிடவும்.',
                           ),
                         ),
 
@@ -389,8 +411,8 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
                         Text(
                           uiText(
                             context,
-                            'If your registration request failed to send the email, use Retry Email Verification on the registration screen while it is still available.',
-                            'பதிவின்போது மின்னஞ்சல் அனுப்ப முடியவில்லை என்றால் பதிவு திரையில் உள்ள மீண்டும் முயற்சிக்கும் வசதியைப் பயன்படுத்தவும்.',
+                            'For privacy, the response is the same whether or not the account exists or is already verified.',
+                            'தனியுரிமைக்காக, கணக்கு இருந்தாலும் இல்லாவிட்டாலும் அல்லது ஏற்கனவே உறுதிப்படுத்தப்பட்டிருந்தாலும் ஒரே பதில் காட்டப்படும்.',
                           ),
                         ),
 
@@ -399,8 +421,8 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
                         Text(
                           uiText(
                             context,
-                            'If your account already exists and the retry is unavailable, contact support. Do not create a duplicate account.',
-                            'ஏற்கனவே கணக்கு இருந்து மீண்டும் முயற்சிக்கும் வசதி கிடைக்கவில்லை என்றால் உதவி மையத்தை அணுகவும். மற்றொரு கணக்கை உருவாக்க வேண்டாம்.',
+                            'A successful request does not guarantee email delivery. Check your inbox and spam folder before retrying.',
+                            'வெற்றிகரமான கோரிக்கை மின்னஞ்சல் வழங்கலை உறுதி செய்யாது. மீண்டும் முயற்சிப்பதற்கு முன் அஞ்சல் மற்றும் தேவையற்ற அஞ்சல் கோப்புறையைச் சரிபார்க்கவும்.',
                           ),
                         ),
                       ],
@@ -414,9 +436,15 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
                           ),
                         ),
 
-                      if (action == AccountAction.forgotPassword)
+                      if (action == AccountAction.forgotPassword ||
+                          (action == AccountAction.verifyEmail &&
+                              widget.token.isEmpty))
                         TextFormField(
-                          key: const ValueKey('security-email'),
+                          key: ValueKey(
+                            action == AccountAction.verifyEmail
+                                ? 'verification-resend-email'
+                                : 'security-email',
+                          ),
 
                           controller: _email,
                           enabled: !_busy,
@@ -597,70 +625,80 @@ class _AccountSecurityPageState extends ConsumerState<AccountSecurityPage> {
 
                       const SizedBox(height: 22),
 
-                      if (!isPublicVerificationHelp)
-                        FilledButton(
-                          onPressed:
-                              (_busy ||
-                                      _mfaCompleted ||
-                                      requiresLink ||
-                                      requiresSignIn)
-                                  ? null
-                                  : _submit,
-
-                          child: Text(
-                            _busy
-                                ? uiText(
-                                  context,
-                                  'Processing…',
-                                  'செயலாக்கப்படுகிறது…',
-                                )
-                                : switch (action) {
-                                  AccountAction.forgotPassword => uiText(
-                                    context,
-                                    'Send reset link',
-                                    'மீட்டமைப்பு இணைப்பை அனுப்பு',
-                                  ),
-
-                                  AccountAction.resetPassword => uiText(
-                                    context,
-                                    'Reset password',
-                                    'கடவுச்சொல்லை மீட்டமைக்கவும்',
-                                  ),
-
-                                  AccountAction.verifyEmail =>
-                                    widget.token.isEmpty
-                                        ? uiText(
-                                          context,
-                                          'Request verification email',
-                                          'உறுதிப்படுத்தல் மின்னஞ்சலைக் கோருக',
-                                        )
-                                        : uiText(
-                                          context,
-                                          'Confirm email',
-                                          'மின்னஞ்சலை உறுதிப்படுத்துக',
-                                        ),
-
-                                  AccountAction.setupMfa =>
-                                    _mfaCompleted
-                                        ? uiText(
-                                          context,
-                                          'MFA enabled',
-                                          'MFA செயல்படுத்தப்பட்டது',
-                                        )
-                                        : _mfaProvision == null
-                                        ? uiText(
-                                          context,
-                                          'Start MFA setup',
-                                          'MFA அமைப்பைத் தொடங்குக',
-                                        )
-                                        : uiText(
-                                          context,
-                                          'Verify authenticator',
-                                          'அங்கீகாரக் குறியீட்டைச் சரிபார்க்கவும்',
-                                        ),
-                                },
-                          ),
+                      FilledButton(
+                        key: ValueKey(
+                          isPublicVerificationHelp
+                              ? 'verification-resend-submit'
+                              : 'security-submit',
                         ),
+                        onPressed:
+                            (_busy ||
+                                    _mfaCompleted ||
+                                    _actionCompleted ||
+                                    _resendSeconds > 0 ||
+                                    requiresLink ||
+                                    requiresSignIn)
+                                ? null
+                                : _submit,
+
+                        child: Text(
+                          _busy
+                              ? uiText(
+                                context,
+                                'Processing…',
+                                'செயலாக்கப்படுகிறது…',
+                              )
+                              : switch (action) {
+                                AccountAction.forgotPassword => uiText(
+                                  context,
+                                  'Send reset link',
+                                  'மீட்டமைப்பு இணைப்பை அனுப்பு',
+                                ),
+
+                                AccountAction.resetPassword => uiText(
+                                  context,
+                                  'Reset password',
+                                  'கடவுச்சொல்லை மீட்டமைக்கவும்',
+                                ),
+
+                                AccountAction.verifyEmail =>
+                                  widget.token.isEmpty
+                                      ? uiText(
+                                        context,
+                                        _resendSeconds > 0
+                                            ? 'Resend in $_resendSeconds seconds'
+                                            : 'Resend verification email',
+                                        _resendSeconds > 0
+                                            ? '$_resendSeconds வினாடிகளில் மீண்டும் அனுப்புக'
+                                            : 'உறுதிப்படுத்தல் மின்னஞ்சலை மீண்டும் அனுப்புக',
+                                      )
+                                      : uiText(
+                                        context,
+                                        'Confirm email',
+                                        'மின்னஞ்சலை உறுதிப்படுத்துக',
+                                      ),
+
+                                AccountAction.setupMfa =>
+                                  _mfaCompleted
+                                      ? uiText(
+                                        context,
+                                        'MFA enabled',
+                                        'MFA செயல்படுத்தப்பட்டது',
+                                      )
+                                      : _mfaProvision == null
+                                      ? uiText(
+                                        context,
+                                        'Start MFA setup',
+                                        'MFA அமைப்பைத் தொடங்குக',
+                                      )
+                                      : uiText(
+                                        context,
+                                        'Verify authenticator',
+                                        'அங்கீகாரக் குறியீட்டைச் சரிபார்க்கவும்',
+                                      ),
+                              },
+                        ),
+                      ),
 
                       TextButton(
                         onPressed:
