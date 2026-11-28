@@ -14,6 +14,12 @@ class ProjectsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final projects = ref.watch(projectsProvider);
+    final categoryCount =
+        projects.asData?.value
+            .map((project) => project.category)
+            .where((category) => category.isNotEmpty)
+            .toSet()
+            .length;
     return AppShell(
       pageTitle: uiText(
         context,
@@ -55,10 +61,10 @@ class ProjectsPage extends ConsumerWidget {
                   value: '08',
                   color: AppColors.blue,
                 ),
-                const _Metric(
-                  icon: Icons.shield_outlined,
-                  title: 'Project approvals',
-                  value: 'Pending',
+                _Metric(
+                  icon: Icons.category_outlined,
+                  title: uiText(context, 'Categories', 'வகைகள்'),
+                  value: categoryCount?.toString() ?? '—',
                   color: AppColors.green,
                 ),
               ];
@@ -136,27 +142,7 @@ class ProjectsPage extends ConsumerWidget {
                             ),
                           ),
                         )
-                        : LayoutBuilder(
-                          builder:
-                              (context, size) => Wrap(
-                                spacing: 14,
-                                runSpacing: 14,
-                                children:
-                                    items
-                                        .map(
-                                          (p) => SizedBox(
-                                            width:
-                                                size.maxWidth >= 800
-                                                    ? (size.maxWidth - 28) / 3
-                                                    : size.maxWidth >= 560
-                                                    ? (size.maxWidth - 14) / 2
-                                                    : size.maxWidth,
-                                            child: _ProjectCard(project: p),
-                                          ),
-                                        )
-                                        .toList(),
-                              ),
-                        ),
+                        : _ProjectDirectory(items: items),
             error:
                 (error, _) => InlineError(
                   error.toString(),
@@ -177,7 +163,7 @@ class ProjectsPage extends ConsumerWidget {
                 const SizedBox(width: 13),
                 const Expanded(
                   child: Text(
-                    'AI processing, authentication, approval and exports require a configured backend service.',
+                    'Production mode uses authenticated backend data. Local demo storage remains development-only.',
                     style: TextStyle(color: AppColors.muted, fontSize: 12),
                   ),
                 ),
@@ -357,6 +343,113 @@ class _Hero extends StatelessWidget {
   );
 }
 
+class _ProjectDirectory extends StatefulWidget {
+  const _ProjectDirectory({required this.items});
+
+  final List<ProjectSummary> items;
+
+  @override
+  State<_ProjectDirectory> createState() => _ProjectDirectoryState();
+}
+
+class _ProjectDirectoryState extends State<_ProjectDirectory> {
+  String query = '';
+  String? category;
+
+  @override
+  Widget build(BuildContext context) {
+    final categories =
+        widget.items
+            .map((project) => project.category)
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    final visible = filterProjectSummaries(
+      widget.items,
+      query: query,
+      category: category,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            SizedBox(
+              width: 280,
+              child: TextField(
+                key: const ValueKey('project-search'),
+                onChanged: (value) => setState(() => query = value),
+                decoration: InputDecoration(
+                  labelText: uiText(
+                    context,
+                    'Search projects',
+                    'திட்டங்களைத் தேடு',
+                  ),
+                  prefixIcon: const Icon(Icons.search),
+                ),
+              ),
+            ),
+            if (categories.isNotEmpty)
+              DropdownButton<String?>(
+                key: const ValueKey('project-category-filter'),
+                value: category,
+                hint: Text(uiText(context, 'All categories', 'அனைத்து வகைகள்')),
+                items: [
+                  DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text(
+                      uiText(context, 'All categories', 'அனைத்து வகைகள்'),
+                    ),
+                  ),
+                  for (final value in categories)
+                    DropdownMenuItem<String?>(value: value, child: Text(value)),
+                ],
+                onChanged: (value) => setState(() => category = value),
+              ),
+          ],
+        ),
+        const SizedBox(height: 15),
+        if (visible.isEmpty)
+          SurfaceCard(
+            child: Text(
+              uiText(
+                context,
+                'No projects match these filters.',
+                'இந்த வடிப்பான்களுக்கு பொருந்தும் திட்டங்கள் இல்லை.',
+              ),
+            ),
+          )
+        else
+          LayoutBuilder(
+            builder:
+                (context, size) => Wrap(
+                  spacing: 14,
+                  runSpacing: 14,
+                  children:
+                      visible
+                          .map(
+                            (project) => SizedBox(
+                              width:
+                                  size.maxWidth >= 800
+                                      ? (size.maxWidth - 28) / 3
+                                      : size.maxWidth >= 560
+                                      ? (size.maxWidth - 14) / 2
+                                      : size.maxWidth,
+                              child: _ProjectCard(project: project),
+                            ),
+                          )
+                          .toList(),
+                ),
+          ),
+      ],
+    );
+  }
+}
+
 class _Metric extends StatelessWidget {
   const _Metric({
     required this.icon,
@@ -382,23 +475,29 @@ class _Metric extends StatelessWidget {
           child: Icon(icon, color: color),
         ),
         const SizedBox(width: 14),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(color: AppColors.muted, fontSize: 11),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              value,
-              style: const TextStyle(
-                color: AppColors.ink,
-                fontSize: 21,
-                fontWeight: FontWeight.w900,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: AppColors.muted, fontSize: 11),
               ),
-            ),
-          ],
+              const SizedBox(height: 3),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     ),
@@ -430,7 +529,7 @@ class _ProjectCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              const SmallLabel('Draft'),
+              if (project.category.isNotEmpty) SmallLabel(project.category),
             ],
           ),
           const SizedBox(height: 16),
@@ -441,9 +540,13 @@ class _ProjectCard extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 5),
-          const Text(
-            'Design project · 8-stage builder',
-            style: TextStyle(color: AppColors.muted, fontSize: 12),
+          Text(
+            project.category.isEmpty
+                ? 'REQVIORA project · 8-stage builder'
+                : '${project.category} · 8-stage builder',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: AppColors.muted, fontSize: 12),
           ),
           const SizedBox(height: 16),
           const Divider(color: AppColors.line),

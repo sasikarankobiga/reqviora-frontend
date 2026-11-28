@@ -63,6 +63,42 @@ class HttpProjectsRepository implements ProjectsRepository {
   }
 
   @override
+  Future<ProjectSummary> update({
+    required String projectId,
+    required String name,
+    required String description,
+    required String category,
+  }) async {
+    final normalizedName = name.trim();
+    final normalizedDescription = description.trim();
+    final normalizedCategory = category.trim();
+    if (normalizedName.length < 2 || normalizedName.length > 200) {
+      throw ArgumentError('Project name must contain 2 to 200 characters.');
+    }
+    if (normalizedDescription.length > 4000 ||
+        normalizedCategory.length > 120) {
+      throw ArgumentError('Project details exceed the supported length.');
+    }
+
+    final current = Map<String, dynamic>.from(
+      await api.get('/api/projects/$projectId') as Map,
+    );
+    final updated = await api.put('/api/projects/$projectId', {
+      'name': normalizedName,
+      'description': normalizedDescription,
+      'industry': normalizedCategory,
+      'targetAudience': (current['targetAudience'] ?? '').toString(),
+      'projectType': (current['projectType'] ?? '').toString(),
+      'primaryPlatform': (current['primaryPlatform'] ?? 'web').toString(),
+      'technologyPreferences':
+          (current['technologyPreferences'] ?? '').toString(),
+      'constraints': (current['constraints'] ?? '').toString(),
+      'integrations': (current['integrations'] ?? '').toString(),
+    });
+    return ProjectSummary.fromJson(Map<String, dynamic>.from(updated as Map));
+  }
+
+  @override
   Future<ProjectDraft> draft(String projectId) async {
     // Get the project details separately because the Draft API
     // does not include the complete project record.
