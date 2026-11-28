@@ -46,6 +46,20 @@ class McpApprovedRevision {
   final String projectId;
   final String revisionId;
   final int draftVersion;
+
+  factory McpApprovedRevision.fromJson(Map<String, dynamic> json) {
+    final projectId = json['projectId'];
+    final revisionId = json['revisionId'];
+    final draftVersion = json['draftVersion'];
+    if (projectId is! String || revisionId is! String || draftVersion is! int) {
+      throw const FormatException('Invalid approved revision');
+    }
+    return McpApprovedRevision(
+      projectId: projectId,
+      revisionId: revisionId,
+      draftVersion: draftVersion,
+    );
+  }
 }
 
 /// Non-sensitive grant metadata.
@@ -58,6 +72,9 @@ class McpAccessGrant {
     required DateTime createdAt,
     required DateTime expiresAt,
     DateTime? revokedAt,
+    this.ownerId,
+    this.revokedBy,
+    this.revocationReason,
   }) : createdAt = createdAt.toUtc(),
        expiresAt = expiresAt.toUtc(),
        revokedAt = revokedAt?.toUtc() {
@@ -74,6 +91,17 @@ class McpAccessGrant {
     if (revoked != null && revoked.isBefore(this.createdAt)) {
       throw ArgumentError('Invalid revocation timestamp.');
     }
+
+    if (ownerId != null) {
+      McpGrantValidation.requireId(ownerId!, 'owner ID');
+    }
+    if (revokedBy != null) {
+      McpGrantValidation.requireId(revokedBy!, 'revoking user ID');
+    }
+    if (revocationReason != null &&
+        (revocationReason!.trim().isEmpty || revocationReason!.length > 500)) {
+      throw ArgumentError('Invalid revocation reason.');
+    }
   }
 
   final String id;
@@ -83,6 +111,58 @@ class McpAccessGrant {
   final DateTime createdAt;
   final DateTime expiresAt;
   final DateTime? revokedAt;
+  final String? ownerId;
+  final String? revokedBy;
+  final String? revocationReason;
+
+  factory McpAccessGrant.fromJson(Map<String, dynamic> json) {
+    final createdAt = DateTime.tryParse(json['createdAt']?.toString() ?? '');
+    final expiresAt = DateTime.tryParse(json['expiresAt']?.toString() ?? '');
+    final revokedAt =
+        json['revokedAt'] == null
+            ? null
+            : DateTime.tryParse(json['revokedAt'].toString());
+    final state = json['state']?.toString().toLowerCase();
+    final ownerId = json['ownerId'];
+    final revokedBy = json['revokedBy'];
+    final revocationReason = json['revocationReason'];
+    if (json['id'] is! String ||
+        json['projectId'] is! String ||
+        json['approvedRevisionId'] is! String ||
+        (ownerId != null && ownerId is! String) ||
+        (revokedBy != null && revokedBy is! String) ||
+        (revocationReason != null && revocationReason is! String) ||
+        createdAt == null ||
+        expiresAt == null ||
+        (json['revokedAt'] != null && revokedAt == null) ||
+        !const {'active', 'expired', 'revoked'}.contains(state) ||
+        (state == 'revoked') != (revokedAt != null)) {
+      throw const FormatException('Invalid MCP grant metadata');
+    }
+    late final McpAccessGrant grant;
+    try {
+      grant = McpAccessGrant(
+        id: json['id'] as String,
+        projectId: json['projectId'] as String,
+        revisionId: json['approvedRevisionId'] as String,
+        ownerId: ownerId as String?,
+        createdAt: createdAt,
+        expiresAt: expiresAt,
+        revokedAt: revokedAt,
+        revokedBy: revokedBy as String?,
+        revocationReason: revocationReason as String?,
+      );
+    } on ArgumentError {
+      throw const FormatException('Invalid MCP grant metadata');
+    }
+    if ((state == 'active' &&
+            grant.statusAt(DateTime.now()) != McpGrantStatus.active) ||
+        (state == 'expired' &&
+            grant.statusAt(expiresAt) != McpGrantStatus.expired)) {
+      throw const FormatException('Inconsistent MCP grant state');
+    }
+    return grant;
+  }
 
   McpGrantStatus statusAt(DateTime now) {
     if (revokedAt != null) {

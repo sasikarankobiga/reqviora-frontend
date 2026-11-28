@@ -5,6 +5,8 @@ import '../features/background_jobs/presentation/pages/ai_job_page.dart';
 import '../features/projects/presentation/projects_page.dart';
 import '../features/projects/presentation/create_project_page.dart';
 import '../features/projects/presentation/project_overview_page.dart';
+import '../features/projects/presentation/project_invitation_response_page.dart';
+import '../features/billing/presentation/billing_page.dart';
 import '../features/builder/presentation/builder_page.dart';
 import '../features/prebuilder/presentation/prebuilder_pages.dart';
 
@@ -19,6 +21,7 @@ import '../core/config/app_config.dart';
 import '../features/auth/presentation/auth_page.dart';
 import '../features/auth/presentation/account_security_pages.dart';
 import '../features/auth/presentation/account_profile_page.dart';
+import '../features/auth/domain/verification_link.dart';
 
 import '../features/administration/presentation/pages/admin_page.dart';
 import '../features/administration/presentation/pages/admin_dashboard_page.dart';
@@ -41,6 +44,16 @@ final appRouter = GoRouter(
       return null;
     }
 
+    final invitationResponse =
+        state.matchedLocation == '/project-invitations/respond';
+
+    if (!authSession.authenticated && invitationResponse) {
+      pendingInvitationResponse.capture(
+        state.uri.queryParameters['token'] ?? '',
+      );
+      return '/login?invitation=1';
+    }
+
     final signInPages =
         state.matchedLocation == '/login' ||
         state.matchedLocation == '/register';
@@ -57,6 +70,13 @@ final appRouter = GoRouter(
     }
 
     if (authSession.authenticated && signInPages) {
+      final invitationToken = pendingInvitationResponse.take();
+      if (invitationToken != null) {
+        return Uri(
+          path: '/project-invitations/respond',
+          queryParameters: {'token': invitationToken},
+        ).toString();
+      }
       return '/projects';
     }
 
@@ -78,6 +98,20 @@ final appRouter = GoRouter(
       builder:
           (_, state) =>
               ProjectOverviewPage(projectId: state.pathParameters['id']!),
+    ),
+
+    GoRoute(
+      path: '/project-invitations/respond',
+      builder:
+          (_, state) => ProjectInvitationResponsePage(
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
+    ),
+
+    GoRoute(
+      path: '/projects/:id/billing',
+      builder:
+          (_, state) => BillingPage(projectId: state.pathParameters['id']!),
     ),
 
     GoRoute(
@@ -161,7 +195,7 @@ final appRouter = GoRouter(
       builder:
           (_, state) => AccountSecurityPage(
             action: AccountAction.verifyEmail,
-            token: state.uri.queryParameters['token'] ?? '',
+            token: verificationTokenFromUri(state.uri),
           ),
     ),
 

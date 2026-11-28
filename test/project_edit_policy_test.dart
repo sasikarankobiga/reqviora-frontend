@@ -16,16 +16,15 @@ void main() {
     expect(policy.canEditStep(8), isFalse);
   });
 
-  test('Non-owners cannot access owner-only revision operations', () {
-    for (final role in [
-      ProjectMemberRole.editor,
-      ProjectMemberRole.viewer,
-      null,
-    ]) {
+  test('Project readers can access revision history', () {
+    for (final role in ProjectMemberRole.values) {
       final policy = ProjectEditPolicy(role: role, approved: true);
 
-      expect(policy.canAccessReviewHistory, isFalse);
+      expect(policy.canAccessReviewHistory, isTrue);
     }
+
+    const unknown = ProjectEditPolicy(role: null, approved: true);
+    expect(unknown.canAccessReviewHistory, isFalse);
   });
 
   test('Owner can edit all Builder steps and approve', () {
@@ -39,10 +38,12 @@ void main() {
     }
 
     expect(policy.canManageMembers, isTrue);
+    expect(policy.canValidate, isTrue);
     expect(policy.canApprove, isTrue);
+    expect(policy.canExport, isTrue);
   });
 
-  test('Editor cannot perform owner-only workflow actions', () {
+  test('Editor can edit and validate but not approve or export', () {
     const policy = ProjectEditPolicy(
       role: ProjectMemberRole.editor,
       approved: false,
@@ -50,10 +51,12 @@ void main() {
 
     expect(policy.canEditStep(2), isTrue);
     expect(policy.canEditStep(6), isTrue);
-    expect(policy.canEditStep(7), isFalse);
-    expect(policy.canEditStep(8), isFalse);
+    expect(policy.canEditStep(7), isTrue);
+    expect(policy.canEditStep(8), isTrue);
     expect(policy.canManageMembers, isFalse);
+    expect(policy.canValidate, isTrue);
     expect(policy.canApprove, isFalse);
+    expect(policy.canExport, isFalse);
   });
 
   test('Viewer cannot edit any Builder step', () {
@@ -68,7 +71,9 @@ void main() {
       expect(policy.canEditStep(step), isFalse);
     }
 
+    expect(policy.canValidate, isFalse);
     expect(policy.canApprove, isFalse);
+    expect(policy.canExport, isFalse);
   });
 
   test('Approved draft is immutable for every role', () {

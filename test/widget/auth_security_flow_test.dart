@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -61,6 +62,67 @@ void main() {
     await tester.tap(button);
     await tester.pumpAndSettle();
   }
+
+  testWidgets('Registration delivery failure keeps persisted success state', (
+    tester,
+  ) async {
+    var requests = 0;
+    await openPage(
+      tester,
+      const AuthPage(register: true),
+      MockClient((request) async {
+        requests++;
+        expect(request.url.path, '/api/auth/register');
+        return http.Response(
+          jsonEncode({
+            'userId': 'd5859ac2-7a39-4f5a-b937-5f1b2b591111',
+            'email': 'test@example.com',
+            'displayName': 'Test User',
+            'emailVerified': false,
+            'verificationEmailSent': false,
+          }),
+          201,
+        );
+      }),
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-display-name')),
+      'Test User',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-email')),
+      'test@example.com',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-password')),
+      'StrongPassword123',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-confirm-password')),
+      'StrongPassword123',
+    );
+    final submit = find.byKey(const ValueKey('auth-submit'));
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    expect(requests, 1);
+    expect(
+      find.textContaining('Account created, but the email service'),
+      findsOneWidget,
+    );
+    expect(tester.widget<FilledButton>(submit).onPressed, isNull);
+    expect(
+      find.byKey(const ValueKey('registration-resend-link')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('registration-login-link')),
+      findsOneWidget,
+    );
+    expect(authSession.authenticated, isFalse);
+  });
 
   testWidgets('Server OTP challenge reveals authenticator input', (
     tester,
@@ -139,31 +201,74 @@ void main() {
     expect(authSession.refreshToken, isNull);
   });
 
-  testWidgets('Public verification help cannot request protected email', (
+  testWidgets('Public verification resend is anonymous and starts cooldown', (
     tester,
   ) async {
     var requests = 0;
 
     await openPage(
       tester,
-      const AccountSecurityPage(action: AccountAction.verifyEmail),
+      const AccountSecurityPage(
+        action: AccountAction.verifyEmail,
+        resendCooldown: Duration(seconds: 30),
+      ),
       MockClient((request) async {
         requests++;
-        return http.Response('', 500);
+        expect(
+          request.url.path,
+          '/api/account-security/email-verification/resend',
+        );
+        expect(request.headers['Authorization'], isNull);
+        expect(jsonDecode(request.body), {'email': 'test@example.com'});
+        return http.Response('', 202);
       }),
     );
 
-    expect(find.byType(FilledButton), findsNothing);
+    final email = find.byKey(const ValueKey('verification-resend-email'));
+    final button = find.byKey(const ValueKey('verification-resend-submit'));
 
+    expect(email, findsOneWidget);
+    expect(button, findsOneWidget);
+
+    await tester.enterText(email, 'test@example.com');
+    await tester.tap(button);
+    await tester.pump();
+
+    expect(requests, 1);
     expect(
-      find.text(
-        'Check your inbox and spam folder, then open the verification link.',
-      ),
+      find.textContaining('If an eligible account exists'),
       findsOneWidget,
     );
-
-    expect(requests, 0);
+    expect(tester.widget<FilledButton>(button).onPressed, isNull);
     expect(authSession.authenticated, isFalse);
+  });
+
+  testWidgets('Public verification resend prevents duplicate submissions', (
+    tester,
+  ) async {
+    final response = Completer<http.Response>();
+    var requests = 0;
+
+    await openPage(
+      tester,
+      const AccountSecurityPage(action: AccountAction.verifyEmail),
+      MockClient((_) {
+        requests++;
+        return response.future;
+      }),
+    );
+
+    final email = find.byKey(const ValueKey('verification-resend-email'));
+    final button = find.byKey(const ValueKey('verification-resend-submit'));
+    await tester.enterText(email, 'test@example.com');
+    await tester.tap(button);
+    await tester.pump();
+    await tester.tap(button);
+    await tester.pump();
+
+    expect(requests, 1);
+    response.complete(http.Response('', 202));
+    await tester.pump();
   });
 
   testWidgets('Email confirmation submits token without opening session', (
@@ -200,8 +305,37 @@ void main() {
     expect(requests, 1);
 
     expect(find.text('Email address successfully verified.'), findsOneWidget);
+    expect(tester.widget<FilledButton>(button).onPressed, isNull);
+
+    await tester.tap(button);
+    await tester.pump();
+    expect(requests, 1);
 
     expect(authSession.authenticated, isFalse);
+  });
+
+  testWidgets('Invalid confirmation token shows a safe failure state', (
+    tester,
+  ) async {
+    await openPage(
+      tester,
+      const AccountSecurityPage(
+        action: AccountAction.verifyEmail,
+        token: 'expired-token',
+      ),
+      MockClient(
+        (_) async => http.Response(
+          '{"title":"The verification token is invalid or expired."}',
+          400,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(FilledButton));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('could not be processed'), findsOneWidget);
+    expect(find.textContaining('expired-token'), findsNothing);
   });
 
   testWidgets('Password reset without a token is disabled', (tester) async {

@@ -10,8 +10,7 @@ class ProjectEditPolicy {
 
   bool get canView => role != null;
 
-  // Approved owners may still inspect and export immutable revisions.
-  bool get canAccessReviewHistory => role == ProjectMemberRole.owner;
+  bool get canAccessReviewHistory => canView;
 
   bool get canEdit =>
       !approved &&
@@ -19,17 +18,15 @@ class ProjectEditPolicy {
 
   bool get canManageMembers => role == ProjectMemberRole.owner;
 
+  bool get canValidate => canEdit;
+
   bool get canApprove => !approved && role == ProjectMemberRole.owner;
+
+  bool get canExport => role == ProjectMemberRole.owner;
 
   bool canEditStep(int step) {
     if (!canEdit || step < 1 || step > 8) {
       return false;
-    }
-
-    // Server workflow generation and approval are
-    // deliberately restricted to owners in this UI.
-    if (step >= 7) {
-      return role == ProjectMemberRole.owner;
     }
 
     return true;

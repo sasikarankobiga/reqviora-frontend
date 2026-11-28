@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -7,383 +8,293 @@ import 'package:reqviora_frontend/core/auth/auth_session.dart';
 import 'package:reqviora_frontend/core/network/api_client.dart';
 import 'package:reqviora_frontend/features/auth/data/auth_repository.dart';
 import 'package:reqviora_frontend/features/auth/domain/auth_error_message.dart';
+import 'package:reqviora_frontend/features/auth/domain/registration_result.dart';
+import 'package:reqviora_frontend/features/auth/domain/verification_link.dart';
 
 http.Response registrationResponse({
-  Object accessToken = 'registration-access',
-  bool expired = false,
-}) {
-  return http.Response(
-    jsonEncode({
-      'userId': 'd5859ac2-7a39-4f5a-b937-5f1b2b591111',
-      'email': 'test@example.com',
-      'displayName': 'Test User',
-      'accessToken': accessToken,
-      'accessTokenExpiresAt':
-          DateTime.now()
-              .toUtc()
-              .add(Duration(hours: expired ? -1 : 1))
-              .toIso8601String(),
-      'refreshToken': 'registration-refresh',
-      'refreshTokenExpiresAt':
-          DateTime.now().toUtc().add(const Duration(days: 7)).toIso8601String(),
-      'tokenType': 'Bearer',
-    }),
-    201,
-  );
-}
+  Object? userId = 'd5859ac2-7a39-4f5a-b937-5f1b2b591111',
+  Object? email = 'test@example.com',
+  Object? displayName = 'Test User',
+  Object? emailVerified = false,
+  Object? verificationEmailSent = true,
+}) => http.Response(
+  jsonEncode({
+    'userId': userId,
+    'email': email,
+    'displayName': displayName,
+    'emailVerified': emailVerified,
+    'verificationEmailSent': verificationEmailSent,
+  }),
+  201,
+);
 
 void main() {
   setUp(authSession.signOut);
   tearDown(authSession.signOut);
 
-  group('Registration verification', () {
-    test('Retry does not create another account', () async {
-      var registrations = 0;
-      var verificationRequests = 0;
-
-      final api = ApiClient(
-        MockClient((request) async {
-          if (request.url.path == '/api/auth/register') {
-            registrations++;
-            return registrationResponse();
-          }
-
-          expect(
-            request.url.path,
-            '/api/account-security/email-verification/request',
-          );
-
-          expect(
-            request.headers['Authorization'],
-            'Bearer registration-access',
-          );
-
-          verificationRequests++;
-
-          if (verificationRequests == 1) {
-            return http.Response('{}', 503);
-          }
-
-          return http.Response('', 202);
-        }),
-      );
-
-      addTearDown(api.dispose);
-
-      final repository = AuthRepository(api);
-
-      RegistrationVerificationPending? pending;
-
-      try {
-        await repository.registerAccount(
-          'test@example.com',
-          'StrongPassword123',
-          'Test User',
-        );
-      } on RegistrationVerificationPending catch (error) {
-        pending = error;
-      }
-
-      expect(pending, isNotNull);
-
-      final retry = pending!;
-
-      expect(retry.canRetry, isTrue);
-
-      await repository.retryRegistrationVerification(retry);
-
-      expect(registrations, 1);
-      expect(verificationRequests, 2);
-      expect(retry.canRetry, isFalse);
-      expect(authSession.authenticated, isFalse);
-    });
-
-    test('Session change invalidates registration retry', () async {
+  group('Registration contract', () {
+    test('HTTP 201 creates a typed result without authenticating', () async {
       var calls = 0;
-
       final api = ApiClient(
         MockClient((request) async {
           calls++;
-
-          if (request.url.path == '/api/auth/register') {
-            return registrationResponse();
-          }
-
-          return http.Response('{}', 503);
+          expect(request.method, 'POST');
+          expect(request.url.path, '/api/auth/register');
+          expect(request.headers['Authorization'], isNull);
+          expect(jsonDecode(request.body), {
+            'email': 'test@example.com',
+            'password': 'StrongPassword123',
+            'displayName': 'Test User',
+          });
+          return registrationResponse();
         }),
       );
-
       addTearDown(api.dispose);
 
-      final repository = AuthRepository(api);
-
-      RegistrationVerificationPending? pending;
-
-      try {
-        await repository.registerAccount(
-          'test@example.com',
-          'StrongPassword123',
-          'Test User',
-        );
-      } on RegistrationVerificationPending catch (error) {
-        pending = error;
-      }
-
-      expect(pending, isNotNull);
-
-      final retry = pending!;
-
-      authSession.signIn('another-session');
-
-      expect(retry.canRetry, isFalse);
-
-      await expectLater(
-        repository.retryRegistrationVerification(retry),
-        throwsA(isA<ApiException>()),
+      final result = await AuthRepository(api).registerAccount(
+        ' test@example.com ',
+        'StrongPassword123',
+        ' Test User ',
       );
 
-      expect(calls, 2);
-      expect(authSession.token, 'another-session');
-    });
-
-    test('Expired retry credentials are rejected locally', () async {
-      final pending = RegistrationVerificationPending(
-        accessToken: 'expired-registration-token',
-        expiresAt: DateTime.now().toUtc().subtract(const Duration(minutes: 1)),
-        generation: authSession.generation,
-      );
-
-      var calls = 0;
-
-      final api = ApiClient(
-        MockClient((request) async {
-          calls++;
-          return http.Response('', 202);
-        }),
-      );
-
-      addTearDown(api.dispose);
-
-      expect(pending.canRetry, isFalse);
-
-      await expectLater(
-        AuthRepository(api).retryRegistrationVerification(pending),
-        throwsA(
-          isA<ApiException>().having(
-            (error) => error.statusCode,
-            'status',
-            410,
-          ),
+      expect(
+        result,
+        const RegistrationResult(
+          userId: 'd5859ac2-7a39-4f5a-b937-5f1b2b591111',
+          email: 'test@example.com',
+          displayName: 'Test User',
+          emailVerified: false,
+          verificationEmailSent: true,
         ),
       );
+      expect(calls, 1);
+      expect(authSession.authenticated, isFalse);
+      expect(authSession.token, isNull);
+      expect(authSession.refreshToken, isNull);
+    });
 
-      expect(calls, 0);
+    test('email delivery failure remains a successful registration', () async {
+      final api = ApiClient(
+        MockClient(
+          (_) async => registrationResponse(verificationEmailSent: false),
+        ),
+      );
+      addTearDown(api.dispose);
+
+      final result = await AuthRepository(
+        api,
+      ).registerAccount('test@example.com', 'StrongPassword123', 'Test User');
+
+      expect(result.verificationEmailSent, isFalse);
+      expect(result.emailVerified, isFalse);
       expect(authSession.authenticated, isFalse);
     });
 
-    test('Cleared registration credential cannot be reused', () async {
-      final pending = RegistrationVerificationPending(
-        accessToken: 'temporary-token',
-        expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 10)),
-        generation: authSession.generation,
-      );
+    final malformedResponses = <String, http.Response>{
+      'userId': registrationResponse(userId: ''),
+      'email': registrationResponse(email: 42),
+      'displayName': registrationResponse(displayName: ''),
+      'emailVerified': registrationResponse(emailVerified: 'false'),
+      'verificationEmailSent': registrationResponse(
+        verificationEmailSent: 'true',
+      ),
+    };
 
-      expect(pending.canRetry, isTrue);
-
-      pending.clear();
-
-      expect(pending.canRetry, isFalse);
-    });
-
-    for (final status in [202, 204]) {
-      test('Verification HTTP $status completes registration', () async {
-        final calls = <String>[];
-
-        final api = ApiClient(
-          MockClient((request) async {
-            calls.add(request.url.path);
-
-            expect(request.method, 'POST');
-
-            if (request.url.path == '/api/auth/register') {
-              final body = jsonDecode(request.body) as Map;
-
-              expect(body['email'], 'test@example.com');
-              expect(body['displayName'], 'Test User');
-              expect(body['password'], 'StrongPassword123');
-
-              expect(request.headers['Authorization'], isNull);
-
-              return registrationResponse();
-            }
-
-            expect(
-              request.url.path,
-              '/api/account-security/email-verification/request',
-            );
-
-            expect(
-              request.headers['Authorization'],
-              'Bearer registration-access',
-            );
-
-            expect(authSession.authenticated, isFalse);
-            expect(authSession.refreshToken, isNull);
-
-            return http.Response('', status);
-          }),
-        );
-
+    for (final entry in malformedResponses.entries) {
+      test('rejects malformed ${entry.key}', () async {
+        final api = ApiClient(MockClient((_) async => entry.value));
         addTearDown(api.dispose);
 
-        await AuthRepository(api).registerAccount(
-          ' test@example.com ',
-          'StrongPassword123',
-          ' Test User ',
+        await expectLater(
+          AuthRepository(api).registerAccount(
+            'test@example.com',
+            'StrongPassword123',
+            'Test User',
+          ),
+          throwsA(
+            isA<ApiException>().having((e) => e.statusCode, 'status', 502),
+          ),
         );
-
-        expect(calls, [
-          '/api/auth/register',
-          '/api/account-security/email-verification/request',
-        ]);
-
         expect(authSession.authenticated, isFalse);
-        expect(authSession.token, isNull);
-        expect(authSession.refreshToken, isNull);
       });
     }
 
-    test('Registration failure does not request verification', () async {
-      var calls = 0;
+    test(
+      'duplicate registration preserves HTTP 409 and makes one call',
+      () async {
+        var calls = 0;
+        final api = ApiClient(
+          MockClient((_) async {
+            calls++;
+            return http.Response(
+              '{"title":"The email address is already registered."}',
+              409,
+            );
+          }),
+        );
+        addTearDown(api.dispose);
 
+        await expectLater(
+          AuthRepository(api).registerAccount(
+            'test@example.com',
+            'StrongPassword123',
+            'Test User',
+          ),
+          throwsA(
+            isA<ApiException>().having((e) => e.statusCode, 'status', 409),
+          ),
+        );
+
+        expect(calls, 1);
+        expect(authSession.authenticated, isFalse);
+      },
+    );
+
+    test('concurrent registration submissions share one request', () async {
+      final response = Completer<http.Response>();
+      var calls = 0;
+      final api = ApiClient(
+        MockClient((_) {
+          calls++;
+          return response.future;
+        }),
+      );
+      addTearDown(api.dispose);
+      final repository = AuthRepository(api);
+
+      final first = repository.registerAccount(
+        'test@example.com',
+        'StrongPassword123',
+        'Test User',
+      );
+      final second = repository.registerAccount(
+        'test@example.com',
+        'StrongPassword123',
+        'Test User',
+      );
+      response.complete(registrationResponse());
+
+      expect(await first, await second);
+      expect(calls, 1);
+    });
+  });
+
+  group('Public email verification', () {
+    test('resend uses the anonymous endpoint and generic result', () async {
+      var calls = 0;
       final api = ApiClient(
         MockClient((request) async {
           calls++;
-
-          expect(request.url.path, '/api/auth/register');
-
-          return http.Response('{"title":"Registration failed"}', 409);
+          expect(
+            request.url.path,
+            '/api/account-security/email-verification/resend',
+          );
+          expect(request.headers['Authorization'], isNull);
+          expect(jsonDecode(request.body), {'email': 'test@example.com'});
+          return http.Response('', 202);
         }),
       );
-
       addTearDown(api.dispose);
 
-      await expectLater(
-        AuthRepository(
-          api,
-        ).registerAccount('test@example.com', 'StrongPassword123', 'Test User'),
-        throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 409)),
-      );
+      await AuthRepository(api).resendEmailVerification(' test@example.com ');
 
       expect(calls, 1);
       expect(authSession.authenticated, isFalse);
     });
 
-    test('Invalid registration token is rejected', () async {
+    test('invalid resend email is rejected before HTTP', () async {
       var calls = 0;
-
       final api = ApiClient(
-        MockClient((request) async {
+        MockClient((_) async {
           calls++;
-          return registrationResponse(accessToken: 12345);
+          return http.Response('', 202);
         }),
       );
-
       addTearDown(api.dispose);
 
       await expectLater(
-        AuthRepository(
-          api,
-        ).registerAccount('test@example.com', 'StrongPassword123', 'Test User'),
-        throwsA(isA<ApiException>()),
+        AuthRepository(api).resendEmailVerification('invalid'),
+        throwsArgumentError,
       );
+      expect(calls, 0);
+    });
+
+    test('HTTP 204 confirmation preserves special token characters', () async {
+      const token = 'a+b/c==&safe';
+      var calls = 0;
+      final api = ApiClient(
+        MockClient((request) async {
+          calls++;
+          expect(
+            request.url.path,
+            '/api/account-security/email-verification/confirm',
+          );
+          expect(jsonDecode(request.body), {'token': token});
+          return http.Response('', 204);
+        }),
+      );
+      addTearDown(api.dispose);
+
+      await AuthRepository(api).confirmEmailVerification(token);
 
       expect(calls, 1);
       expect(authSession.authenticated, isFalse);
     });
 
-    test('Expired registration token is rejected', () async {
+    test('empty confirmation token is rejected before HTTP', () async {
       var calls = 0;
-
       final api = ApiClient(
-        MockClient((request) async {
+        MockClient((_) async {
           calls++;
-          return registrationResponse(expired: true);
+          return http.Response('', 204);
         }),
       );
-
       addTearDown(api.dispose);
 
       await expectLater(
-        AuthRepository(
-          api,
-        ).registerAccount('test@example.com', 'StrongPassword123', 'Test User'),
-        throwsA(isA<ApiException>()),
+        AuthRepository(api).confirmEmailVerification('   '),
+        throwsArgumentError,
       );
-
-      expect(calls, 1);
-      expect(authSession.authenticated, isFalse);
+      expect(calls, 0);
     });
 
-    test('Email service failure preserves account creation status', () async {
-      var calls = 0;
-
+    test('invalid or expired tokens remain a safe HTTP 400', () async {
       final api = ApiClient(
-        MockClient((request) async {
-          calls++;
-
-          if (request.url.path == '/api/auth/register') {
-            return registrationResponse();
-          }
-
-          return http.Response('{"title":"Email delivery unavailable"}', 503);
-        }),
+        MockClient(
+          (_) async => http.Response(
+            '{"title":"The verification token is invalid or expired."}',
+            400,
+          ),
+        ),
       );
-
       addTearDown(api.dispose);
 
       await expectLater(
-        AuthRepository(
-          api,
-        ).registerAccount('test@example.com', 'StrongPassword123', 'Test User'),
-        throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 424)),
+        AuthRepository(api).confirmEmailVerification('expired-token'),
+        throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 400)),
       );
-
-      expect(calls, 2);
-      expect(authSession.authenticated, isFalse);
     });
+  });
 
-    test('Unexpected verification response is rejected', () async {
-      final api = ApiClient(
-        MockClient((request) async {
-          if (request.url.path == '/api/auth/register') {
-            return registrationResponse();
-          }
+  test('duplicate email message is safe and actionable', () {
+    final message = authErrorMessage(
+      const ApiException(409, 'The email address is already registered.'),
+    );
+    expect(message, contains('HTTP 409'));
+    expect(message, contains('sign in'));
+    expect(message, isNot(contains('already registered')));
+  });
 
-          return http.Response('{}', 200);
-        }),
-      );
-
-      addTearDown(api.dispose);
-
-      await expectLater(
-        AuthRepository(
-          api,
-        ).registerAccount('test@example.com', 'StrongPassword123', 'Test User'),
-        throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 424)),
-      );
-
-      expect(authSession.authenticated, isFalse);
-    });
-
-    test('Verification failure message prevents duplicate registration', () {
-      final message = authErrorMessage(
-        const ApiException(424, 'Verification request failed'),
-      );
-
-      expect(message, contains('account was created'));
-      expect(message, contains('Do not register again'));
-      expect(message, contains('Check your inbox'));
-    });
+  test('verification links decode tokens exactly once', () {
+    expect(
+      verificationTokenFromUri(
+        Uri.parse('/verify-email?token=a%2Bb%2Fc%3D%3D'),
+      ),
+      'a+b/c==',
+    );
+    expect(
+      verificationTokenFromUri(Uri.parse('/verify-email?token=a%252Bb')),
+      'a%2Bb',
+    );
   });
 }

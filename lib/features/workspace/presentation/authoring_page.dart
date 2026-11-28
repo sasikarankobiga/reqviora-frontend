@@ -6,7 +6,7 @@ import 'dart:async';
 import '../../../core/auth/auth_session.dart';
 import '../../../core/config/app_config.dart';
 import '../../projects/data/project_members_repository.dart';
-import '../../projects/presentation/project_members_dialog.dart';
+import '../../projects/presentation/project_members_access.dart';
 import '../domain/project_edit_policy.dart';
 import '../domain/screen_access_roles.dart';
 import '../../builder/domain/registry/v4_visibility_rules.dart';
@@ -201,6 +201,7 @@ class BuilderAuthoringPage extends ConsumerWidget {
                   ),
                   workspace: workspace,
                   step: step,
+                  role: memberRole,
                 );
               },
             );
@@ -210,9 +211,15 @@ class BuilderAuthoringPage extends ConsumerWidget {
 }
 
 class _Content extends ConsumerStatefulWidget {
-  const _Content({super.key, required this.workspace, required this.step});
+  const _Content({
+    super.key,
+    required this.workspace,
+    required this.step,
+    required this.role,
+  });
   final Workspace workspace;
   final int step;
+  final ProjectMemberRole role;
   @override
   ConsumerState<_Content> createState() => _ContentState();
 }
@@ -271,7 +278,7 @@ class _ContentState extends ConsumerState<_Content> {
               SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Real server-backed draft editor · Owner-controlled · Saved content stays after refresh.',
+                  'Real server-backed draft editor · Role-controlled · Saved content stays after refresh.',
                   style: TextStyle(fontSize: 12, height: 1.45),
                 ),
               ),
@@ -322,7 +329,7 @@ class _ContentState extends ConsumerState<_Content> {
         else if (n == 7)
           _BlueprintEditor(workspace: w)
         else if (n == 8)
-          _ValidationEditor(workspace: w),
+          _ValidationEditor(workspace: w, role: widget.role),
         if (message != null) ...[
           const SizedBox(height: 15),
           Semantics(
@@ -3153,9 +3160,10 @@ class _BlueprintEditorState extends ConsumerState<_BlueprintEditor> {
 }
 
 class _ValidationEditor extends ConsumerStatefulWidget {
-  const _ValidationEditor({required this.workspace});
+  const _ValidationEditor({required this.workspace, required this.role});
 
   final Workspace workspace;
+  final ProjectMemberRole role;
 
   @override
   ConsumerState<_ValidationEditor> createState() => _ValidationEditorState();
@@ -3261,6 +3269,11 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
 
     setState(() => revisions = approved);
 
+    if (widget.role != ProjectMemberRole.owner) {
+      if (mounted) setState(() => exports = []);
+      return;
+    }
+
     try {
       final records = await repository.getExports(projectId);
 
@@ -3282,6 +3295,9 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
   Future<void> loadHistory() => execute(refreshHistory);
 
   Future<void> runValidation() => execute(() async {
+    if (widget.role == ProjectMemberRole.viewer) {
+      throw StateError('Project editor access is required for validation.');
+    }
     if (widget.workspace.isApproved) {
       throw StateError('This draft is already approved.');
     }
@@ -3341,6 +3357,9 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
   });
 
   Future<void> approveDraft() => execute(() async {
+    if (widget.role != ProjectMemberRole.owner) {
+      throw StateError('Only the project owner can approve a revision.');
+    }
     if (widget.workspace.isApproved) {
       throw StateError('This draft is already approved.');
     }
@@ -3433,6 +3452,9 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
   });
 
   Future<void> exportOfficialRevision() => execute(() async {
+    if (widget.role != ProjectMemberRole.owner) {
+      throw StateError('Only the project owner can export a revision.');
+    }
     final revisionId = approvedRevisionId;
     if (revisionId == null) {
       throw StateError('Approve a validated revision before exporting.');
@@ -3492,6 +3514,9 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
   });
 
   Future<void> createExport(String revisionId) => execute(() async {
+    if (widget.role != ProjectMemberRole.owner) {
+      throw StateError('Only the project owner can create an export.');
+    }
     final repository = ref.read(approvalExportRepositoryProvider);
 
     final receipt = await repository.createExport(projectId, revisionId);
@@ -3511,6 +3536,9 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
   });
 
   Future<void> downloadExport(String exportId) => execute(() async {
+    if (widget.role != ProjectMemberRole.owner) {
+      throw StateError('Only the project owner can download an export.');
+    }
     final repository = ref.read(approvalExportRepositoryProvider);
 
     final metadata = await repository.getExport(projectId, exportId);
@@ -3545,6 +3573,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
     final passed = current?['passed'] == true;
     final readinessKnown = current?['readinessKnown'] != false;
     final approved = widget.workspace.isApproved || approvedRevisionId != null;
+    final policy = ProjectEditPolicy(role: widget.role, approved: approved);
 
     final findings =
         (current?['findings'] as List? ?? []).whereType<Map>().toList();
@@ -3566,14 +3595,20 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
             children: [
               FilledButton.icon(
                 key: const ValueKey('step08-validation-button'),
-                onPressed: busy || approved ? null : runValidation,
+                onPressed:
+                    !policy.canValidate || busy || approved
+                        ? null
+                        : runValidation,
                 icon: const Icon(Icons.fact_check_outlined),
                 label: const LocalizedUiText('Run Backend Validation'),
               ),
               FilledButton.icon(
                 key: const ValueKey('step08-approve-button'),
                 onPressed:
-                    busy || approved || !passed || validationToken == null
+                    !policy.canApprove ||
+                            busy ||
+                            !passed ||
+                            validationToken == null
                         ? null
                         : approveDraft,
                 icon: const Icon(Icons.verified_outlined),
@@ -3669,7 +3704,7 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
           OutlinedButton.icon(
             key: const ValueKey('step08-export-disabled'),
             onPressed:
-                busy || approvedRevisionId == null
+                !policy.canExport || busy || approvedRevisionId == null
                     ? null
                     : exportOfficialRevision,
             icon: const Icon(Icons.download_outlined),
@@ -3719,18 +3754,19 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
                                     ),
                             child: const LocalizedUiText('Revision details'),
                           ),
-                          FilledButton.icon(
-                            onPressed:
-                                busy
-                                    ? null
-                                    : () => createExport(
-                                      revision['revisionId'] as String,
-                                    ),
-                            icon: const Icon(Icons.archive_outlined),
-                            label: const LocalizedUiText(
-                              'Create Official Export',
+                          if (policy.canExport)
+                            FilledButton.icon(
+                              onPressed:
+                                  busy
+                                      ? null
+                                      : () => createExport(
+                                        revision['revisionId'] as String,
+                                      ),
+                              icon: const Icon(Icons.archive_outlined),
+                              label: const LocalizedUiText(
+                                'Create Official Export',
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ],
@@ -3747,13 +3783,13 @@ class _ValidationEditorState extends ConsumerState<_ValidationEditor> {
           const SizedBox(height: 12),
           SecondBrainViewerButton(projectId: projectId),
 
-          if (exports.isEmpty)
+          if (policy.canExport && exports.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: LocalizedUiText('No official export records loaded.'),
             ),
 
-          for (final item in exports)
+          for (final item in policy.canExport ? exports : const [])
             if (item['exportId'] is String)
               Card(
                 child: Padding(

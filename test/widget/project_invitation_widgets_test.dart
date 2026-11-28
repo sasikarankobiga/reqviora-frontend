@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -88,6 +90,36 @@ void main() {
     expect(receivedEmail, 'user@example.com');
     expect(receivedRole, ProjectMemberRole.viewer);
     expect(find.text('Invitation sent.'), findsOneWidget);
+  });
+
+  testWidgets('Invitation send prevents duplicate in-flight requests', (
+    tester,
+  ) async {
+    final pending = Completer<void>();
+    var calls = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProjectInvitationDialog(
+            onSend: (email, role) {
+              calls++;
+              return pending.future;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('invitation-email')),
+      'user@example.com',
+    );
+    final send = find.byKey(const ValueKey('send-project-invitation'));
+    await tester.tap(send);
+    await tester.pump();
+    await tester.tap(send);
+    expect(calls, 1);
+    pending.complete();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Failed invitation does not show fake success', (tester) async {
