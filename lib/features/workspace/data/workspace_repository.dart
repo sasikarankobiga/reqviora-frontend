@@ -3,6 +3,25 @@ import 'dart:typed_data';
 import '../domain/workspace.dart';
 import '../domain/local_preview_blueprint.dart';
 
+bool _jsonEqual(Object? left, Object? right) {
+  if (identical(left, right) || left == right) return true;
+  if (left is List && right is List) {
+    return left.length == right.length &&
+        Iterable.generate(
+          left.length,
+        ).every((index) => _jsonEqual(left[index], right[index]));
+  }
+  if (left is Map && right is Map) {
+    return left.length == right.length &&
+        left.keys.every(
+          (key) => right.containsKey(key) && _jsonEqual(left[key], right[key]),
+        );
+  }
+  return false;
+}
+
+const _noSectionBaseline = Object();
+
 class WorkspaceRepository {
   const WorkspaceRepository(this.api);
   final ApiClient api;
@@ -61,8 +80,9 @@ class WorkspaceRepository {
     String projectId,
     String section,
     int version,
-    dynamic data,
-  ) async {
+    dynamic data, {
+    Object? expectedSectionData = _noSectionBaseline,
+  }) async {
     Map<String, dynamic> response;
 
     try {
@@ -86,15 +106,24 @@ class WorkspaceRepository {
 
     final latestVersion = (response['version'] as num?)?.toInt() ?? 0;
 
-    if (latestVersion != version) {
-      throw StateError(
-        'The draft has changed. Reload the workspace and retry.',
-      );
-    }
-
     final updatedDraft = Map<String, dynamic>.from(
       response['draft'] as Map? ?? {},
     );
+
+    final latestSections =
+        updatedDraft['sections'] is Map
+            ? updatedDraft['sections'] as Map
+            : updatedDraft;
+    final latestSection = latestSections[section];
+
+    if (latestVersion != version &&
+        (identical(expectedSectionData, _noSectionBaseline) ||
+            !_jsonEqual(latestSection, expectedSectionData))) {
+      throw StateError(
+        'This section changed in another save. Your edits were kept locally; '
+        'reload and reconcile them before retrying.',
+      );
+    }
 
     // Preserve the draft's existing storage structure.
     if (updatedDraft['sections'] is Map) {
@@ -366,9 +395,7 @@ class WorkspaceRepository {
       );
     }
 
-    final draft = Map<String, dynamic>.from(
-      current['draft'] as Map? ?? {},
-    );
+    final draft = Map<String, dynamic>.from(current['draft'] as Map? ?? {});
 
     final saved = Map<String, dynamic>.from(
       await api.put('/api/projects/$projectId/blueprints/current', {
@@ -386,6 +413,7 @@ class WorkspaceRepository {
 
     return savedVersion.toInt();
   }
+
   Future<Map<String, dynamic>> validate(String id) async {
     final current = Map<String, dynamic>.from(
       await api.get('/api/projects/$id/drafts/current') as Map,
@@ -436,11 +464,13 @@ class WorkspaceRepository {
 
     return Map<String, dynamic>.from(
       await api.post('/api/projects/$projectId/approvals', {
-        'expectedConcurrencyToken': token,
-        'validationRunId': validationRunId,
-      }) as Map,
+            'expectedConcurrencyToken': token,
+            'validationRunId': validationRunId,
+          })
+          as Map,
     );
   }
+
   Future<Map<String, dynamic>> createOfficialExport(
     String projectId,
     String approvedRevisionId,
@@ -455,9 +485,10 @@ class WorkspaceRepository {
 
     return Map<String, dynamic>.from(
       await api.post(
-        '/api/projects/$projectId/exports/from-revision/$approvedRevisionId',
-        <String, dynamic>{},
-      ) as Map,
+            '/api/projects/$projectId/exports/from-revision/$approvedRevisionId',
+            <String, dynamic>{},
+          )
+          as Map,
     );
   }
 
@@ -473,9 +504,7 @@ class WorkspaceRepository {
       );
     }
 
-    return api.getBytes(
-      '/api/projects/$projectId/exports/$exportId/download',
-    );
+    return api.getBytes('/api/projects/$projectId/exports/$exportId/download');
   }
 
   Future<List<int>> exportDraft(String id) async {

@@ -229,6 +229,7 @@ class _ContentState extends ConsumerState<_Content> {
   bool conflict = false;
   String? message;
   Future<void> save(String section, dynamic data) async {
+    if (busy) return;
     setState(() {
       busy = true;
       message = null;
@@ -242,6 +243,7 @@ class _ContentState extends ConsumerState<_Content> {
             section,
             widget.workspace.version,
             data,
+            expectedSectionData: widget.workspace.sections[section],
           );
       ref.invalidate(workspaceProvider(widget.workspace.projectId));
       ref.invalidate(projectValidationProvider(widget.workspace.projectId));
@@ -359,15 +361,22 @@ class _ContentState extends ConsumerState<_Content> {
           children: [
             OutlinedButton.icon(
               onPressed:
-                  () => context.go('/projects/${w.projectId}/builder/${n - 1}'),
+                  busy
+                      ? null
+                      : () => context.go(
+                        '/projects/${w.projectId}/builder/${n - 1}',
+                      ),
               icon: const Icon(Icons.arrow_back),
               label: const LocalizedUiText('Previous'),
             ),
             if (n < 8)
               FilledButton.icon(
                 onPressed:
-                    () =>
-                        context.go('/projects/${w.projectId}/builder/${n + 1}'),
+                    busy
+                        ? null
+                        : () => context.go(
+                          '/projects/${w.projectId}/builder/${n + 1}',
+                        ),
                 icon: const Icon(Icons.arrow_forward),
                 label: Text('Continue to Step ${n + 1}'),
               ),

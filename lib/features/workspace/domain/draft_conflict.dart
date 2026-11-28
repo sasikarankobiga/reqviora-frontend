@@ -10,6 +10,7 @@ bool isDraftConflict(Object error) {
 
     return message.contains('draft has changed') ||
         message.contains('workspace has changed') ||
+        message.contains('changed in another save') ||
         message.contains('concurrency') ||
         message.contains('stale');
   }
@@ -23,6 +24,6 @@ String draftConflictMessage(Object error) {
   }
 
   return 'This project draft was updated elsewhere. '
-      'Reload the latest draft to review the changes. '
-      'Unsaved edits will need to be entered again.';
+      'Unsaved edits are still visible. Review or copy them before continuing. '
+      'Reload the latest server draft to reconcile the changes.';
 }
