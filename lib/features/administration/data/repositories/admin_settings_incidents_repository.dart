@@ -43,8 +43,9 @@ class AdminSettingsIncidentsRepository {
     required String reason,
   }) async {
     _reason(reason);
-    if (targetRevision < 1 || targetRevision >= expectedRevision)
+    if (targetRevision < 1 || targetRevision >= expectedRevision) {
       throw ArgumentError('Select an older revision.');
+    }
     return PlatformSetting.fromJson(
       await api.post('/api/admin/settings/$documentUploadSettingKey/rollback', {
         'targetRevision': targetRevision,
@@ -64,8 +65,9 @@ class AdminSettingsIncidentsRepository {
     int pageSize = 20,
   }) async {
     _page(page, pageSize);
-    if (assignedAdminId != null && !_uuid.hasMatch(assignedAdminId))
+    if (assignedAdminId != null && !_uuid.hasMatch(assignedAdminId)) {
       throw ArgumentError('Invalid administrator ID.');
+    }
     final q = {
       'page': '$page',
       'pageSize': '$pageSize',
@@ -93,8 +95,9 @@ class AdminSettingsIncidentsRepository {
       api.get('/api/admin/incidents/$id'),
       api.get('/api/admin/incidents/$id/history?page=1&pageSize=50'),
     ]);
-    if (v[1] is! List)
+    if (v[1] is! List) {
       throw const ApiException(502, 'Invalid incident history.');
+    }
     return (
       IncidentDetails.fromJson(v[0]),
       List<IncidentHistoryEntry>.unmodifiable(
@@ -109,8 +112,9 @@ class AdminSettingsIncidentsRepository {
     String? correlationId,
   }) async {
     final c = category.trim();
-    if (c.isEmpty || c.length > 80 || _secret(c) || _secret(correlationId))
+    if (c.isEmpty || c.length > 80 || _secret(c) || _secret(correlationId)) {
       throw ArgumentError('Invalid incident metadata.');
+    }
     return IncidentDetails.fromJson(
       await api.post('/api/admin/incidents', {
         'category': c,
@@ -130,8 +134,9 @@ class AdminSettingsIncidentsRepository {
   }) async {
     final notes = resolutionNotes?.trim();
     if (status == IncidentStatus.resolved && (notes == null || notes.isEmpty) ||
-        notes != null && (notes.length > 1000 || _secret(notes)))
+        notes != null && (notes.length > 1000 || _secret(notes))) {
       throw ArgumentError('Valid resolution notes are required.');
+    }
     return IncidentDetails.fromJson(
       await api.put('/api/admin/incidents/${item.id}/status', {
         'status': statusWire(status),
@@ -142,8 +147,9 @@ class AdminSettingsIncidentsRepository {
   }
 
   Future<IncidentDetails> assign(IncidentDetails item, String? adminId) async {
-    if (adminId != null && !_uuid.hasMatch(adminId))
+    if (adminId != null && !_uuid.hasMatch(adminId)) {
       throw ArgumentError('Invalid administrator ID.');
+    }
     return IncidentDetails.fromJson(
       await api.put('/api/admin/incidents/${item.id}/assignment', {
         'assignedAdminId': adminId,
@@ -153,14 +159,16 @@ class AdminSettingsIncidentsRepository {
   }
 
   void _page(int p, int s) {
-    if (p < 1 || p > 1000000 || s < 1 || s > 100)
+    if (p < 1 || p > 1000000 || s < 1 || s > 100) {
       throw ArgumentError('Invalid pagination.');
+    }
   }
 
   void _reason(String r) {
     final v = r.trim();
-    if (v.length < 3 || v.length > 500)
+    if (v.length < 3 || v.length > 500) {
       throw ArgumentError('A reason of 3 to 500 characters is required.');
+    }
   }
 
   void _id(String id) {
