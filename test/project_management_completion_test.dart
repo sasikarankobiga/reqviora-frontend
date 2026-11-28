@@ -200,6 +200,25 @@ void main() {
     expect(find.text('Clinic App'), findsOneWidget);
   });
 
+  testWidgets('project directory remains usable at release target widths', (
+    tester,
+  ) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    for (final width in <double>[320, 375, 430, 768, 1024, 1440]) {
+      await tester.binding.setSurfaceSize(Size(width, width < 600 ? 844 : 900));
+      await tester.pumpWidget(appFor(_ProjectsRepository(), '/projects'));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'Projects page must not overflow at ${width.toInt()}px',
+      );
+      expect(find.byKey(const ValueKey('project-search')), findsOneWidget);
+    }
+  });
+
   testWidgets('project overview edits through the repository contract', (
     tester,
   ) async {

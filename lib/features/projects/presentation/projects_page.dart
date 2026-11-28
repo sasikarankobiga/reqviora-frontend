@@ -394,21 +394,38 @@ class _ProjectDirectoryState extends State<_ProjectDirectory> {
               ),
             ),
             if (categories.isNotEmpty)
-              DropdownButton<String?>(
-                key: const ValueKey('project-category-filter'),
-                value: category,
-                hint: Text(uiText(context, 'All categories', 'அனைத்து வகைகள்')),
-                items: [
-                  DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text(
-                      uiText(context, 'All categories', 'அனைத்து வகைகள்'),
-                    ),
+              SizedBox(
+                width: 280,
+                child: DropdownButton<String?>(
+                  key: const ValueKey('project-category-filter'),
+                  value: category,
+                  isExpanded: true,
+                  hint: Text(
+                    uiText(context, 'All categories', 'அனைத்து வகைகள்'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  for (final value in categories)
-                    DropdownMenuItem<String?>(value: value, child: Text(value)),
-                ],
-                onChanged: (value) => setState(() => category = value),
+                  items: [
+                    DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text(
+                        uiText(context, 'All categories', 'அனைத்து வகைகள்'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    for (final value in categories)
+                      DropdownMenuItem<String?>(
+                        value: value,
+                        child: Text(
+                          value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => category = value),
+                ),
               ),
           ],
         ),
@@ -529,7 +546,8 @@ class _ProjectCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              if (project.category.isNotEmpty) SmallLabel(project.category),
+              if (project.category.isNotEmpty)
+                Flexible(child: SmallLabel(project.category)),
             ],
           ),
           const SizedBox(height: 16),
