@@ -1,5 +1,8 @@
 import '../../mcp_integration/presentation/widgets/mcp_handoff_dialog.dart';
-import 'project_members_dialog.dart';
+import '../../mcp_integration/presentation/widgets/mcp_grants_button.dart';
+import '../../billing/presentation/billing_button.dart';
+import 'project_invitations_button.dart';
+import 'project_members_access.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -61,7 +64,13 @@ class _Contents extends StatelessWidget {
       const SizedBox(height: 20),
       ProjectMembersButton(projectId: draft.projectId),
       const SizedBox(height: 10),
+      ProjectInvitationsButton(projectId: draft.projectId),
+      const SizedBox(height: 10),
       McpHandoffButton(projectId: draft.projectId),
+      const SizedBox(height: 10),
+      McpGrantsButton(projectId: draft.projectId),
+      const SizedBox(height: 10),
+      ProjectBillingButton(projectId: draft.projectId),
       const SizedBox(height: 24),
       LayoutBuilder(
         builder: (context, size) {

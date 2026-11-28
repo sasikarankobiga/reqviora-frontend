@@ -50,7 +50,7 @@ void main() {
     expect(result.last.role, ProjectMemberRole.editor);
   });
 
-  test('Adds registered user as Editor', () async {
+  test('Updates an accepted member to Editor', () async {
     final repo = repository((request) async {
       expect(request.method, 'PUT');
       expect(request.url.path, '/api/projects/$projectId/members/$memberId');
@@ -180,6 +180,22 @@ void main() {
     });
 
     await expectLater(repo.getMembers(projectId), throwsFormatException);
+  });
+
+  test('Parses an accepted member join timestamp as UTC', () async {
+    final repo = repository(
+      (request) async => jsonResponse([
+        member(ownerId, 'Owner'),
+        {
+          ...member(memberId, 'Viewer'),
+          'joinedAtUtc': '2026-11-27T08:30:00+05:30',
+        },
+      ]),
+    );
+
+    final result = await repo.getMembers(projectId);
+    expect(result.last.joinedAtUtc, DateTime.utc(2026, 11, 27, 3));
+    expect(result.last.joinedAtUtc?.isUtc, isTrue);
   });
 
   test('Rejects duplicate members', () async {

@@ -14,7 +14,6 @@ void main() {
   const ownerId = '22222222-2222-4222-8222-222222222222';
   const editorId = '33333333-3333-4333-8333-333333333333';
   const viewerId = '44444444-4444-4444-8444-444444444444';
-  const newId = '55555555-5555-4555-8555-555555555555';
 
   late List<Map<String, dynamic>> members;
   late List<http.Request> writes;
@@ -22,8 +21,16 @@ void main() {
   setUp(() {
     members = [
       {'userId': ownerId, 'role': 'Owner'},
-      {'userId': editorId, 'role': 'Editor'},
-      {'userId': viewerId, 'role': 'Viewer'},
+      {
+        'userId': editorId,
+        'role': 'Editor',
+        'joinedAtUtc': '2026-11-27T08:30:00Z',
+      },
+      {
+        'userId': viewerId,
+        'role': 'Viewer',
+        'joinedAtUtc': '2026-11-27T09:00:00Z',
+      },
     ];
 
     writes = [];
@@ -99,10 +106,14 @@ void main() {
   testWidgets('Owner receives member management controls', (tester) async {
     await open(tester, ownerId);
 
-    expect(find.text('Add Registered Member'), findsOneWidget);
+    expect(
+      find.textContaining('must accept an email invitation'),
+      findsOneWidget,
+    );
     expect(find.text('Make Viewer'), findsOneWidget);
     expect(find.text('Make Editor'), findsOneWidget);
     expect(find.text('Remove'), findsNWidgets(2));
+    expect(find.text('Joined: 2026-11-27T08:30:00.000Z'), findsOneWidget);
   });
 
   testWidgets('Editor receives read-only membership view', (tester) async {
@@ -132,36 +143,12 @@ void main() {
     expect(writes, isEmpty);
   });
 
-  testWidgets('Owner can add a registered Viewer', (tester) async {
+  testWidgets('Owner cannot bypass invitation acceptance', (tester) async {
     await open(tester, ownerId);
 
-    final input = find.byKey(const ValueKey('member-user-id'));
-
-    await tester.ensureVisible(input);
-    await tester.enterText(input, newId);
-
-    await tap(tester, find.byKey(const ValueKey('add-project-member')));
-    await tap(tester, find.text('Confirm'));
-
-    expect(writes.length, 1);
-    expect(writes.single.method, 'PUT');
-    expect(writes.single.url.pathSegments.last, newId);
-    expect(jsonDecode(writes.single.body), {'role': 'Viewer'});
-    expect(find.text('Project member added.'), findsOneWidget);
-  });
-
-  testWidgets('Invalid user ID does not send a write request', (tester) async {
-    await open(tester, ownerId);
-
-    final input = find.byKey(const ValueKey('member-user-id'));
-
-    await tester.ensureVisible(input);
-    await tester.enterText(input, 'invalid-id');
-
-    await tap(tester, find.byKey(const ValueKey('add-project-member')));
-
-    expect(find.text('Enter a valid registered user ID.'), findsOneWidget);
-
+    expect(find.byKey(const ValueKey('member-user-id')), findsNothing);
+    expect(find.byKey(const ValueKey('add-project-member')), findsNothing);
+    expect(find.text('Add Registered Member'), findsNothing);
     expect(writes, isEmpty);
   });
 
@@ -215,18 +202,12 @@ void main() {
     expect(writes, isEmpty);
   });
 
-  testWidgets('Owner can open email invitation dialog', (tester) async {
+  testWidgets('Member dialog does not expose a disconnected invite action', (
+    tester,
+  ) async {
     await open(tester, ownerId);
 
-    await tap(tester, find.byKey(const ValueKey('open-project-invitation')));
-
-    expect(find.text('Invite Project Member'), findsOneWidget);
-
-    final send = tester.widget<FilledButton>(
-      find.byKey(const ValueKey('send-project-invitation')),
-    );
-
-    expect(send.onPressed, isNull);
+    expect(find.byKey(const ValueKey('open-project-invitation')), findsNothing);
     expect(writes, isEmpty);
   });
 

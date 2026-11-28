@@ -4,9 +4,9 @@ Date: 2026-11-27 (Asia/Colombo)
 
 ## Executive result
 
-The verified repair branch was integrated into `Varmitha` by fast-forward and its contributor history was preserved. Nine verified workflow-intelligence API contract defects and one corrupted-text defect were repaired. The complete local CI-equivalent suite passes on the repository-pinned Flutter 3.47.6 toolchain: analyzer 0/0/0, 745/745 automated tests, release web build, and G1 fixture checks.
+The verified repair branch was integrated into `Varmitha` by fast-forward and its contributor history was preserved. Nine verified workflow-intelligence API contract defects and one corrupted-text defect were repaired. Batch 01 then completed the user-facing invitation, MCP handoff, and billing transports against backend `54daf30be57fcb76aaa76c4b3fed45f8c6d44cef`. The complete local CI-equivalent suite passes on Flutter 3.47.6: analyzer 0/0/0, 791/791 automated tests, release web build, and G1 fixture checks.
 
-This report does **not** establish production readiness. No authorized isolated backend, database, provider accounts, or financial sandbox were supplied, so live API and browser E2E scenarios are blocked. Project invitation transport, MCP grant transport, billing, and several administrator product areas are not implemented in this frontend. Publication is also blocked because the authenticated GitHub account could not be verified (`gh auth status` reports no logged-in host).
+This report does **not** establish production readiness. No authorized isolated backend, database, SMTP/MCP provider environment, or PayHere sandbox was supplied, so live API and browser E2E scenarios are blocked. FU05, FU11, and FU12 are implemented and pass mocked contract/widget tests; their live provider behavior remains unverified. Several administrator product areas remain unimplemented.
 
 ## Repository, integration, and environment
 
@@ -35,7 +35,7 @@ Git author and committer were configured locally as `Varmitha Yogananthan <yvarm
 | `flutter pub get` | PASS | Flutter 3.47.6 |
 | `flutter gen-l10n` | PASS | Flutter 3.47.6 |
 | `flutter analyze --no-pub` | PASS | 0 errors, 0 warnings, 0 info issues |
-| `flutter test --no-pub` | PASS | 745 executed, 745 passed, 0 failed |
+| `flutter test --reporter expanded` | PASS | 791 executed, 791 passed, 0 failed, 0 skipped |
 | Chrome widget subset | PASS | 29 tests; overlaps the 745-test source suite and is not added to its denominator |
 | `flutter build web --release` | PASS | Invalid API URL; `REQVIORA_LOCAL_DEMO=false` |
 | G1 contract fixtures | PASS | 4 JSON Schemas, 19 candidate component types, 88 OpenAPI operations on 75 paths, 19 manifest references, 39 RBAC actions, 137 mock screen rows, and 4 negative cases |
@@ -55,16 +55,16 @@ Automated evidence below means UNIT, WIDGET, or MOCK_CONTRACT evidence. It is no
 | FU02 Account Security | BLOCKED | Profile, email/password, session, MFA, and privacy contract/widget coverage passes; live account isolation and security-event workflow blocked. |
 | FU03 Voice Processing | BLOCKED | Repository/widget validation coverage exists; real microphone, upload, transcription provider, and cleanup E2E blocked. |
 | FU04 AI Requirements | BLOCKED | Corrected candidate, clarification, generation, regeneration, polling, validation, 429/503 behavior, and malformed DTO coverage passes; live AI/provider workflow blocked. |
-| FU05 Project Sharing | NOT_IMPLEMENTED | Member UI and callback-level widgets exist, but invitation transport is explicitly disabled despite backend invitation endpoints. |
+| FU05 Project Sharing | BLOCKED | Connected invitation/member lifecycle and permission tests pass; live SMTP delivery/recipient acceptance is unavailable. |
 | FU06 Document Intelligence | BLOCKED | Upload and validation code/tests exist; live storage, OCR, parsing, retry, and privacy validation blocked. |
 | FU07 Navigation Editor | BLOCKED | Graph/editor widget tests and multiple responsive sizes pass; complete keyboard/screen-reader/live-persistence browser audit not run. |
 | FU08 Blueprint Generation | BLOCKED | Generation/regeneration DTOs, editing, undo/redo, autosave, concurrency, validation, and immutability-related tests pass; live generation and provider verification blocked. |
 | FU09 Revision and Export | BLOCKED | Revision/export contracts, ZIP signature, corrupted ZIP rejection, and authorization tests pass; official live export pipeline blocked. |
 | FU10 Second Brain | BLOCKED | Viewer and safe rendering coverage exists; approved live package retrieval/integrity E2E blocked. |
-| FU11 MCP Handoff | NOT_IMPLEMENTED | Catalog and callback-level grant widgets exist; repository/API wiring and actual MCP connectivity are absent. |
-| FU12 Billing | NOT_IMPLEMENTED | No frontend billing implementation was found; only a preview disclaimer exists. |
+| FU11 MCP Handoff | BLOCKED | Connected approved-revision grant lifecycle, one-time credential cleanup and permission tests pass; actual MCP connectivity is unavailable. |
+| FU12 Billing | BLOCKED | Server-authoritative pricing/checkout/status/history/entitlement and debug-only refund request tests pass; PayHere sandbox/callback verification is unavailable. |
 
-User modules fully verified live: 0/12. Nine are blocked by external/live verification and three are not implemented.
+User modules fully verified live: 0/12. All twelve are blocked by external/live verification; no user module remains unimplemented in this batch's verified contract scope.
 
 ## Administrator module audit
 
@@ -136,11 +136,11 @@ Regression tests:
 
 ## Architecture, missing products, and remaining work
 
-Twenty-eight hand-authored Dart files exceed the documented 300-line target. The largest is `authoring_page.dart` (approximately 3,483 lines); other notable files include `prebuilder_pages.dart`, `voice_input_panel.dart`, `auth_page.dart`, `simulated_preview.dart`, and `api_client.dart`. These pre-existing architecture violations were reported rather than broadly refactored during stabilization.
+Pre-existing hand-authored Dart files still exceed the documented 300-line target. The largest is `authoring_page.dart` (approximately 3,796 lines); other notable files include `prebuilder_pages.dart`, `voice_input_panel.dart`, `auth_page.dart`, `simulated_preview.dart`, and `api_client.dart`. New Batch 01 files are at or below 300 lines, and the directly modified member dialog was reduced below 300 lines.
 
-Major missing products are project invitation transport, connected MCP user/admin grant lifecycle, billing and billing administration, admin export diagnostics, validation monitoring, platform settings, support/incidents, admin AI queue monitoring, and a complete admin-specific profile/session product.
+Major missing products are connected MCP administration, billing administration, admin export diagnostics, validation monitoring, platform settings, support/incidents, admin AI queue monitoring, and a complete admin-specific profile/session product.
 
-Remaining blockers are: no authorized isolated backend/database; no SMTP, AI, OCR, storage, MCP, or PayHere sandbox configuration; no complete live browser E2E environment; and no verifiable authenticated GitHub session for `VarmithaYogananthan`.
+Remaining blockers are: no authorized isolated backend/database; no SMTP, AI, OCR, storage, MCP, or PayHere sandbox configuration; and no complete live browser E2E environment.
 
 ## Release readiness
 
