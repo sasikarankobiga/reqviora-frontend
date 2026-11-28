@@ -24,10 +24,13 @@ Updated: 2026-11-28 (Asia/Colombo)
 6. Live service check: ports 3000 and 5264 are not listening. No authorized test credential/provider configuration is present, so live mutations remain blocked.
 7. Full CI-equivalent gate passed: analyzer 0/0/0, 853/853 tests, G1 PASS, conflict/diff checks PASS, and production-mode web build PASS.
 
-## Pending release steps
+## Publication checkpoint
 
-- Review/stage intended files only and create logical commits.
-- Fetch, dry-run push, push only `Varmitha`, verify equal SHAs, and monitor exact-commit GitHub CI.
+- Batch 08 implementation commits: `980f425`, `95b29ef`, `85aa5f7`.
+- Final security/toolchain/readiness commits through `c0940f5` were pushed by normal fast-forward to `origin/Varmitha`.
+- Local and remote `Varmitha` resolved to `c0940f5d94f54947eb7fac93d88349d217d285a0` after that push.
+- Exact-commit GitHub Actions run `46117824351` completed successfully: analysis, tests, web build, and G1 checks passed.
+- Remaining work is limited to the blocked isolated live matrix and documented backend dependencies; no further independently reproducible frontend defect remains in the executable gates.
 
 ## Resume rule
 
