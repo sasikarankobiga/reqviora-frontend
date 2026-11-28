@@ -24,7 +24,7 @@ Updated: 2026-11-28 (Asia/Colombo)
 | Secure session review | COMPLETE / BLOCKED EXTERNALLY | Refresh/logout remain request-body token contracts; no compatible secure cookie bootstrap exists. Frontend token storage remains memory-only. |
 | Live integration | BLOCKED | Backend became reachable, but the frontend listener and authorized accounts/provider credentials were unavailable. No live success is claimed. |
 | Final documentation | COMPLETE | Readiness, E2E matrix, backend dependencies and run guide were consolidated without credentials. |
-| Final automated gate | COMPLETE LOCALLY | Flutter 3.47.6 analyzer, 858 tests, G1 and production web build pass. Exact-commit CI remains after push. |
+| Final automated gate | COMPLETE | Flutter 3.47.6 analyzer, 858 tests, G1 and production web build pass locally and in exact-commit CI run `46126829384`. |
 
 ## Security conclusions
 
@@ -50,12 +50,12 @@ Updated: 2026-11-28 (Asia/Colombo)
 | Secret scan | PASS — no staged credential/private-key patterns |
 | Dependency review | PASS WITH FOLLOW-UP — five direct constraints have newer resolvable versions; upgrade deferred |
 | Production web release build | PASS — HTTPS API define, local demo disabled |
-| Exact-commit GitHub CI | PENDING PUSH |
+| Exact-commit GitHub CI | PASS — commit `de522d43fe0e31c32a177c93757a6f7473b5ea51`, run `46126829384` |
 
 ## Preserved recovery material
 
 The named stash `codex-final-completion-pre-reconcile-2026-11-28` is retained as a recovery copy. It must not be dropped as part of finalization.
 
-## Resume point
+## Completion state
 
-Review/stage only the final documentation, commit with the authorized identity, fetch/reconcile, dry-run push, push, then verify exact-commit CI.
+Implementation commit `de522d43fe0e31c32a177c93757a6f7473b5ea51` is pushed to `origin/Varmitha` and its CI passed. This final documentation-only closure commit records that evidence; no frontend implementation remains pending. The named recovery stash remains intentionally preserved.

@@ -40,6 +40,7 @@ Multiple checkouts were inventoried. Older dirty worktrees were preserved. Work 
 | Test-count change | +5 over the 853 Batch 08 baseline: project contract, edit, filtering and responsive coverage; no tests removed |
 | G1 fixture validation | PASS: 4 schemas, 19 component types, 88 operations/75 paths, 39 RBAC actions, 137 screen rows, 4 negative cases |
 | Release web build | PASS with HTTPS invalid test API and `REQVIORA_LOCAL_DEMO=false` |
+| Exact-commit GitHub CI | PASS: implementation commit `de522d43fe0e31c32a177c93757a6f7473b5ea51`, run `46126829384` |
 | Conflict markers | PASS: none |
 | `git diff --check` | PASS |
 | Secret review | PASS after reviewing variable-name false positives; no literal credentials/keys found |

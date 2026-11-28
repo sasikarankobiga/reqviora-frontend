@@ -6,7 +6,8 @@ Updated: 2026-11-28 (Asia/Colombo)
 
 - Frontend branch: `Varmitha`
 - Requested starting commit: `85aa5f71d748574cddbbea4d6b9ab045b33d6a8e`
-- Latest verified implementation commit: `8ec2921` (the documentation commit follows it)
+- Latest verified integrated implementation commit: `de522d43fe0e31c32a177c93757a6f7473b5ea51`
+- Exact-commit CI: PASS — run `46126829384`
 - Backend contract inspected read-only at: `54daf30be57fcb76aaa76c4b3fed45f8c6d44cef`
 - CI-supported SDK: Flutter 3.47.6
 - Production mode: `REQVIORA_LOCAL_DEMO=false`
@@ -53,6 +54,6 @@ Live scenarios are recorded individually in `REQVIORA_FRONTEND_E2E_TEST_MATRIX.m
 
 ## Readiness conclusion
 
-- Submission readiness: **READY WITH DOCUMENTED EXTERNAL BLOCKERS**, subject to the final CI result for the pushed commit.
+- Submission readiness: **READY WITH DOCUMENTED EXTERNAL BLOCKERS**. The integrated implementation commit passed exact-commit GitHub CI.
 - Production readiness: **PARTIAL**. Secure browser-session restoration and provider-backed SMTP, AI, transcription, MCP and PayHere verification require backend/environment work and authorized credentials.
 - Pending independently achievable frontend implementation: **none identified after the final contract audit**.
