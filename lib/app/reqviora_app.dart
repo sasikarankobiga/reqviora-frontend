@@ -29,6 +29,8 @@ import '../features/administration/presentation/pages/admin_export_diagnostics_p
 import '../features/administration/presentation/pages/admin_mcp_grants_page.dart';
 import '../features/administration/presentation/pages/validation_health_page.dart';
 import '../features/administration/presentation/pages/ai_queue_monitoring_page.dart';
+import '../features/administration/presentation/pages/admin_profile_sessions_page.dart';
+import '../features/administration/presentation/pages/admin_billing_page.dart';
 
 import '../features/workspace/presentation/preview_page.dart';
 import '../features/workspace/presentation/project_write_gate.dart';
@@ -239,6 +241,18 @@ final appRouter = GoRouter(
       path: '/administration/ai-queue',
       redirect: (_, _) => isLocalDemo ? '/projects' : null,
       builder: (_, _) => const AiQueueMonitoringPage(),
+    ),
+
+    GoRoute(
+      path: '/administration/profile-sessions',
+      redirect: (_, _) => isLocalDemo ? '/projects' : null,
+      builder: (_, _) => const AdminProfileSessionsPage(),
+    ),
+
+    GoRoute(
+      path: '/administration/billing',
+      redirect: (_, _) => isLocalDemo ? '/projects' : null,
+      builder: (_, _) => const AdminBillingPage(),
     ),
 
     GoRoute(

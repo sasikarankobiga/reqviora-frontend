@@ -286,6 +286,31 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                       ),
                     ),
                     OutlinedButton.icon(
+                      key: const ValueKey('admin-profile-sessions'),
+                      onPressed:
+                          () => context.go('/administration/profile-sessions'),
+                      icon: const Icon(Icons.manage_accounts),
+                      label: Text(
+                        uiText(
+                          context,
+                          'Profile and sessions',
+                          'சுயவிவரமும் அமர்வுகளும்',
+                        ),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      key: const ValueKey('admin-billing'),
+                      onPressed: () => context.go('/administration/billing'),
+                      icon: const Icon(Icons.payments),
+                      label: Text(
+                        uiText(
+                          context,
+                          'Billing administration',
+                          'பில்லிங் நிர்வாகம்',
+                        ),
+                      ),
+                    ),
+                    OutlinedButton.icon(
                       key: const ValueKey('admin-ai-queue'),
                       onPressed: () => context.go('/administration/ai-queue'),
                       icon: const Icon(Icons.memory),
