@@ -45,12 +45,13 @@ class _State extends ConsumerState<AdminSettingsIncidentsPage>
 
   void _session() {
     _operation++;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _setting = null;
         _incidents = null;
         _busy = false;
       });
+    }
   }
 
   @override
@@ -221,11 +222,12 @@ class _State extends ConsumerState<AdminSettingsIncidentsPage>
             _assignee.text.trim().isEmpty ? null : _assignee.text.trim(),
         page: page,
       );
-      if (current(op, gen))
+      if (current(op, gen)) {
         setState(() {
           _incidents = r.$1;
           _summary = r.$2;
         });
+      }
     } catch (e) {
       if (current(op, gen)) setState(() => _error = safe(e));
     } finally {
@@ -349,7 +351,7 @@ class _State extends ConsumerState<AdminSettingsIncidentsPage>
 
   @override
   Widget build(BuildContext context) {
-    if (isLocalDemo || !authSession.authenticated)
+    if (isLocalDemo || !authSession.authenticated) {
       return Scaffold(
         body: Center(
           child: Text(
@@ -360,6 +362,7 @@ class _State extends ConsumerState<AdminSettingsIncidentsPage>
           ),
         ),
       );
+    }
     return Scaffold(
       appBar: AppBar(
         title: Text(

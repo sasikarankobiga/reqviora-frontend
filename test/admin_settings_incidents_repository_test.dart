@@ -132,7 +132,7 @@ void main() {
   test('incident directory uses backend filters and parses summary', () async {
     final api = ApiClient(
       MockClient((r) async {
-        if (r.url.path.endsWith('/summary'))
+        if (r.url.path.endsWith('/summary')) {
           return http.Response(
             jsonEncode({
               'open': 1,
@@ -145,6 +145,7 @@ void main() {
             }),
             200,
           );
+        }
         expect(r.url.queryParameters['priority'], 'High');
         return http.Response(
           jsonEncode({

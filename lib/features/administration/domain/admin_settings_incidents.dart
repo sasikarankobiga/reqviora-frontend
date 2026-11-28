@@ -7,38 +7,43 @@ final _uuid = RegExp(
 
 int _int(Map<Object?, Object?> j, String k, {int min = 0}) {
   final v = j[k];
-  if (v is! int || v < min)
+  if (v is! int || v < min) {
     throw const ApiException(502, 'Invalid administration response.');
+  }
   return v;
 }
 
 String _string(Map<Object?, Object?> j, String k, {int max = 1000}) {
   final v = j[k];
-  if (v is! String || v.isEmpty || v.length > max)
+  if (v is! String || v.isEmpty || v.length > max) {
     throw const ApiException(502, 'Invalid administration response.');
+  }
   return v;
 }
 
 String? _optionalString(Map<Object?, Object?> j, String k, {int max = 1000}) {
   final v = j[k];
   if (v == null) return null;
-  if (v is! String || v.length > max)
+  if (v is! String || v.length > max) {
     throw const ApiException(502, 'Invalid administration response.');
+  }
   return v;
 }
 
 DateTime _date(Map<Object?, Object?> j, String k) {
   final parsed = DateTime.tryParse(_string(j, k));
-  if (parsed == null)
+  if (parsed == null) {
     throw const ApiException(502, 'Invalid administration timestamp.');
+  }
   return parsed.toUtc();
 }
 
 DateTime? _optionalDate(Map<Object?, Object?> j, String k) {
   final v = j[k];
   if (v == null) return null;
-  if (v is! String || DateTime.tryParse(v) == null)
+  if (v is! String || DateTime.tryParse(v) == null) {
     throw const ApiException(502, 'Invalid administration timestamp.');
+  }
   return DateTime.parse(v).toUtc();
 }
 
@@ -56,8 +61,9 @@ class PlatformSetting {
   final int minimum;
   final int maximum;
   factory PlatformSetting.fromJson(Object? raw) {
-    if (raw is! Map<Object?, Object?>)
+    if (raw is! Map<Object?, Object?>) {
       throw const ApiException(502, 'Invalid platform setting.');
+    }
     final result = PlatformSetting(
       key: _string(raw, 'key'),
       value: _int(raw, 'value'),
@@ -68,8 +74,9 @@ class PlatformSetting {
     if (result.key != documentUploadSettingKey ||
         result.value < result.minimum ||
         result.value > result.maximum ||
-        result.minimum > result.maximum)
+        result.minimum > result.maximum) {
       throw const ApiException(502, 'Unsupported platform setting.');
+    }
     return result;
   }
 }
@@ -92,11 +99,13 @@ class SettingHistoryEntry {
   final String reason;
   final int? rolledBackTo;
   factory SettingHistoryEntry.fromJson(Object? raw) {
-    if (raw is! Map<Object?, Object?> || raw['rolledBackTo'] is! int?)
+    if (raw is! Map<Object?, Object?> || raw['rolledBackTo'] is! int?) {
       throw const ApiException(502, 'Invalid setting history.');
+    }
     final actor = _string(raw, 'changedBy');
-    if (!_uuid.hasMatch(actor))
+    if (!_uuid.hasMatch(actor)) {
       throw const ApiException(502, 'Invalid setting history actor.');
+    }
     return SettingHistoryEntry(
       revision: _int(raw, 'revision', min: 1),
       previousValue: _int(raw, 'previousValue'),
@@ -152,8 +161,9 @@ class IncidentDetails {
   final DateTime createdAt, updatedAt;
   final DateTime? resolvedAt, closedAt;
   factory IncidentDetails.fromJson(Object? raw) {
-    if (raw is! Map<Object?, Object?>)
+    if (raw is! Map<Object?, Object?>) {
       throw const ApiException(502, 'Invalid incident.');
+    }
     final ids = [
       _string(raw, 'id'),
       _string(raw, 'reporterId'),
@@ -161,8 +171,9 @@ class IncidentDetails {
     ];
     final assigned = _optionalString(raw, 'assignedAdminId');
     if (ids.any((id) => !_uuid.hasMatch(id)) ||
-        assigned != null && !_uuid.hasMatch(assigned))
+        assigned != null && !_uuid.hasMatch(assigned)) {
       throw const ApiException(502, 'Invalid incident identity.');
+    }
     return IncidentDetails(
       id: ids[0],
       reference: _string(raw, 'reference', max: 30),
@@ -192,12 +203,14 @@ class IncidentPage {
   final List<IncidentDetails> items;
   final int page, pageSize, total;
   factory IncidentPage.fromJson(Object? raw) {
-    if (raw is! Map<Object?, Object?> || raw['items'] is! List)
+    if (raw is! Map<Object?, Object?> || raw['items'] is! List) {
       throw const ApiException(502, 'Invalid incident page.');
+    }
     final items = (raw['items'] as List).map(IncidentDetails.fromJson).toList();
     final size = _int(raw, 'pageSize', min: 1), total = _int(raw, 'total');
-    if (size > 100 || items.length > size || items.length > total)
+    if (size > 100 || items.length > size || items.length > total) {
       throw const ApiException(502, 'Invalid incident pagination.');
+    }
     return IncidentPage(
       items: List.unmodifiable(items),
       page: _int(raw, 'page', min: 1),
@@ -220,11 +233,13 @@ class IncidentHistoryEntry {
   final String? previousValue, newValue, notes;
   final DateTime changedAt;
   factory IncidentHistoryEntry.fromJson(Object? raw) {
-    if (raw is! Map<Object?, Object?>)
+    if (raw is! Map<Object?, Object?>) {
       throw const ApiException(502, 'Invalid incident history.');
+    }
     final actor = _string(raw, 'changedBy');
-    if (!_uuid.hasMatch(actor))
+    if (!_uuid.hasMatch(actor)) {
       throw const ApiException(502, 'Invalid incident history.');
+    }
     return IncidentHistoryEntry(
       action: _string(raw, 'action'),
       previousValue: _optionalString(raw, 'previousValue'),
@@ -248,8 +263,9 @@ class IncidentSummary {
   });
   final int open, inProgress, resolved, closed, critical, unassigned, total;
   factory IncidentSummary.fromJson(Object? raw) {
-    if (raw is! Map<Object?, Object?>)
+    if (raw is! Map<Object?, Object?>) {
       throw const ApiException(502, 'Invalid incident summary.');
+    }
     return IncidentSummary(
       open: _int(raw, 'open'),
       inProgress: _int(raw, 'inProgress'),
