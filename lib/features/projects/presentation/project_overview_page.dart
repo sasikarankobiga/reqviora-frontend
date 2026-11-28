@@ -34,11 +34,60 @@ class ProjectOverviewPage extends ConsumerWidget {
   );
 }
 
-class _Contents extends StatelessWidget {
+class _Contents extends ConsumerWidget {
   const _Contents({required this.draft});
   final ProjectDraft draft;
+
+  Future<void> _edit(BuildContext context, WidgetRef ref) async {
+    final values = await showDialog<_ProjectEdit>(
+      context: context,
+      builder: (_) => _EditProjectDialog(draft: draft),
+    );
+    if (values == null || !context.mounted) return;
+
+    try {
+      await ref
+          .read(projectsRepositoryProvider)
+          .update(
+            projectId: draft.projectId,
+            name: values.name,
+            description: values.description,
+            category: values.category,
+          );
+      ref.invalidate(projectsProvider);
+      ref.invalidate(projectDraftProvider(draft.projectId));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              uiText(
+                context,
+                'Project metadata updated by the backend.',
+                'திட்ட விவரங்கள் பின்தளத்தால் புதுப்பிக்கப்பட்டன.',
+              ),
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              uiText(
+                context,
+                'Project update failed. Refresh and retry.',
+                'திட்டப் புதுப்பிப்பு தோல்வியடைந்தது. புதுப்பித்து மீண்டும் முயலவும்.',
+              ),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context, WidgetRef ref) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       PageIntro(
@@ -48,6 +97,12 @@ class _Contents extends StatelessWidget {
             draft.description.isEmpty
                 ? 'Your project is ready for the guided design process.'
                 : draft.description,
+        action: OutlinedButton.icon(
+          key: const ValueKey('edit-project'),
+          onPressed: () => _edit(context, ref),
+          icon: const Icon(Icons.edit_outlined),
+          label: Text(uiText(context, 'Edit project', 'திட்டத்தைத் திருத்து')),
+        ),
       ),
       const SizedBox(height: 18),
       Wrap(
@@ -169,7 +224,7 @@ class _Contents extends StatelessWidget {
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Project drafts, text input, document upload and local requirement review are implemented. Builder Steps 01-06 support draft editing, and Step 07 supports local simulated preview. Official AI, approval and export require Backend integration.',
+                'Project drafts, input intelligence, the eight-step Builder, validation, approval and official export use authenticated backend contracts. Provider-backed operations still require configured services.',
                 style: TextStyle(
                   fontSize: 12,
                   color: AppColors.ink,
@@ -179,6 +234,100 @@ class _Contents extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    ],
+  );
+}
+
+typedef _ProjectEdit = ({String name, String description, String category});
+
+class _EditProjectDialog extends StatefulWidget {
+  const _EditProjectDialog({required this.draft});
+
+  final ProjectDraft draft;
+
+  @override
+  State<_EditProjectDialog> createState() => _EditProjectDialogState();
+}
+
+class _EditProjectDialogState extends State<_EditProjectDialog> {
+  final form = GlobalKey<FormState>();
+  late final name = TextEditingController(text: widget.draft.name);
+  late final description = TextEditingController(
+    text: widget.draft.description,
+  );
+  late final category = TextEditingController(text: widget.draft.category);
+
+  @override
+  void dispose() {
+    name.dispose();
+    description.dispose();
+    category.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(uiText(context, 'Edit project', 'திட்டத்தைத் திருத்து')),
+    content: SingleChildScrollView(
+      child: Form(
+        key: form,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              key: const ValueKey('edit-project-name'),
+              controller: name,
+              maxLength: 200,
+              decoration: InputDecoration(
+                labelText: uiText(context, 'Project name', 'திட்டப் பெயர்'),
+              ),
+              validator:
+                  (value) =>
+                      (value?.trim().length ?? 0) < 2
+                          ? uiText(
+                            context,
+                            'Enter at least 2 characters.',
+                            'குறைந்தது 2 எழுத்துகளை உள்ளிடவும்.',
+                          )
+                          : null,
+            ),
+            TextFormField(
+              controller: description,
+              maxLength: 4000,
+              minLines: 2,
+              maxLines: 5,
+              decoration: InputDecoration(
+                labelText: uiText(context, 'Description', 'விளக்கம்'),
+              ),
+            ),
+            TextFormField(
+              controller: category,
+              maxLength: 120,
+              decoration: InputDecoration(
+                labelText: uiText(context, 'Category', 'வகை'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: Text(uiText(context, 'Cancel', 'ரத்து')),
+      ),
+      FilledButton(
+        key: const ValueKey('save-project-edit'),
+        onPressed: () {
+          if (!(form.currentState?.validate() ?? false)) return;
+          Navigator.pop<_ProjectEdit>(context, (
+            name: name.text,
+            description: description.text,
+            category: category.text,
+          ));
+        },
+        child: Text(uiText(context, 'Save', 'சேமி')),
       ),
     ],
   );

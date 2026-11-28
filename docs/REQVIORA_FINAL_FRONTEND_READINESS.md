@@ -1,59 +1,59 @@
 # REQVIORA Final Frontend Readiness
 
-Date: 2026-11-28 (Asia/Colombo)
+Updated: 2026-11-28 (Asia/Colombo)
 
-## Scope and evidence boundary
+## Scope and evidence baseline
 
-This assessment covers the Flutter frontend on `Varmitha` and the read-only backend contracts at `54daf30be57fcb76aaa76c4b3fed45f8c6d44cef`. Automated evidence is UNIT, WIDGET, MOCK_CONTRACT, STATIC, or BUILD evidence. It is not presented as LIVE_API or BROWSER_E2E evidence.
+- Frontend branch: `Varmitha`
+- Requested starting commit: `85aa5f71d748574cddbbea4d6b9ab045b33d6a8e`
+- Latest verified integrated implementation commit: `de522d43fe0e31c32a177c93757a6f7473b5ea51`
+- Exact-commit CI: PASS — run `46126829384`
+- Backend contract inspected read-only at: `54daf30be57fcb76aaa76c4b3fed45f8c6d44cef`
+- CI-supported SDK: Flutter 3.47.6
+- Production mode: `REQVIORA_LOCAL_DEMO=false`
 
-The frontend uses real `/api/...` contracts in production paths. Test fixtures remain under `test/`; no runtime failure is replaced with mock success. Tokens remain in memory, payment redirects are not trusted as payment proof, administrator billing requires server authorization/MFA, and unsupported operations are explicitly unavailable.
+This report separates source/automated verification from live provider verification. A feature is not marked live-verified merely because its repository and widget tests pass.
 
-## User feature inventory
+## Implementation readiness
 
-| Area | Implementation | Automated evidence | Live evidence |
-|---|---|---|---|
-| Authentication and account security | COMPLETE for current contracts | PASS | BLOCKED: backend/SMTP/test accounts unavailable |
-| Personalized dashboard and profile identity | COMPLETE | PASS: Unicode/Tamil identity, greeting boundaries, session isolation | BLOCKED |
-| Projects and workspace navigation | COMPLETE for current contracts | PASS | BLOCKED |
-| Text/document/voice input | COMPLETE for implemented contracts | PASS | BLOCKED: storage/OCR/microphone/transcription provider unavailable |
-| AI extraction and clarification | COMPLETE for current contracts | PASS | BLOCKED: provider authorization unavailable |
-| Project sharing (FU05) | COMPLETE for current contracts | PASS | BLOCKED: SMTP and second authorized account unavailable |
-| Builder Steps 01-08 | COMPLETE for current contracts | PASS | BLOCKED |
-| Draft persistence/concurrency | COMPLETE | PASS: cross-section rebase, same-section fail-closed conflict | BLOCKED |
-| Validation, approval, revisions and export | COMPLETE for current contracts | PASS | BLOCKED: live storage/export service unavailable |
-| Second Brain | COMPLETE for current contracts | PASS | BLOCKED |
-| MCP handoff (FU11) | COMPLETE for current fixed-scope contract | PASS | BLOCKED: MCP transport/client unavailable |
-| PayHere billing (FU12) | COMPLETE for current contracts | PASS | BLOCKED: authorized sandbox/callback unavailable |
-
-## Administrator inventory
-
-| Area | Implementation | Contract limitation |
+| Area | Status | Evidence and remaining qualification |
 |---|---|---|
-| Authentication, MFA and recovery | COMPLETE | Live identity/MFA unavailable |
-| Dashboard, users, roles, projects, audit | COMPLETE for current metadata contracts | Live authorization unavailable |
-| FA06 MCP grants | COMPLETE | Backend supports search/state/project filters and emergency revoke only |
-| FA07 export diagnostics | COMPLETE | Backend supports status/project/date filters; no broader sorting contract |
-| FA08 validation monitoring | COMPLETE for aggregate APIs | No project directory/details or rule/severity analytics |
-| FA10 AI queue monitoring | COMPLETE for read APIs | No administrator retry/cancel endpoints |
-| FA11 settings | COMPLETE for allowlisted setting contract | Not a general environment editor |
-| FA12 incidents | COMPLETE | No support ticket/conversation/internal-note or priority-update API |
-| FA13 profile/sessions | COMPLETE for supported fields/actions | Profile/session DTOs omit several requested descriptive fields |
-| FA14 billing | COMPLETE for sandbox monitoring/review APIs | No admin entitlement API or real refund execution contract |
+| Authentication and account security | PARTIAL | Registration, verification, recovery, suspicious-login OTP, MFA, sessions, rotation and logout are implemented. Browser-process restoration remains blocked by the missing secure server-managed refresh cookie contract. |
+| Personalized dashboard | PASS | Authenticated profile, Unicode initials, greeting boundaries, avatar fallback and connection state are implemented and covered by focused tests. |
+| Project management | PASS | Real list/create/edit flows, backend category mapping, client-side name/category filtering and responsive project cards are implemented. Unsupported delete/archive actions are not fabricated. |
+| Documents, voice and AI extraction | PASS (source) | Real API flows, loading/error states and provider boundaries exist. Live parsing, transcription and AI execution require authorized provider-backed test infrastructure. |
+| Builder, drafts, validation, approval and export | PASS (source) | Steps 01–08, draft rebase/conflict protection, validation, approval immutability and official export paths are implemented and tested. |
+| Sharing and MCP handoff | PASS (source) | Supported invitation/member/grant lifecycles are implemented. Member identity display and live MCP transport have backend/environment dependencies. |
+| PayHere billing | PASS (source) | Signed server-driven checkout, status/history and entitlement flows are implemented. No fake success or provider refund execution is claimed. |
+| Administrator modules | PASS (supported contracts) | Authentication/MFA, users, audit, MCP, exports, validation health, AI monitoring, settings, incidents, profile/sessions and billing match the endpoints available at the backend reference. Unsupported mutations are not shown as completed actions. |
+| Responsive UI | PASS (automated scope) | Project management regression covers 320, 375, 430, 768, 1024 and 1440 px; the repository's broader responsive suites cover major user/admin layouts. |
+| English/Tamil localization | PASS (automated scope) | Locale selection and localization integration tests are retained. Provider/backend messages remain server-owned. |
+| Security safeguards | PASS (frontend scope) | Tokens remain memory-only; route, role, session/account isolation, draft concurrency and HTTP error handling tests are retained. No browser storage workaround was introduced. |
 
-## Critical UX and quality
+## Secure session restoration decision
 
-- Actual profile display name is shared across dashboard, account, sidebar/account surfaces, and relevant admin presentation.
-- Unicode-aware initials are used when the backend supplies no valid avatar URL.
-- Greetings use local time and reschedule at 05:00, 12:00, 17:00, and 21:00, including application resume.
-- Backend availability is represented separately from authentication state.
-- Browser tokens are not persisted in script-readable storage. A full page refresh therefore requires sign-in until the backend supplies an HttpOnly-cookie restoration contract.
-- Post-login restoration preserves validated project IDs, Builder steps, tabs, and query parameters. It rejects external, unknown, public-auth, invitation, fragment, and malformed destinations.
-- Responsive/accessibility/localization suites cover mobile, tablet, desktop, keyboard interaction, contrast, and English/Tamil flows.
+The backend reference exposes `POST /api/auth/refresh` and `POST /api/auth/logout` with `RefreshTokenRequestDto`; `AuthResponseDto` returns the refresh token to the client. No `HttpOnly`/`Secure`/`SameSite` cookie issuance, anti-CSRF flow or cookie-based refresh bootstrap was found. CORS config uses explicit origins but does not establish the complete credentialed cookie contract.
 
-## Architecture and known debt
+The frontend therefore correctly keeps credentials in memory and restores only the exact safe route while the authenticated process remains alive. A browser reload cannot securely re-create the session. `localStorage` and `sessionStorage` are intentionally not used for tokens.
 
-Feature domain/data/application/presentation boundaries, Riverpod session scoping, GoRouter guards, typed DTOs, and the shared `ApiClient` are preserved. Pre-existing hand-authored files exceed the documented 300-line target. The largest is `lib/features/workspace/presentation/authoring_page.dart` at roughly 3,841 lines. Other notable files include prebuilder panels, authentication screens, simulated preview, and several admin pages. These should be decomposed after submission with behavior-preserving tests; a deadline-time repository-wide rewrite is not justified.
+## Automated verification
 
-## Release assessment
+| Gate | Result |
+|---|---|
+| Flutter / Dart | 3.47.6 / 3.13.5, matching CI |
+| Analyzer | PASS — 0 errors, 0 warnings, 0 infos |
+| Full Flutter suite | PASS — 858 passed, 0 failed, 0 skipped |
+| Baseline change | 853 → 858: five project-management completion/responsive tests added; none removed |
+| Focused final gate | PASS — 101 auth/session/draft/admin/responsive/localization/security tests |
+| G1 contract pack | PASS — schemas, fixtures, negative cases, stable references and OpenAPI inventory |
+| Production web build | PASS — HTTPS API define and `REQVIORA_LOCAL_DEMO=false` |
+| Secret scan | PASS — no credential/private-key patterns in reviewed staged changes |
+| Dependency review | PASS WITH FOLLOW-UP — five direct constraints have newer resolvable versions; upgrades were deferred to avoid deadline-adjacent unrelated churn |
 
-Local source and automated release readiness are PASS: analyzer 0/0/0, 853/853 tests, G1 validation and the non-demo release build pass on the CI-pinned SDK. Production readiness remains BLOCKED until authorized isolated LIVE_API/BROWSER_E2E verification covers SMTP, database persistence, storage/OCR, AI, MCP, PayHere callback verification, and administrator MFA workflows.
+Live scenarios are recorded individually in `REQVIORA_FRONTEND_E2E_TEST_MATRIX.md` and are not inferred from these automated results.
+
+## Readiness conclusion
+
+- Submission readiness: **READY WITH DOCUMENTED EXTERNAL BLOCKERS**. The integrated implementation commit passed exact-commit GitHub CI.
+- Production readiness: **PARTIAL**. Secure browser-session restoration and provider-backed SMTP, AI, transcription, MCP and PayHere verification require backend/environment work and authorized credentials.
+- Pending independently achievable frontend implementation: **none identified after the final contract audit**.

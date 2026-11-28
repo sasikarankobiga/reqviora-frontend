@@ -8,7 +8,7 @@ The latest verified Batch 07 baseline (`0c816bb0c6cc3ccdda6f97b43218ff151868b563
 
 One additional route-restoration security defect was found during final audit: arbitrary local and public-auth destinations were accepted after login. Restoration is now restricted to known authenticated route families and rejects external URLs, unknown paths, auth/invitation paths, fragments, and backslash variants.
 
-CI-equivalent local verification on Flutter 3.47.6 / Dart 3.13.5 passes: analyzer 0/0/0, 853/853 tests, G1 fixture validation, and a non-demo release web build. Live production readiness is not established because no isolated backend, database, SMTP, provider, MCP, PayHere sandbox, or authorized test accounts were available.
+CI-equivalent local verification on Flutter 3.47.6 / Dart 3.13.5 passes: analyzer 0/0/0, 858/858 tests, G1 fixture validation, and a non-demo release web build. Live production readiness is not established because the frontend listener, isolated data, provider credentials and authorized test accounts were unavailable.
 
 ## Repository and environment
 
@@ -23,7 +23,7 @@ CI-equivalent local verification on Flutter 3.47.6 / Dart 3.13.5 passes: analyze
 | Actual divergence | `origin/Varmitha` 20 ahead / 0 behind `origin/develop` at audit time |
 | Toolchain | Flutter 3.47.6 / Dart 3.13.5 |
 | Disk | 22.79 GB free on C: during initial inventory |
-| Live service check | Ports 3000 and 5264 not listening |
+| Live service check | Backend Swagger HTTP 200; protected User/Admin endpoints HTTP 401 without credentials; frontend port 3000 unavailable |
 
 Multiple checkouts were inventoried. Older dirty worktrees were preserved. Work continued in the clean checkout already matching the authorized remote baseline.
 
@@ -35,12 +35,12 @@ Multiple checkouts were inventoried. Older dirty worktrees were preserved. Work 
 | `flutter gen-l10n` | PASS |
 | Changed-file formatting | PASS |
 | `flutter analyze --no-pub` | PASS: 0 errors, 0 warnings, 0 infos |
-| Focused Batch 08/session/draft/admin gate | PASS: 65 tests |
-| Responsive/localization/accessibility/security gate | PASS: 89 tests |
-| Full Flutter suite | PASS: 853 passed, 0 failed, 0 skipped |
-| Test-count change | +7 over the 846 Batch 07 baseline: identity, greeting, route restoration and draft concurrency coverage |
+| Focused final auth/session/draft/admin/responsive/localization/security gate | PASS: 101 tests |
+| Full Flutter suite | PASS: 858 passed, 0 failed, 0 skipped |
+| Test-count change | +5 over the 853 Batch 08 baseline: project contract, edit, filtering and responsive coverage; no tests removed |
 | G1 fixture validation | PASS: 4 schemas, 19 component types, 88 operations/75 paths, 39 RBAC actions, 137 screen rows, 4 negative cases |
 | Release web build | PASS with HTTPS invalid test API and `REQVIORA_LOCAL_DEMO=false` |
+| Exact-commit GitHub CI | PASS: implementation commit `de522d43fe0e31c32a177c93757a6f7473b5ea51`, run `46126829384` |
 | Conflict markers | PASS: none |
 | `git diff --check` | PASS |
 | Secret review | PASS after reviewing variable-name false positives; no literal credentials/keys found |
@@ -110,7 +110,7 @@ The existing feature boundaries and shared client/provider architecture remain i
 
 ## Live verification and readiness
 
-All twelve E2E workflows are BLOCKED because both declared services were offline and required isolated credentials/providers were absent. No shared database record, real payment/refund, billable AI call, MCP grant, administrator mutation, or unrelated session was touched.
+All sixteen final E2E workflows are BLOCKED because the frontend listener and required isolated credentials/data/providers were absent. The reachable backend correctly rejected unauthenticated protected User/Admin requests with HTTP 401. No shared database record, real payment/refund, billable AI call, MCP grant, administrator mutation, or unrelated session was touched.
 
 - Automated/local release gate: PASS.
 - Source implementation against current contracts: PASS with documented backend limitations.

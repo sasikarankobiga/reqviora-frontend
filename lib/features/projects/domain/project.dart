@@ -4,12 +4,14 @@ class ProjectSummary {
     required this.name,
     required this.status,
     required this.updatedAt,
+    this.category = '',
   });
 
   final String id;
   final String name;
   final String status;
   final DateTime updatedAt;
+  final String category;
 
   factory ProjectSummary.fromJson(Map<String, dynamic> data) {
     final rawId = data['id'] ?? data['projectId'];
@@ -25,9 +27,30 @@ class ProjectSummary {
       id: rawId.toString(),
       name: (data['name'] ?? '').toString(),
       status: (data['status'] ?? 'active').toString(),
+      category: (data['industry'] ?? data['category'] ?? '').toString(),
       updatedAt: DateTime.tryParse(rawDate?.toString() ?? '') ?? DateTime.now(),
     );
   }
+}
+
+List<ProjectSummary> filterProjectSummaries(
+  Iterable<ProjectSummary> projects, {
+  String query = '',
+  String? category,
+}) {
+  final needle = query.trim().toLowerCase();
+  final selectedCategory = category?.trim();
+  return projects
+      .where(
+        (project) =>
+            (needle.isEmpty ||
+                project.name.toLowerCase().contains(needle) ||
+                project.category.toLowerCase().contains(needle)) &&
+            (selectedCategory == null ||
+                selectedCategory.isEmpty ||
+                project.category == selectedCategory),
+      )
+      .toList(growable: false);
 }
 
 class ProjectDraft {

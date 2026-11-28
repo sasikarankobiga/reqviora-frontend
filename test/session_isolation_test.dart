@@ -30,6 +30,14 @@ class _CountingProjectsRepository implements ProjectsRepository {
   }) => throw UnimplementedError();
 
   @override
+  Future<ProjectSummary> update({
+    required String projectId,
+    required String name,
+    required String description,
+    required String category,
+  }) => throw UnimplementedError();
+
+  @override
   Future<ProjectDraft> draft(String projectId) => throw UnimplementedError();
 
   @override

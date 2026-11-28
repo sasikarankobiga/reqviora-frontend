@@ -2,36 +2,60 @@
 
 Updated: 2026-11-28 (Asia/Colombo)
 
-## Baseline and safety
+## Reconciled baseline
 
-- Authorized branch: `Varmitha`.
-- Updated Batch 07 baseline: `0c816bb0c6cc3ccdda6f97b43218ff151868b563`.
-- Batch 08 checkpoint: `85aa5f71d748574cddbbea4d6b9ab045b33d6a8e`.
-- Backend reference: `54daf30be57fcb76aaa76c4b3fed45f8c6d44cef` (`develop`, read-only).
-- CI toolchain: Flutter 3.47.6 / Dart 3.13.5.
-- Git identity: `Varmitha Yogananthan <yvarmitha@gmail.com>`.
-- GitHub account: `VarmithaYogananthan`.
-- Actual remote divergence at this checkpoint: `origin/Varmitha` is 20 commits ahead and 0 behind `origin/develop`; no develop merge is required or authorized.
-- Other dirty checkouts were inventoried and left intact. The clean Codex checkout is the active release workspace.
+- Branch: `Varmitha`
+- Requested frontend baseline: `85aa5f71d748574cddbbea4d6b9ab045b33d6a8e`
+- Reviewed project-management commit: `a994b9df0edbd4a8123542ad6438c2615d45ced7`
+- Responsive safeguard commit: `8ec2921`
+- Backend reference: `54daf30be57fcb76aaa76c4b3fed45f8c6d44cef` (read-only)
+- Git identity: `Varmitha Yogananthan <yvarmitha@gmail.com>`
+- GitHub credential account: `VarmithaYogananthan`
+- CI SDK: Flutter 3.47.6
 
-## Completed checkpoints
+## Completed phases
 
-1. Batches 01-07 remain preserved; Batch 07 CI succeeded with 846 tests.
-2. Batch 08 personalized identity, Unicode initials, local-time greetings, backend connection state, safe route restoration, and draft concurrency recovery were committed in `980f425`, `95b29ef`, and `85aa5f7`.
-3. The preserved Batch 08 patch passed 65 focused tests and analyzer 0/0/0 on Flutter 3.47.6.
-4. Responsive, localization, accessibility, privacy, and security suites passed 89/89.
-5. Route restoration was further restricted to known authenticated route families. External, public-auth, invitation, fragment, backslash, and unknown destinations now fail closed; focused tests and analyzer pass.
-6. Live service check: ports 3000 and 5264 are not listening. No authorized test credential/provider configuration is present, so live mutations remain blocked.
-7. Full CI-equivalent gate passed: analyzer 0/0/0, 853/853 tests, G1 PASS, conflict/diff checks PASS, and production-mode web build PASS.
+| Phase | Status | Evidence |
+|---|---|---|
+| Existing work reconciliation | COMPLETE | Uncommitted project repository/domain/UI/tests and documentation were inventoried and preserved. No reset/clean/discard was used. |
+| User/admin contract audit | COMPLETE | Existing modules were compared with the backend reference. Unsupported endpoints/actions were not fabricated. |
+| Project-management completion | COMPLETE | Backend-preserving edit, actual name/category filtering and removal of fabricated status presentation are in `a994b9d`. |
+| Responsive regression | COMPLETE | A reproduced 320 px filter/card overflow was constrained; project directory passes 320, 375, 430, 768, 1024 and 1440 px. |
+| Secure session review | COMPLETE / BLOCKED EXTERNALLY | Refresh/logout remain request-body token contracts; no compatible secure cookie bootstrap exists. Frontend token storage remains memory-only. |
+| Live integration | BLOCKED | Backend became reachable, but the frontend listener and authorized accounts/provider credentials were unavailable. No live success is claimed. |
+| Final documentation | COMPLETE | Readiness, E2E matrix, backend dependencies and run guide were consolidated without credentials. |
+| Final automated gate | COMPLETE | Flutter 3.47.6 analyzer, 858 tests, G1 and production web build pass locally and in exact-commit CI run `46126829384`. |
 
-## Publication checkpoint
+## Security conclusions
 
-- Batch 08 implementation commits: `980f425`, `95b29ef`, `85aa5f7`.
-- Final security/toolchain/readiness commits through `c0940f5` were pushed by normal fast-forward to `origin/Varmitha`.
-- Local and remote `Varmitha` resolved to `c0940f5d94f54947eb7fac93d88349d217d285a0` after that push.
-- Exact-commit GitHub Actions run `46117824351` completed successfully: analysis, tests, web build, and G1 checks passed.
-- Remaining work is limited to the blocked isolated live matrix and documented backend dependencies; no further independently reproducible frontend defect remains in the executable gates.
+- No `localStorage`/`sessionStorage` credential workaround was introduced.
+- No fake payment, refund, AI result, role/MFA bypass or unsupported backend operation was added.
+- Session/account and project/draft isolation protections remain tested.
+- Browser process-loss session recovery remains a P0 backend dependency.
 
-## Resume rule
+## Verification ledger
 
-Resume from this file and the actual Git status. Do not repeat Batches 01-07 or the already-passing Batch 08 focused and quality gates unless later reconciliation changes their files.
+| Check | Result |
+|---|---|
+| Focused project-management tests | PASS — 5 passed |
+| Responsive target widths | PASS — 320/375/430/768/1024/1440 |
+| `flutter pub get` | PASS — lock resolved for Flutter 3.47.6 |
+| `flutter gen-l10n` | PASS |
+| Changed-file format | PASS — no changes required |
+| `flutter analyze --no-pub` | PASS — 0 errors, 0 warnings, 0 infos |
+| Full `flutter test --no-pub` | PASS — 858 passed, 0 failed, 0 skipped |
+| Test-count change | EXPECTED — 853 baseline + five new project tests; no tests removed |
+| G1 contract validator | PASS — schema/fixture/negative/reference and OpenAPI checks |
+| Localization/security focused suites | PASS — included in the 101-test focused final gate |
+| Secret scan | PASS — no staged credential/private-key patterns |
+| Dependency review | PASS WITH FOLLOW-UP — five direct constraints have newer resolvable versions; upgrade deferred |
+| Production web release build | PASS — HTTPS API define, local demo disabled |
+| Exact-commit GitHub CI | PASS — commit `de522d43fe0e31c32a177c93757a6f7473b5ea51`, run `46126829384` |
+
+## Preserved recovery material
+
+The named stash `codex-final-completion-pre-reconcile-2026-11-28` is retained as a recovery copy. It must not be dropped as part of finalization.
+
+## Completion state
+
+Implementation commit `de522d43fe0e31c32a177c93757a6f7473b5ea51` is pushed to `origin/Varmitha` and its CI passed. This final documentation-only closure commit records that evidence; no frontend implementation remains pending. The named recovery stash remains intentionally preserved.

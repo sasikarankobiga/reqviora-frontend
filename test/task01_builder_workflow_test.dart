@@ -44,6 +44,14 @@ class WorkflowRepository implements ProjectsRepository {
   }
 
   @override
+  Future<ProjectSummary> update({
+    required String projectId,
+    required String name,
+    required String description,
+    required String category,
+  }) => throw UnimplementedError();
+
+  @override
   Future<ProjectDraft> draft(String projectId) async {
     return ProjectDraft(
       projectId: projectId,
